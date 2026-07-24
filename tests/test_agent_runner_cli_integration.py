@@ -150,7 +150,7 @@ def test_narrative_planner_resolves_fixed_agy_gemini_route(
     assert role == "narrative_planner"
     assert profile["cli_agent"] == "agy"
     assert profile["invocation_contract"] == "agy_narrative_planner"
-    assert profile["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert profile["default"] == "gemini_3_6_flash_high_agy_oauth"
     assert profile["capacity_route"] == "NarrativePlannerAgy"
 
 
@@ -2974,8 +2974,8 @@ class TestPromptEngineerMapping:
             "not 'execution_prompt_engineer'"
         )
         prom_role = full_tier["prompt_engineer"]
-        assert prom_role.get("cli_agent") == "hermes"
-        assert prom_role.get("invocation_contract") == "hermes"
+        assert prom_role.get("cli_agent") == "claude_code"
+        assert prom_role.get("invocation_contract") == "claude"
 
     def test_shared_role_key_normalizer_handles_compact_names(self):
         """Role aliases are owned by one shared normalizer, not agent_runner."""

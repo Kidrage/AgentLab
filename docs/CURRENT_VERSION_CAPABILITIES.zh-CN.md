@@ -33,6 +33,10 @@ AgentLab 是本地优先、可审计的生产运行时。它把用户请求编�
 当前命令以 `./agentlab.sh --help` 及二级 `--help` 为准。当前角色分配用
 `./agentlab.sh models show --role <Role>` 查询，不在手册中维护第二份表。
 
+额度探针、自动 fallback/reset canary 的真实边界，以及后端模型提案/跨档位更新
+接口见
+[`MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md`](MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md)。
+
 ## Mission、路线与角色
 
 - Mission 编译器归一化意图、领域、体量、风险、边界和证据要求。

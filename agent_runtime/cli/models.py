@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+import fcntl
 import hashlib
 import re
 
@@ -42,8 +44,12 @@ def _read_yaml(path: Path, default: Any = None) -> Any:
 
 
 def _write_yaml(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    try:
+        from agent_runtime.atomic_io import atomic_write_yaml
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from atomic_io import atomic_write_yaml
+
+    atomic_write_yaml(path, data, sort_keys=False, allow_unicode=True)
 
 
 def _role_key(role: str) -> str:
@@ -54,9 +60,80 @@ def _proposal_dir(root: Path) -> Path:
     return root / ".agentlab" / "model_proposals"
 
 
+def _serialized_model_config_write(
+    root: Path,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Serialize proposal application so hash checks and writes form one CAS."""
+
+    def decorator(function: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(function)
+        def locked(*args: Any, **kwargs: Any) -> Any:
+            lock_path = _proposal_dir(root) / ".apply.lock"
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            with lock_path.open("a+", encoding="utf-8") as handle:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                try:
+                    return function(*args, **kwargs)
+                finally:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+        return locked
+
+    return decorator
+
+
 def _proposal_id(role: str, cli: str, model: str) -> str:
     seed = f"{datetime.now(timezone.utc).isoformat()}:{role}:{cli}:{model}".encode()
     return "model_" + hashlib.sha1(seed).hexdigest()[:12]
+
+
+def _mapping_sha256(value: dict[str, Any] | None) -> str | None:
+    if value is None:
+        return None
+    payload = yaml.safe_dump(
+        value,
+        sort_keys=True,
+        allow_unicode=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _validate_catalog_model_entry(
+    root: Path,
+    model_key: str,
+    entry: Any,
+) -> str | None:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_]*", model_key):
+        return "model key must use lowercase letters, digits, and underscores"
+    if not isinstance(entry, dict):
+        return "model catalog entry must be a YAML mapping"
+    provider = str(entry.get("provider") or "").strip()
+    model_id = str(entry.get("model_id") or "").strip()
+    if not provider:
+        return "model catalog entry requires provider"
+    if not model_id:
+        return "model catalog entry requires model_id"
+    catalog = _read_yaml(root / "config" / "model_catalog.yml", {}) or {}
+    if provider not in (catalog.get("providers") or {}):
+        return f"unknown model provider: {provider}"
+    capacity_pool = str(entry.get("capacity_pool") or "").strip()
+    if capacity_pool:
+        capacity = _read_yaml(root / "config" / "model_capacity.yml", {}) or {}
+        if capacity_pool not in (capacity.get("pools") or {}):
+            return f"unknown capacity pool: {capacity_pool}"
+    reasoning_effort = str(entry.get("reasoning_effort") or "").strip()
+    if reasoning_effort and reasoning_effort not in {
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+    }:
+        return (
+            "reasoning_effort must be minimal, low, medium, high, or xhigh "
+            "when declared"
+        )
+    return None
 
 
 def _governed_proposal_binding(
@@ -226,6 +303,12 @@ def _capacity_rows(root: Path, ledger_path: Path | None = None) -> list[dict[str
                     "period_seconds"
                 ),
                 "probe": pool.get("probe"),
+                "probe_capability": pool.get("probe_capability")
+                or {
+                    "kind": "none",
+                    "reports_remaining": False,
+                    "reports_reset_at": False,
+                },
             }
         )
     return rows
@@ -691,6 +774,11 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         cli: str = typer.Option(..., "--cli", help="CLI/API worker id, e.g. agy."),
         model: str = typer.Option(..., "--model", help="Model catalog key, e.g. deepseek_v4_flash."),
         mode: str = typer.Option("balanced", "--mode", help="quality, balanced, or frugal."),
+        all_tiers: bool = typer.Option(
+            False,
+            "--all-tiers",
+            help="Apply the governed route proposal to full, performance, and low.",
+        ),
     ) -> None:
         """Create a model-routing proposal without changing config."""
         catalog = _read_yaml(project_root / "config" / "model_catalog.yml", {}) or {}
@@ -698,17 +786,26 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
             console.print(f"[red]Unknown model catalog key: {model}[/red]")
             raise typer.Exit(code=1)
         role_key = _role_key(role)
-        tier = _tier(mode)
-        binding, issue = _governed_proposal_binding(
-            project_root,
-            role_key=role_key,
-            cli_agent=cli,
-            model_key=model,
-            tier=tier,
-        )
-        if issue or binding is None:
-            console.print(f"[red]{issue or 'Invalid governed model route'}[/red]")
-            raise typer.Exit(code=1)
+        tiers = ["full", "performance", "low"] if all_tiers else [_tier(mode)]
+        bindings: dict[str, dict[str, str]] = {}
+        for tier in tiers:
+            binding, issue = _governed_proposal_binding(
+                project_root,
+                role_key=role_key,
+                cli_agent=cli,
+                model_key=model,
+                tier=tier,
+            )
+            if issue or binding is None:
+                console.print(
+                    f"[red]{tier}: {issue or 'Invalid governed model route'}[/red]"
+                )
+                raise typer.Exit(code=1)
+            bindings[tier] = binding
+        profiles = _read_yaml(
+            project_root / "config" / "agent_model_profiles.yml",
+            {},
+        ) or {}
         proposal_id = _proposal_id(role, cli, model)
         proposal = {
             "schema_version": 1,
@@ -717,12 +814,23 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
             "created_at": datetime.now(timezone.utc).isoformat(),
             "target_file": "config/agent_model_profiles.yml",
             "mode": mode,
-            "tier": tier,
+            "tier": tiers[0] if len(tiers) == 1 else None,
+            "tiers": tiers,
             "role": role_key,
             "cli_agent": cli,
             "model": model,
-            "invocation_contract": binding["invocation_contract"],
-            "capacity_route": binding["capacity_route"],
+            "bindings": bindings,
+            "invocation_contract": (
+                bindings[tiers[0]]["invocation_contract"]
+                if len(tiers) == 1
+                else None
+            ),
+            "capacity_route": (
+                bindings[tiers[0]]["capacity_route"]
+                if len(tiers) == 1
+                else None
+            ),
+            "profiles_sha256_before": _mapping_sha256(profiles),
             "requires_agentlab_apply": True,
             "frontdesk_may_apply": False,
         }
@@ -730,6 +838,7 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         console.print(yaml.safe_dump(proposal, sort_keys=False, allow_unicode=True).rstrip())
 
     @models_app.command("apply")
+    @_serialized_model_config_write(project_root)
     def apply_model_proposal(
         proposal: str = typer.Option(..., "--proposal", help="Proposal id from models propose."),
     ) -> None:
@@ -739,54 +848,245 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         if not data or data.get("proposal_id") != proposal:
             console.print(f"[red]Unknown proposal id: {proposal}[/red]")
             raise typer.Exit(code=1)
-        if data.get("status") != "pending":
-            console.print(f"[red]Proposal is not pending: {proposal}[/red]")
+        proposal_status = str(data.get("status") or "")
+        if proposal_status not in {"pending", "applying"}:
+            console.print(f"[red]Proposal is not pending/applying: {proposal}[/red]")
             raise typer.Exit(code=1)
         profiles_path = project_root / "config" / "agent_model_profiles.yml"
         profiles = _read_yaml(profiles_path, {}) or {}
+        current_profiles_sha256 = _mapping_sha256(profiles)
         mode_name = str(profiles.get("default_mode") or "full_cli")
         role = str(data["role"])
-        tier = str(data["tier"])
-        binding, issue = _governed_proposal_binding(
-            project_root,
-            role_key=role,
-            cli_agent=str(data.get("cli_agent") or ""),
-            model_key=str(data.get("model") or ""),
-            tier=tier,
+        raw_tiers = data.get("tiers")
+        tiers = (
+            [str(item) for item in raw_tiers]
+            if isinstance(raw_tiers, list) and raw_tiers
+            else [str(data["tier"])]
         )
-        if (
-            issue
-            or binding is None
-            or data.get("invocation_contract") != binding["invocation_contract"]
-            or data.get("capacity_route") != binding["capacity_route"]
-        ):
+        stored_bindings = data.get("bindings")
+        validated_bindings: dict[str, dict[str, str]] = {}
+        for tier in tiers:
+            binding, issue = _governed_proposal_binding(
+                project_root,
+                role_key=role,
+                cli_agent=str(data.get("cli_agent") or ""),
+                model_key=str(data.get("model") or ""),
+                tier=tier,
+            )
+            expected = (
+                (stored_bindings or {}).get(tier)
+                if isinstance(stored_bindings, dict)
+                else {
+                    "invocation_contract": data.get("invocation_contract"),
+                    "capacity_route": data.get("capacity_route"),
+                }
+            )
+            if issue or binding is None or expected != binding:
+                console.print(
+                    f"[red]Proposal no longer matches governed routing for {tier}: "
+                    f"{issue or 'contract/capacity route mismatch'}[/red]"
+                )
+                raise typer.Exit(code=1)
+            validated_bindings[tier] = binding
+        expected_before = data.get("profiles_sha256_before")
+        expected_after = data.get("profiles_sha256_after")
+        if proposal_status == "applying" and current_profiles_sha256 == expected_after:
+            data["status"] = "applied"
+            data["applied_at"] = datetime.now(timezone.utc).isoformat()
+            _write_yaml(path, data)
             console.print(
-                f"[red]Proposal no longer matches governed routing: "
-                f"{issue or 'contract/capacity route mismatch'}[/red]"
+                yaml.safe_dump(
+                    {
+                        "status": "applied",
+                        "proposal_id": proposal,
+                        "role": role,
+                        "tiers": tiers,
+                        "recovered_from": "applying",
+                    },
+                    sort_keys=False,
+                ).rstrip()
+            )
+            return
+        if expected_before and current_profiles_sha256 != expected_before:
+            console.print(
+                "[red]Model profiles changed after proposal creation; "
+                "create a new proposal[/red]"
             )
             raise typer.Exit(code=1)
         modes = profiles.setdefault("modes", {})
-        tier_cfg = modes.setdefault(mode_name, {}).setdefault("tiers", {}).setdefault(tier, {})
-        old_cfg = tier_cfg.get(role)
-        if isinstance(old_cfg, dict):
-            new_cfg = dict(old_cfg)
-        else:
-            new_cfg = {"executor_type": "cli_agent"}
-        new_cfg.update({
-            "executor_type": "cli_agent",
-            "cli_agent": data["cli_agent"],
-            "default": data["model"],
-            "invocation_contract": binding["invocation_contract"],
-            "capacity_route": binding["capacity_route"],
-        })
-        tier_cfg[role] = new_cfg
+        tier_map = modes.setdefault(mode_name, {}).setdefault("tiers", {})
+        old_configs: dict[str, Any] = {}
+        new_configs: dict[str, Any] = {}
+        for tier in tiers:
+            tier_cfg = tier_map.setdefault(tier, {})
+            old_cfg = tier_cfg.get(role)
+            old_configs[tier] = old_cfg
+            if isinstance(old_cfg, dict):
+                new_cfg = dict(old_cfg)
+            else:
+                new_cfg = {"executor_type": "cli_agent"}
+            binding = validated_bindings[tier]
+            new_cfg.update({
+                "executor_type": "cli_agent",
+                "cli_agent": data["cli_agent"],
+                "default": data["model"],
+                "invocation_contract": binding["invocation_contract"],
+                "capacity_route": binding["capacity_route"],
+            })
+            tier_cfg[role] = new_cfg
+            new_configs[tier] = new_cfg
+        data["status"] = "applying"
+        data["old_configs"] = old_configs
+        data["new_configs"] = new_configs
+        data["profiles_sha256_before"] = current_profiles_sha256
+        data["profiles_sha256_after"] = _mapping_sha256(profiles)
+        _write_yaml(path, data)
         _write_yaml(profiles_path, profiles)
         data["status"] = "applied"
         data["applied_at"] = datetime.now(timezone.utc).isoformat()
-        data["old_config"] = old_cfg
-        data["new_config"] = new_cfg
         _write_yaml(path, data)
-        console.print(yaml.safe_dump({"status": "applied", "proposal_id": proposal, "role": role}, sort_keys=False).rstrip())
+        console.print(
+            yaml.safe_dump(
+                {
+                    "status": "applied",
+                    "proposal_id": proposal,
+                    "role": role,
+                    "tiers": tiers,
+                },
+                sort_keys=False,
+            ).rstrip()
+        )
+
+    @models_app.command("catalog-propose")
+    def propose_catalog_model(
+        model_key: str = typer.Option(
+            ...,
+            "--model-key",
+            help="Stable model catalog key using lowercase letters, digits, and underscores.",
+        ),
+        entry_file: Path = typer.Option(
+            ...,
+            "--entry-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="YAML mapping containing the complete governed model entry.",
+        ),
+    ) -> None:
+        """Propose a new or updated backend model without mutating the catalog."""
+        try:
+            entry = yaml.safe_load(entry_file.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            console.print(f"[red]Cannot read model entry: {exc}[/red]")
+            raise typer.Exit(code=1) from exc
+        issue = _validate_catalog_model_entry(project_root, model_key, entry)
+        if issue:
+            console.print(f"[red]{issue}[/red]")
+            raise typer.Exit(code=1)
+        catalog = _read_yaml(
+            project_root / "config" / "model_catalog.yml",
+            {},
+        ) or {}
+        old_entry = (catalog.get("models") or {}).get(model_key)
+        proposal_id = _proposal_id("catalog", model_key, str(entry["model_id"]))
+        proposal = {
+            "schema_version": 1,
+            "proposal_id": proposal_id,
+            "proposal_kind": "catalog_model",
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "target_file": "config/model_catalog.yml",
+            "model_key": model_key,
+            "entry": entry,
+            "entry_sha256": _mapping_sha256(entry),
+            "old_entry_sha256": _mapping_sha256(old_entry),
+            "requires_agentlab_apply": True,
+            "frontdesk_may_apply": False,
+        }
+        _write_yaml(_proposal_dir(project_root) / f"{proposal_id}.yml", proposal)
+        console.print(
+            yaml.safe_dump(proposal, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @models_app.command("catalog-apply")
+    @_serialized_model_config_write(project_root)
+    def apply_catalog_model(
+        proposal: str = typer.Option(
+            ...,
+            "--proposal",
+            help="Proposal id from models catalog-propose.",
+        ),
+    ) -> None:
+        """Apply one audited catalog model proposal after drift validation."""
+        path = _proposal_dir(project_root) / f"{proposal}.yml"
+        data = _read_yaml(path, {}) or {}
+        if (
+            data.get("proposal_id") != proposal
+            or data.get("proposal_kind") != "catalog_model"
+        ):
+            console.print(f"[red]Unknown catalog proposal id: {proposal}[/red]")
+            raise typer.Exit(code=1)
+        proposal_status = str(data.get("status") or "")
+        if proposal_status not in {"pending", "applying"}:
+            console.print(f"[red]Proposal is not pending/applying: {proposal}[/red]")
+            raise typer.Exit(code=1)
+        model_key = str(data.get("model_key") or "")
+        entry = data.get("entry")
+        issue = _validate_catalog_model_entry(project_root, model_key, entry)
+        if issue or _mapping_sha256(entry) != data.get("entry_sha256"):
+            console.print(
+                f"[red]Catalog proposal validation failed: "
+                f"{issue or 'entry hash mismatch'}[/red]"
+            )
+            raise typer.Exit(code=1)
+        catalog_path = project_root / "config" / "model_catalog.yml"
+        catalog = _read_yaml(catalog_path, {}) or {}
+        models = catalog.setdefault("models", {})
+        current_entry = models.get(model_key)
+        current_entry_sha256 = _mapping_sha256(current_entry)
+        if (
+            proposal_status == "applying"
+            and current_entry_sha256 == data.get("entry_sha256")
+        ):
+            data["status"] = "applied"
+            data["applied_at"] = datetime.now(timezone.utc).isoformat()
+            _write_yaml(path, data)
+            console.print(
+                yaml.safe_dump(
+                    {
+                        "status": "applied",
+                        "proposal_id": proposal,
+                        "model_key": model_key,
+                        "entry_sha256": data["entry_sha256"],
+                        "recovered_from": "applying",
+                    },
+                    sort_keys=False,
+                ).rstrip()
+            )
+            return
+        if current_entry_sha256 != data.get("old_entry_sha256"):
+            console.print(
+                "[red]Catalog changed after proposal creation; create a new proposal[/red]"
+            )
+            raise typer.Exit(code=1)
+        models[model_key] = entry
+        data["status"] = "applying"
+        _write_yaml(path, data)
+        _write_yaml(catalog_path, catalog)
+        data["status"] = "applied"
+        data["applied_at"] = datetime.now(timezone.utc).isoformat()
+        _write_yaml(path, data)
+        console.print(
+            yaml.safe_dump(
+                {
+                    "status": "applied",
+                    "proposal_id": proposal,
+                    "model_key": model_key,
+                    "entry_sha256": data["entry_sha256"],
+                },
+                sort_keys=False,
+            ).rstrip()
+        )
 
     @models_app.command("capacity")
     def show_capacity(
@@ -798,7 +1098,10 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         probe: str | None = typer.Option(
             None,
             "--probe",
-            help="Explicitly run one policy-allowlisted non-consuming auth/model probe.",
+            help=(
+                "Run one pool probe or 'all'. Probes only report declared "
+                "catalog/auth facts; quota values remain evidence-or-null."
+            ),
         ),
     ) -> None:
         """Show honest capacity state; unknown remaining/reset values stay null."""
@@ -808,7 +1111,8 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
             or "model_capacity_ledger.yml"
         )
         ledger_path = (run_dir / ledger_name) if run_dir else None
-        probe_result = None
+        probe_results: list[dict[str, Any]] = []
+        probe_scope = None
         if probe:
             if run_dir is None:
                 raise typer.BadParameter("--probe requires --run-dir for its audit ledger")
@@ -822,26 +1126,59 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
             capacity = ModelCapacity(policy, ledger_path)
 
             def runner(command: tuple[str, ...]):
-                return subprocess.run(
-                    list(command),
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=30,
-                )
+                try:
+                    return subprocess.run(
+                        list(command),
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=30,
+                    )
+                except FileNotFoundError:
+                    return {
+                        "returncode": 127,
+                        "stdout": "",
+                        "stderr": f"probe executable not found: {command[0]}",
+                    }
+                except subprocess.TimeoutExpired:
+                    return {
+                        "returncode": 124,
+                        "stdout": "",
+                        "stderr": f"safe probe timed out: {' '.join(command)}",
+                    }
 
-            probe_result = capacity.probe(
-                probe,
-                runner=runner,
-                attempt_id=f"models-capacity:{datetime.now(timezone.utc).isoformat()}",
-            )
+            if probe == "all":
+                pool_ids = [
+                    str(pool_id)
+                    for pool_id, pool in sorted((policy.get("pools") or {}).items())
+                    if isinstance(pool, dict) and pool.get("probe") is not None
+                ]
+                probe_scope = "all_declared_safe_probes"
+            else:
+                pool_ids = [probe]
+                probe_scope = "single_pool"
+            observed_at = datetime.now(timezone.utc).isoformat()
+            for pool_id in pool_ids:
+                result = capacity.probe(
+                    pool_id,
+                    runner=runner,
+                    attempt_id=f"models-capacity:{pool_id}:{observed_at}",
+                )
+                result["probe_capability"] = (
+                    ((policy.get("pools") or {}).get(pool_id) or {}).get(
+                        "probe_capability"
+                    )
+                )
+                probe_results.append(result)
 
         payload = {
             "status": "observed",
             "ledger_path": str(ledger_path) if ledger_path else None,
             "remaining_and_reset_policy": "provider_evidence_or_null",
             "pools": _capacity_rows(project_root, ledger_path),
-            "probe_result": probe_result,
+            "probe_scope": probe_scope,
+            "probe_result": probe_results[0] if len(probe_results) == 1 else None,
+            "probe_results": probe_results,
         }
         console.print(
             yaml.safe_dump(payload, sort_keys=False, allow_unicode=True).rstrip()

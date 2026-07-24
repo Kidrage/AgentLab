@@ -85,14 +85,21 @@ def _writer_route_ready(root: Path) -> dict[str, Any]:
     )
     model_key = str(writer.get("default") or "")
     model = ((catalog.get("models") or {}).get(model_key) or {})
+    capacity = _read_yaml(root / "config" / "model_capacity.yml")
+    capacity_route = (
+        (capacity.get("routes") or {}).get(str(writer.get("capacity_route") or ""))
+        or {}
+    )
     route_ready = (
         writer.get("executor_type") == "cli_agent"
         and writer.get("cli_agent") == "agy"
         and writer.get("invocation_contract") == "agy_writer"
         and writer.get("capacity_route") == "WriterAgy"
-        and model_key == "gemini_3_5_flash_high_agy_oauth"
+        and bool(model_key)
         and model.get("runtime_provider") == "agy-gemini-oauth"
-        and model.get("model_id") == "gemini-3.5-flash-high"
+        and str(model.get("model_id") or "").startswith("gemini-")
+        and model.get("cli_model_id") == model.get("model_id")
+        and capacity_route.get("model_key") == model_key
         and _role_worker_binding_ok(root, "Writer", "agy")
     )
     auth = _probe_worker_auth("agy")

@@ -35,7 +35,7 @@ def test_grok_cli_smoke_dry_run_reports_command_without_private_context() -> Non
         {
             "command": "hermes",
             "command_shape": (
-                "hermes --ignore-rules --provider xai-oauth -m grok-4.3 "
+                "hermes --ignore-rules --provider xai-oauth -m grok-4.5 "
                 "-z <non_private_prompt>"
             ),
         }

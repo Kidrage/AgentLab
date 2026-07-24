@@ -76,7 +76,7 @@ items:
     worker: agy
     invocation_contract: agy_writer
     capacity_route: WriterAgy
-    model_key: gemini_3_5_flash_high_agy_oauth
+    model_key: gemini_3_6_flash_high_agy_oauth
     model_provider: agy_gemini_oauth
     model_runtime_provider: agy-gemini-oauth
   historical_blocker: {}

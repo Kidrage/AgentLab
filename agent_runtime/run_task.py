@@ -443,11 +443,16 @@ def write_yaml_if_allowed(path: Path, data: dict, overwrite: bool = False) -> bo
 
 @app.command("activation-plan")
 def activation_plan(
-    task_packet: Path = typer.Option(..., "--task-packet")
+    task_packet: Path = typer.Option(..., "--task-packet"),
+    root: Path = typer.Option(
+        _PROJECT_ROOT,
+        "--root",
+        help="Workspace root for activation-plan artifacts.",
+    ),
 ) -> None:
     """Compile the execution economy activation plan for a task packet."""
     from agent_runtime.execution_economy.activation_plan import compile_activation_plan
-    plan = compile_activation_plan(task_packet, _PROJECT_ROOT)
+    plan = compile_activation_plan(task_packet, root.resolve())
     print(yaml.safe_dump(plan, sort_keys=False, allow_unicode=True))
 
 
@@ -6451,12 +6456,16 @@ def project_snapshot_cmd(
 def m1_demo_cmd(
     suite: str = typer.Option("all", "--suite", help="Suite to run (all, codebase_build, etc.)."),
     out: Path = typer.Option(..., "--out", help="Output directory for reports."),
+    root: Path = typer.Option(
+        _PROJECT_ROOT,
+        "--root",
+        help="Workspace root for generated demo projects.",
+    ),
 ) -> None:
     """Run offline generalization demos for M1-10 stage verification."""
     from agent_runtime.evaluation.m1_demo_runner import run_all_demos
     
-    agentlab_root = Path(__file__).resolve().parents[1]
-    result = run_all_demos(agentlab_root, out)
+    result = run_all_demos(root.resolve(), out)
     
     console.print(f"[green]M1 generalization demo suite finished with verdict: {result['verdict']}[/green]")
     if result["verdict"] == "FAIL":

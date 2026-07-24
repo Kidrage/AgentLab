@@ -25,7 +25,7 @@ def test_agy_cli_smoke_dry_run_reports_command_without_private_context(tmp_path:
     assert report["prompt_scope"] == "non_private_observer_session_reachability_smoke"
     assert report["status"] in {"configured", "blocked"}
     assert report["invocation_contract"] == "agy_observer"
-    assert "--model gemini-3.5-flash-high" in report["command_shape"]
+    assert "--model gemini-3.6-flash-high" in report["command_shape"]
     assert "--sandbox" in report["command_shape"]
     assert len(report["command_variants"]) == 1
     assert "<non_private_prompt>" in report["command_shape"]
@@ -40,7 +40,7 @@ def test_agy_cli_smoke_dry_run_reports_command_without_private_context(tmp_path:
 def test_agy_cli_smoke_live_pass_with_fake_runner(tmp_path: Path) -> None:
     def fake_runner(args: list[str], timeout: int, log_path: Path) -> subprocess.CompletedProcess[str]:
         assert args[0] == "agy"
-        assert args[args.index("--model") + 1] == "gemini-3.5-flash-high"
+        assert args[args.index("--model") + 1] == "gemini-3.6-flash-high"
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="AGENTLAB_AGY_CLI_SMOKE_OK\n", stderr="")
 
     report = build_agy_cli_smoke_report(

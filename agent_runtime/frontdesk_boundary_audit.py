@@ -36,32 +36,6 @@ def _role(root: Path, role_id: str) -> dict[str, Any]:
     return ((bindings.get("roles") or {}).get(role_id) or {}) if bindings else {}
 
 
-def _artifact_backend_bindings(root: Path) -> list[dict[str, Any]]:
-    profiles = _read_yaml(root / "config" / "agent_model_profiles.yml")
-    bindings: list[dict[str, Any]] = []
-
-    def visit(node: Any, path: list[str]) -> None:
-        if isinstance(node, dict):
-            backend = node.get("artifact_backend")
-            agent = path[-1] if path else "unknown"
-            if backend:
-                bindings.append(
-                    {
-                        "path": ".".join(path),
-                        "agent_profile": agent,
-                        "artifact_backend": backend,
-                    }
-                )
-            for key, value in node.items():
-                visit(value, [*path, str(key)])
-        elif isinstance(node, list):
-            for index, value in enumerate(node):
-                visit(value, [*path, str(index)])
-
-    visit(profiles, [])
-    return bindings
-
-
 def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") -> dict[str, Any]:
     """Build a deterministic audit of the frontdesk/role-worker boundary."""
     root = root.resolve()
@@ -138,9 +112,15 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     direct_closed_loop = execution_paths.get("direct_closed_loop") or {}
     routed_task_intake = execution_paths.get("routed_task_intake") or {}
     catalog_models = model_catalog.get("models") or {}
-    artifact_backend_bindings = _artifact_backend_bindings(root)
-    grok_artifact_bindings = [
-        item for item in artifact_backend_bindings if item.get("artifact_backend") == "hermes_grok_oauth"
+    codex_artifact_profiles = [
+        str(tier)
+        for tier, tier_config in full_cli.items()
+        if isinstance(tier_config, dict)
+        and isinstance(tier_config.get("artifact_producer"), dict)
+        and tier_config["artifact_producer"].get("cli_agent") == "codex"
+        and tier_config["artifact_producer"].get("invocation_contract") == "codex"
+        and tier_config["artifact_producer"].get("default")
+        == "codex_gpt_5_6_sol_medium_cli_oauth"
     ]
 
     checks = [
@@ -334,10 +314,15 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             "summary": "grok_research and grok_media are separate role contracts on the configured Hermes xAI OAuth executable",
         },
         {
-            "id": "artifact_producer_profiles_bind_grok_oauth",
-            "status": "pass" if grok_artifact_bindings else "fail",
+            "id": "artifact_producer_profiles_bind_current_codex_default",
+            "status": "pass"
+            if set(codex_artifact_profiles) == {"full", "performance", "low"}
+            else "fail",
             "evidence": ["config/agent_model_profiles.yml"],
-            "summary": f"artifact backend bindings for hermes_grok_oauth: {len(grok_artifact_bindings)}",
+            "summary": (
+                "ArtifactProducer default is Codex GPT-5.6 Sol medium in tiers: "
+                f"{sorted(codex_artifact_profiles)}; Grok remains a governed media backend"
+            ),
         },
         {
             "id": "raw_media_live_cli_requires_role_session",

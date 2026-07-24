@@ -1,4 +1,4 @@
-"""Operator CLI for the append-only Task Runtime v2."""
+"""Operator CLI for the append-only Task Runtime."""
 
 from __future__ import annotations
 
@@ -26,16 +26,16 @@ RootProvider = Path | Callable[[], Path]
 def register_task_runtime_commands(
     app: typer.Typer, root: RootProvider, console: Console
 ) -> None:
-    """Register the stable v2 command surface on an AgentLab Typer app."""
+    """Register the stable Task Runtime command surface on an AgentLab Typer app."""
 
-    task_app = typer.Typer(help="Task Runtime v2 business-goal lifecycle.", no_args_is_help=True)
+    task_app = typer.Typer(help="Task Runtime business-goal lifecycle.", no_args_is_help=True)
     job_app = typer.Typer(help="Execution strategies under a Task.", no_args_is_help=True)
     work_app = typer.Typer(help="Schedulable units under a Job.", no_args_is_help=True)
     attempt_app = typer.Typer(help="Immutable execution attempts.", no_args_is_help=True)
     artifact_app = typer.Typer(help="Immutable artifact versions.", no_args_is_help=True)
     evidence_app = typer.Typer(help="Artifact evidence bindings.", no_args_is_help=True)
     trace_app = typer.Typer(help="Immutable task trace and memory records.", no_args_is_help=True)
-    runtime_app = typer.Typer(help="Task Runtime v2 project operations.", no_args_is_help=True)
+    runtime_app = typer.Typer(help="Task Runtime project operations.", no_args_is_help=True)
 
     def current_root() -> Path:
         return Path(root() if callable(root) else root)
@@ -247,7 +247,7 @@ def register_task_runtime_commands(
             "--idempotency-prefix",
         ),
     ) -> None:
-        """Compile the registered Project Agent DAG into Runtime v2 WorkItems."""
+        """Compile the registered Project Agent DAG into Task Runtime WorkItems."""
 
         from agent_runtime.project_agents import (
             ExpertCollaborationScheduler,
@@ -510,4 +510,10 @@ def register_task_runtime_commands(
     app.add_typer(artifact_app, name="artifact")
     app.add_typer(evidence_app, name="evidence")
     app.add_typer(trace_app, name="trace")
-    app.add_typer(runtime_app, name="runtime-v2")
+    app.add_typer(runtime_app, name="runtime")
+    app.add_typer(
+        runtime_app,
+        name="runtime-v2",
+        deprecated=True,
+        help="Compatibility alias for `runtime`.",
+    )

@@ -732,15 +732,39 @@ contracts:
     required_receipts:
       - frontdesk_session_receipt.yml
     template: >-
-      agy --sandbox --model gemini-3.5-flash-high -p "Read the AgentLab frontdesk session packet at
+      agy --sandbox --model gemini-3.6-flash-high -p "Read the AgentLab frontdesk session packet at
       '{frontdesk_session_path}'; act only as the user-facing AgentLab frontdesk."
     required_placeholders:
       - frontdesk_session_path
     safe_probe: [agy, --help]
     expected_parse:
-      argv_prefix: [agy, --sandbox, --model, gemini-3.5-flash-high, -p]
+      argv_prefix: [agy, --sandbox, --model, gemini-3.6-flash-high, -p]
     validation:
       shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+
+  agy_scribe:
+    worker_id: agy
+    display_name: Antigravity Scribe (Gemini OAuth)
+    command: agy
+    invocation_style: task_packet_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    required_receipts:
+      - role_session_receipt.yml
+      - structured_findings_or_artifacts.yml
+    template: >-
+      agy --sandbox --model "{model_id}" -p "Read the task packet at
+      {task_packet_path}; act only as Scribe. Record structured logs and summaries."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [agy, --help]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
       allow_unquoted_placeholders: true
     fallback:
       on_binary_missing: stop_and_report

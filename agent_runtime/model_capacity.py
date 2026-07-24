@@ -388,7 +388,10 @@ class ModelCapacity:
         command = tuple(raw_command)
         if command == ("agy", "models"):
             return command
-        if command == ("codex", "--version"):
+        if command in {
+            ("codex", "--version"),
+            ("codex", "login", "status"),
+        }:
             return command
         if (
             len(command) == 4
@@ -397,7 +400,8 @@ class ModelCapacity:
         ):
             return command
         raise UnsafeCapacityProbeError(
-            "forbidden capacity probe; only 'agy models', 'codex --version', and "
+            "forbidden capacity probe; only 'agy models', 'codex login status', "
+            "'codex --version', and "
             "'hermes auth status <provider>' are allowed (never 'hermes status --all')"
         )
 

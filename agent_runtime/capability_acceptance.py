@@ -145,12 +145,13 @@ def _internal_writer_route_readiness(root: Path) -> dict[str, Any]:
         profile.get("executor_type") == "cli_agent"
         and worker == "agy"
         and contract_name == "agy_writer"
-        and model_key == "gemini_3_5_flash_high_agy_oauth"
+        and bool(model_key)
         and capacity_route_name == "WriterAgy"
     )
     model_ok = (
         model.get("runtime_provider") == "agy-gemini-oauth"
-        and model.get("model_id") == "gemini-3.5-flash-high"
+        and str(model.get("model_id") or "").startswith("gemini-")
+        and model.get("cli_model_id") == model.get("model_id")
     )
     contract_ok = (
         contract.get("worker_id") == "agy"
@@ -164,7 +165,7 @@ def _internal_writer_route_readiness(root: Path) -> dict[str, Any]:
         capacity_route.get("role") == "writer"
         and capacity_route.get("worker") == "agy"
         and capacity_route.get("invocation_contract") == "agy_writer"
-        and capacity_route.get("model_key") == "gemini_3_5_flash_high_agy_oauth"
+        and capacity_route.get("model_key") == model_key
         and capacity_route.get("approved_fallbacks") == ["Writer"]
         and fallback_route.get("worker") == "claude_code"
         and fallback_route.get("invocation_contract") == "claude_writer"

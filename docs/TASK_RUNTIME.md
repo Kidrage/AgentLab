@@ -1,8 +1,8 @@
-# AgentLab Task Runtime v2
+# AgentLab Task Runtime
 
 ## Outcome
 
-Runtime v2 keeps one user-visible business goal under one stable `Task`. It no
+Task Runtime keeps one user-visible business goal under one stable `Task`. It no
 longer treats every chapter, reviewer pass, retry, fallback, or candidate
 revision as another task directory.
 
@@ -72,7 +72,7 @@ referenced Supervisor Attempt output. Worker receipts bind the delegated Attempt
 receipt hashes, while change and memory records bind hashes of real files inside
 the owning project. Sealed outbound sources are limited to governed project
 production/Brain/reset inputs, explicitly labelled candidate run outputs, and
-hashed outputs/receipts from the same Runtime v2 Task. Candidate run files are
+hashed outputs/receipts from the same Task Runtime Task. Candidate run files are
 never labelled as authoritative or silently promoted to production fact.
 
 This permits multiple revisions without growing one ambiguous “current state”
@@ -80,7 +80,7 @@ file: the ledger retains history, while projections show the current selection.
 
 ## RAG boundary
 
-RAG remains project-level. Runtime v2 does not create a vector/keyword database
+RAG remains project-level. Task Runtime does not create a vector/keyword database
 per Task. The only runtime file eligible for the project knowledge collector is:
 
 ```text
@@ -137,8 +137,8 @@ The v2 commands are registered on `agentlab.sh`:
 ./agentlab.sh evidence verify ...
 ./agentlab.sh trace record ...
 
-./agentlab.sh runtime-v2 rebuild --project Demo
-./agentlab.sh runtime-v2 doctor --project Demo
+./agentlab.sh runtime rebuild --project Demo
+./agentlab.sh runtime doctor --project Demo
 ```
 
 Every mutating command requires an idempotency key, including Task
@@ -160,8 +160,8 @@ migrated; they are not a second authority for a v2 Task.
 Migration is preview/apply and never edits or deletes legacy runs:
 
 ```bash
-./agentlab.sh runtime-v2 migrate-legacy --project Demo
-./agentlab.sh runtime-v2 migrate-legacy --project Demo --apply \
+./agentlab.sh runtime migrate-legacy --project Demo
+./agentlab.sh runtime migrate-legacy --project Demo --apply \
   --expected-plan-hash <approved_sha256>
 ```
 
@@ -176,12 +176,12 @@ files only through a hash-gated compaction plan. The receipt records original an
 compressed hashes; no policy purges the compressed evidence.
 
 ```bash
-./agentlab.sh runtime-v2 compact-logs --project Demo
-./agentlab.sh runtime-v2 compact-logs --project Demo --apply \
+./agentlab.sh runtime compact-logs --project Demo
+./agentlab.sh runtime compact-logs --project Demo --apply \
   --expected-plan-hash <approved_sha256>
 ```
 
-Use `runtime-v2 doctor` to detect ledger or artifact tampering. Use
-`runtime-v2 rebuild` to discard and recreate every projection and the curated RAG
+Use `runtime doctor` to detect ledger or artifact tampering. Use
+`runtime rebuild` to discard and recreate every projection and the curated RAG
 manifest. Never repair a damaged ledger by editing its hashes; stop execution and
 recover from a verified copy or an explicit governance decision.

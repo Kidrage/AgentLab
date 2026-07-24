@@ -280,7 +280,7 @@ shells:
         agentlab_use: health, observability, and preflight diagnostics
       media_backend_shell:
         examples:
-          - hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <prompt>
+          - hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z <prompt>
         agentlab_use: Grok OAuth media backend shell behind ArtifactProducer/grok
     allowed_roles:
       - Supervisor
@@ -471,8 +471,8 @@ shells:
     command_families:
       print_mode:
         examples:
-          - agy --sandbox --model gemini-3.5-flash-high -p <prompt>
-          - agy --model gemini-3.5-flash-high --print <prompt>
+          - agy --sandbox --model gemini-3.6-flash-high -p <prompt>
+          - agy --model gemini-3.6-flash-high --print <prompt>
         agentlab_use: Gemini OAuth role/session execution and frontdesk packet handling
       plugins_and_models:
         examples:
@@ -717,7 +717,7 @@ shells:
     command_families:
       media_and_agent:
         examples:
-          - hermes --provider xai-oauth -m grok-4.3 -z <prompt>
+          - hermes --provider xai-oauth -m grok-4.5 -z <prompt>
         agentlab_use: Separate sourced Researcher and candidate-only media tool contracts
       auth_and_capacity:
         examples:

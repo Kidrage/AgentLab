@@ -47,6 +47,24 @@ Project Agents may execute only when the mode is `enforced` and workspace
 isolation is required. Existing Worker pipelines remain unchanged while the
 feature is off.
 
+These names describe different layers and must not be presented as one generic
+"capability":
+
+- **Task Runtime** is the durable Task/Job/WorkItem/Attempt execution
+  architecture. `runtime-v2` and `task-runtime-v2` remain compatibility
+  identifiers for the existing CLI and persisted schema; the product name is
+  versionless.
+- **Canonical Project Truth** is the single-pointer, immutable-history authority
+  model. `project_truth_mode` is its real project-level mode switch:
+  `legacy`, `shadow`, or `enforced`.
+- **Project Agent Organization** is the optional registered Agent team layer.
+  `enable_project_agents` is its real feature flag.
+- **Workspace isolation** is a safety gate, not a feature or release name.
+- **Collaboration DAGs** are per-task execution plans compiled from the current
+  Agent Registry; they are resources, not global switches.
+- **Project Knowledge** is a derived RAG index of the selected current truth. It
+  is never an authority source.
+
 Enable the new layer explicitly:
 
 ```bash
@@ -129,7 +147,7 @@ System recommendations and factory team proposals require approval. The CLI
 team-creation command is an explicit user approval; API callers must pass their
 approval decision and Registry callers cannot assert a trusted-template bypass.
 
-Runtime v2 binds every enabled WorkItem to:
+Task Runtime binds every enabled WorkItem to:
 
 - `assigned_agent_id`;
 - `agent_manifest_revision`;
@@ -167,7 +185,7 @@ generic production. Domain experts prevent local errors before production;
 Reviewer remains responsible for overall quality instead of impersonating every
 expert role.
 
-Materialize an approved DAG as ordinary, dependency-linked Runtime v2 WorkItems:
+Materialize an approved DAG as ordinary, dependency-linked Task Runtime WorkItems:
 
 ```bash
 ./agentlab.sh work-item materialize-collaboration \
@@ -184,7 +202,7 @@ from the batch.
 
 `workspace.isolation: required` currently means a logical, symlink-safe project
 boundary with governed writes and leases. Moving runtime project roots
-physically outside the AgentLab source checkout is tracked separately for M3.1.
+physically outside the AgentLab source checkout is tracked as a separate follow-up.
 
 ## Legacy migration
 

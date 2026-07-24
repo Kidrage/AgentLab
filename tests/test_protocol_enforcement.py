@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from typer.testing import CliRunner
+import yaml
 
 from agent_runtime.protocols import (
     build_frontdesk_context,
@@ -20,6 +21,23 @@ ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
 
 
+def test_live_project_and_knowledge_scope_is_agentlab_plus_crown_only():
+    knowledge = yaml.safe_load(
+        (ROOT / "config" / "knowledge_system.yml").read_text(encoding="utf-8")
+    )
+    content = yaml.safe_load(
+        (ROOT / "config" / "content_project_governance.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert knowledge["indexing"]["project_allowlist"] == [
+        "AgentLab",
+        "Crown_of_Ash",
+    ]
+    assert content["active_projects"] == ["Crown_of_Ash"]
+
+
 def test_workspace_entry_binds_agy_as_frontdesk_and_bounded_worker():
     packet = build_workspace_entry(ROOT, "agy", project="AgentLab")
 
@@ -36,10 +54,11 @@ def test_workspace_entry_binds_agy_as_frontdesk_and_bounded_worker():
         "Reviewer",
         "NarrativePlanner",
         "Writer",
+        "Scribe",
     ]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]
-    assert packet["known_projects"] == ["Crown_of_Ash", "NovelGen"]
-    assert packet["content_project_governance"]["active_projects"] == ["Crown_of_Ash", "NovelGen"]
+    assert packet["known_projects"] == ["Crown_of_Ash"]
+    assert packet["content_project_governance"]["active_projects"] == ["Crown_of_Ash"]
 
 
 def test_frontdesk_context_is_grounded_and_forbids_execution():

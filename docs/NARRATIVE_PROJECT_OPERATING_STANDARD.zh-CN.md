@@ -33,8 +33,11 @@ Task 也只允许一个权威：`runtime/tasks/<task_id>/events.jsonl`。章节�
 | 项目 | 现状 | 可当正式事实的入口 | 不可误用的内容 |
 | --- | --- | --- | --- |
 | `Crown_of_Ash` | 已有已封存的 1,980 章蓝本与 1–25 章卡；production 正文仍为空，因此尚未进入正式连载 | `production/blueprint_authority.yml`、`production/fact_authority.yml`、`production/canonical/`、`production/chapter_cards/` 与 `project_artifact_index.yml` | Runtime v2 的 chapter-001 是候选；所有历史 runs 及 sealed delivery 内的原 runs 仅作溯源 |
-| `NovelGen` | 40 章 accepted baseline；project-specific blueprint 已通过通用 validator/sealer，修改合同与 fact snapshot 已用 bootstrap 原子接口发布 | `project_artifact_index.yml` 唯一选择的 `production/blueprint_authority.yml`、静态 Agent team contract、修改合同、manuscript/bible/outlines 与 fact snapshot | blueprint 为 `validated_sealed`；根目录旧内容、runtime 候选与 archive 均非当前事实；Project Truth/Registry 迁移尚待显式冲突裁决，新正文 Task 在此之前不会获得 Agent manifest 绑定 |
-| `novel-moon-in-seal` | 旧验证工作区已从本地主生产树移除，并备份到 TrueNAS Codex archive | 无本地正式事实入口 | 不在 RAG allowlist；不得作为新小说的 production、模板或 current evidence |
+
+当前活动叙事项目只有 `Crown_of_Ash`。`NovelGen`、演示项目和测试项目已经退出
+`projects/` 与 RAG allowlist；它们的旧内容只能作为可恢复的离线归档，不能作为新任务的
+production、模板或 current evidence。若未来恢复其中任一项目，必须先还原目录、重新
+加入 allowlist、运行权威迁移/校验并完整重建项目知识空间，不能直接复用旧 RAG shard。
 
 `Crown_of_Ash` 的蓝本校验必须通过后才可编译 Writer context。它采用 fail-closed：
 组件哈希、事实投影、章节卡或 required provenance 任一漂移都会阻断正文任务。Crown 的
@@ -176,12 +179,11 @@ Task 前把每个 WorkItem 绑定到当前 truth snapshot、manifest revision �
 必须与上表的事实边界一致；Reviewer 只负责整体质量，不替代领域 Agent 的长期状态职责。
 
 新项目必须先完成 Project Truth 迁移或全新初始化，才能启用动态 Agent 团队；旧项目
-不自动迁移。NovelGen 已建立非 Crown 专用的 project-specific authority 与静态团队
-合同，但它当前仍是 `project_truth_mode: legacy`、`enable_project_agents: false`；
-自动冲突扫描要求人工 migration manifest，因此不得把它描述为已启用 Registry 的 M3
-项目。通用 blueprint profile、Runtime v2 packet、Agent-bound 编译器和原子 publisher
-已由隔离的 enabled-project 测试覆盖；新项目仍须生成自己的 chapter contracts、显式
-Project Truth 迁移和 L3 review evidence，不能复制 Crown 的人物/尺度规则。
+不自动迁移。已退出活动工作区的项目恢复时同样必须提交显式 migration manifest，不能
+仅凭归档目录或旧索引重新启用 Registry。通用 blueprint profile、Runtime v2 packet、
+Agent-bound 编译器和原子 publisher 已由隔离的 enabled-project 测试覆盖；新项目仍须
+生成自己的 chapter contracts、显式 Project Truth 迁移和 L3 review evidence，不能
+复制 Crown 的人物/尺度规则。
 
 ## 五、RAG 边界与启动门
 
@@ -197,6 +199,19 @@ project brain 或 AgentLab 治理逻辑变更后执行：
 runs、archive 和桌面导出默认不会变成可检索的当前事实。`knowledge doctor`、
 `runtime-v2 doctor`、`narrative validate-blueprint` 和必要的 content promotion gate 都
 通过，才可启动下一批正文。
+
+AgentLab 自身的索引只采集受治理的源码、配置、测试、活动文档和入口文件；Git commit
+history 与旧补丁不会作为多个并列事实进入检索。一次升级提交后重建
+`project.AgentLab`，新 source hash 成为 active，旧 hash 被 tombstone/deprecate；Git
+继续负责不可变版本历史。项目侧也只在正式 promotion 更新 artifact index / Project
+Truth 后同步当前版本。细小草稿、失败 attempt、新 Agent 的未验收输出和 archive 不会
+因为“文件已生成”而自动升级为知识。
+
+当前采集根受限于 AgentLab 仓库及其 `projects/` 目录；任意外部目录、越界软链接和未
+注册路径不会被直接入库。已知公共 HTTP(S) URL 可由研究读取器按网络策略提取并形成带
+引用的外部证据，但系统不执行通用 Web 搜索或递归爬站，外部证据也不会自动变成项目
+真相。未来扩展必须采用“显式外部根注册/URL 策略 → 内容哈希与引用账本 → 审批 →
+promotion → RAG sync”的链路，不能把爬取结果直接写入 canonical memory。
 
 通用 `narrative-blueprint-authority/v1` 的采集器会验证 artifact index、每个声明的
 `source_artifacts` 路径和 SHA256；任一不匹配会把该项目的正式索引结果置空。未被

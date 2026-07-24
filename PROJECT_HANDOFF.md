@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-24T17:16:28.283722+00:00`
+- Generated at: `2026-07-24T19:20:38.648407+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `79390b3`
-- Indexed paths: 2016
+- HEAD: `b615e45`
+- Indexed paths: 2017
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -45,7 +45,7 @@
 |---|---:|
 | `agent_runtime` | 617 |
 | `tests` | 472 |
-| `docs` | 345 |
+| `docs` | 346 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
 | `config` | 125 |
@@ -88,16 +88,16 @@
 
 ### Categories
 
-- code: 1031 files, 10014410 bytes
-- literature: 422 files, 2408841 bytes
+- code: 1031 files, 10050406 bytes
+- literature: 423 files, 2421893 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 551 files, 3249843 bytes
+- structured_data: 551 files, 3255436 bytes
 
 ### Common Extensions
 
 - `.py`: 1017
 - `.yml`: 517
-- `.md`: 382
+- `.md`: 383
 - `.txt`: 40
 - `.json`: 29
 - `.sh`: 9
@@ -193,7 +193,7 @@
 - `docs/AGENTLAB_COMPANY_MODEL.md`
 - `docs/AGENT_PACKET_CONTRACT.md`
 - `docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
-- `docs/S9_VISION_AUDIO_DOCUMENT_CONTRACTS.md`
+- `docs/MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md`
 
 ## Key Entrypoints and Guides
 
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `b615e45 2026-07-25 feat: harden project agents and canonical narrative truth`
 - `79390b3 2026-07-24 feat: converge project governance and runtime evidence`
 - `90916a0 2026-07-24 fix(task-runtime): make task list v2-only by default`
 - `5c1f9e7 2026-07-24 test(cli): cover agy proxy inheritance defaults and preflight reporting`
@@ -249,42 +250,78 @@
 - `70af9c6 2026-07-24 fix: preserve agent lifecycle monotonicity on truth rollback`
 - `4eb6682 2026-07-24 feat: add prompt-driven narrative specialists`
 - `c88ecd4 2026-07-24 merge: integrate M3 project agents with latest main`
-- `c2cddbf 2026-07-24 docs: refresh M3 repository handoff`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 2]`
+- `## agentlab/unified-stable...origin/main [ahead 3]`
+- ` M AGENTS.md`
+- ` M PROJECT_HANDOFF.md`
+- ` M README.md`
 - ` M acceptance_runs/PROJECT_TASK_STANDARD_AUDIT.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml`
-- ` M agent_runtime/agy_cli_smoke.py`
+- ` M acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml`
 - ` M agent_runtime/capability_acceptance.py`
-- ` M agent_runtime/cli/narrative.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/goal_completion_audit.py`
-- ` M agent_runtime/knowledge_system/sources.py`
-- ` M agent_runtime/objective_requirement_audit.py`
-- ` M agent_runtime/project_agents/factory.py`
-- ` M agent_runtime/task_runtime_v2/migration.py`
-- ` M agent_runtime/task_runtime_v2/runtime.py`
-- ` M config/task_input_tiers.yml`
+- ` M agent_runtime/cli/models.py`
+- ` M agent_runtime/cli/task_runtime_v2.py`
+- ` M agent_runtime/frontdesk_boundary_audit.py`
+- ` M agent_runtime/knowledge_system/operations.py`
+- ` M agent_runtime/live_unblock_plan.py`
+- ` M agent_runtime/model_capacity.py`
+- ` M agent_runtime/narrative/blueprint_validation.py`
+- ` M agent_runtime/narrative/task_packet.py`
+- ` M agent_runtime/project_truth/store.py`
+- ` M agent_runtime/run_task.py`
+- ` M config/agent_model_profiles.yml`
+- ` M config/agent_role_bindings.yml`
+- ` M config/cli_entrypoint_policy.yml`
+- ` M config/cli_workflow_shells.yml`
+- ` M config/content_project_governance.yml`
+- ` M config/frontdesk_policy.yml`
+- ` M config/hermes_brain_model_groups.yml`
+- ` M config/knowledge_system.yml`
+- ` M config/media_generation_backends.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_providers.yml`
+- ` M config/runtime_cli_requirements.yml`
+- ` M config/shared_agent_directory.yml`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M docs/AGENTLAB_KNOWLEDGE_SYSTEM_RAG_GOVERNANCE_UPGRADE_PLAN.md`
+- ` M docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md`
 - ` M docs/NARRATIVE_PROJECT_OPERATING_STANDARD.zh-CN.md`
-- ` M tests/task_runtime_v2_support.py`
+- ` M docs/PROJECT_AGENTS_AND_TRUTH.md`
+- ` D docs/TASK_RUNTIME_V2.md`
+- ` M scripts/generate_agent_cli_matrix.py`
+- ` M tests/test_agent_cli_matrix.py`
+- ` M tests/test_agent_role_chain_audit.py`
+- ` M tests/test_agent_runner_cli_integration.py`
 - ` M tests/test_agy_cli_smoke.py`
 - ` M tests/test_blueprint_validation.py`
 - ` M tests/test_capability_acceptance.py`
-- ` M tests/test_capability_evidence_chain.py`
 - ` M tests/test_cli_executor.py`
-- ` M tests/test_knowledge_system.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_frontdesk_boundary_audit.py`
+- ` M tests/test_grok_cli_smoke.py`
+- ` M tests/test_m1_generalization_demo.py`
+- ` M tests/test_m1_project_snapshot.py`
+- ` M tests/test_m2_activation_plan_cli.py`
+- ` M tests/test_m2_observability.py`
+- ` M tests/test_media_backend_adapter.py`
+- ` M tests/test_model_capacity.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_narrative_blueprint_lifecycle.py`
+- ` M tests/test_production_pack_role_session_request.py`
 - ` M tests/test_project_agents.py`
-- ` M tests/test_scoped_acceptance_audits.py`
-- ` M tests/test_task_runtime_v2.py`
-- ` M tests/test_task_runtime_v2_migration.py`
-- `?? agent_runtime/narrative/blueprint_lifecycle.py`
-- `?? agent_runtime/narrative/task_packet.py`
-- `?? tests/test_narrative_blueprint_lifecycle.py`
+- ` M tests/test_project_knowledge_snapshot.py`
+- ` M tests/test_project_truth_migration.py`
+- ` M tests/test_protocol_enforcement.py`
+- ` M tests/test_task_runtime_v2_cli.py`
+- ` M tests/test_task_runtime_v2_role_executor.py`
+- `?? docs/MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md`
+- `?? docs/TASK_RUNTIME.md`
 - `?? tmp_debug/`
 
 ## Related Repositories
@@ -369,6 +406,27 @@
 ## Agent Notes
 
 <!-- AGENT_NOTES_START -->
+# Current authority (supersedes the historical chronology below)
+
+- The only retained project roots and RAG project namespaces are `AgentLab` and
+  `Crown_of_Ash`; NovelGen and other retired projects are recoverable history,
+  not active truth.
+- Crown's current sealed character-content authority is revision 3. The active
+  blueprint, canonical index, fact distillation, project artifact pointer, and
+  RAG snapshot must agree by hash before use.
+- Role/model/tier assignments are not authoritative in this handoff. Read
+  `config/agent_model_profiles.yml`, `config/model_catalog.yml`, invocation
+  contracts, and `config/model_capacity.yml`.
+- Agy exposes catalog discovery only; Codex and Hermes expose authentication
+  status only. Remaining quota and reset time stay unknown until provider
+  runtime evidence supplies them. Recovery uses declared fallbacks and reset
+  canaries.
+- The latest full local regression after the revision-3 validator change passed
+  `3437 passed, 2 skipped, 11 warnings`. Tests left `projects/` with exactly the
+  two retained directories and did not change the Crown policy hash.
+- This delivery targets GitHub branch `agentlab/unified-stable`; do not push
+  `main`, sync TrueNAS, or touch the user-owned untracked `tmp_debug/`.
+
 # Highest-priority plan: narrative production, audit, and delivery closure
 
 - Current authority revision: `v2 / 2026-07-20`. Read
@@ -712,6 +770,46 @@ system preference remain required before Gate 2 scaling or Phase 5.
   character/chapter/foreshadowing impact graph. Do not claim Crown production
   prose, enable NovelGen Registry automatically, touch the user-owned
   `tmp_debug/`, push `main`, or sync this delivery to TrueNAS.
+- 2026-07-25 CST: The current workspace and knowledge scope supersede the
+  preceding three-project snapshot. `projects/` now contains only `AgentLab` and
+  `Crown_of_Ash`; nine retired project directories, including NovelGen's clean
+  nested Git repository, were moved intact to the recoverable local Trash pack
+  `/Users/saintpeter/.Trash/AgentLab_projects_cleanup_20260725-013259/`.
+  `config/knowledge_system.yml` now allowlists only AgentLab and Crown, while
+  content governance has only Crown active. Cleanup/model-governance checkpoint
+  knowledge rebuild receipt
+  `kbuild_70736396536b702c82605a654633d3e023a2aa617dac4ba4d31f6f14aed6b4cb`
+  retired `project.AgentLab_System`, `project.NovelGen`, and
+  `project.novel-moon-in-seal`, purged 627 shared-domain records, and sealed both
+  retained project snapshots. Knowledge doctor passes with 5 spaces, 37,660
+  records and 1,552 eligible; index snapshot is
+  `idx_8d1a34ae6b4abee0518695e4b14868558a567e27ce2e33896bb1537450b712b4`.
+  The authoritative ingestion rule is current truth
+  only: Git retains patch history; project drafts, attempts, archives and
+  unaccepted Agent outputs do not enter active RAG. External folders and Web
+  crawl remain unsupported without explicit future root/URL evidence governance.
+  Do not touch `tmp_debug/`, push `main`, or sync this delivery to TrueNAS.
+- 2026-07-25 CST: Model surfaces are synchronized across `full`, `performance`,
+  and `low` according to the current role matrix, with the intentional low-tier
+  RepoScout Codex exception. Capacity governance exposes one safe
+  `models capacity --probe all` entry point, but preserves provider truth:
+  `agy models` is catalog-only, `codex login status` and
+  `hermes auth status <provider>` are auth-only, and none reports remaining or
+  reset. Runtime failure evidence still owns quota/rate-limit reset extraction,
+  declared same-role fallback, and reset canary recovery. Governed
+  `models catalog-propose/catalog-apply` and `models propose --all-tiers`
+  interfaces now support fast model iteration without bypassing provider,
+  contract, role-binding, capacity-route, hash-drift, or approval checks.
+- 2026-07-25 CST: Full regression exposed legacy tests recreating six ignored
+  demo/test projects in the authoritative workspace. Those derived directories
+  were moved recoverably under the existing Trash cleanup pack; `m1-demo` and
+  `activation-plan` now accept an explicit `--root`, and affected tests run only
+  under pytest temporary roots. Post-fix focused regression leaves `projects/`
+  with exactly `AgentLab` and `Crown_of_Ash`. Model config/proposal writes now
+  use atomic I/O plus a serialized, recoverable
+  `pending -> applying -> applied` state transition. Final repository regression
+  is 3,437 passed / 2 skipped / 11 warnings, and the physical two-project
+  invariant still holds after the suite.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

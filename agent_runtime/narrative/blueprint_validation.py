@@ -1061,7 +1061,7 @@ def validate_crown_blueprint(
         REQUIRED_CHARACTER_CONTENT_POLICY_IDS
         - character_content_policy_record_ids
     )
-    if character_content_policy.get("policy_revision") != 2:
+    if character_content_policy.get("policy_revision") != 3:
         issues.append("character_content_policy:revision_mismatch")
     for policy_id in sorted(missing_policy_ids):
         issues.append(f"character_content_policy:missing_record:{policy_id}")
@@ -1085,6 +1085,7 @@ def validate_crown_blueprint(
         is not True
         or not adult_policy.get("allowed")
         or not adult_policy.get("disallowed")
+        or scene_controls.get("maximum_sensual_beats_per_scene") != 4
         or scene_controls.get("prohibit_repeated_body_inventory") is not True
         or scene_controls.get("chapter_card_must_declare_level_above_1") is not True
     ):

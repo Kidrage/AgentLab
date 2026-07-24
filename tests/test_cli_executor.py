@@ -683,8 +683,8 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
 class TestResolveCliProfileSchemaV4:
     """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
 
-    def test_real_default_full_cli_supervisor_resolves_to_native_codex(self):
-        """The real default mode/tier keeps Supervisor on native Codex OAuth."""
+    def test_real_default_full_cli_supervisor_resolves_to_claude_deepseek(self):
+        """The real default mode/tier keeps Supervisor on Claude/DeepSeek."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -697,10 +697,10 @@ class TestResolveCliProfileSchemaV4:
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
         assert result["resolved_tier"] == "performance"
-        assert result["cli_agent"] == "codex"
-        assert result["invocation_contract"] == "codex_supervisor"
-        assert result["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
-        assert result["capacity_route"] == "Supervisor"
+        assert result["cli_agent"] == "claude_code"
+        assert result["invocation_contract"] == "claude_supervisor_fallback"
+        assert result["default"] == "deepseek_v4_pro"
+        assert result["capacity_route"] == "SupervisorDeepSeek"
         assert "fallback" not in result
 
     def test_real_default_full_cli_writer_resolves_to_agy_gemini(self):
@@ -719,7 +719,7 @@ class TestResolveCliProfileSchemaV4:
         assert result["resolved_tier"] == "performance"
         assert result["cli_agent"] == "agy"
         assert result["invocation_contract"] == "agy_writer"
-        assert result["default"] == "gemini_3_5_flash_high_agy_oauth"
+        assert result["default"] == "gemini_3_6_flash_high_agy_oauth"
         assert result["capacity_route"] == "WriterAgy"
         assert "fallback" not in result
 

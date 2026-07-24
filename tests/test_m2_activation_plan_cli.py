@@ -46,7 +46,16 @@ def test_compile_activation_plan_and_cli(tmp_path):
     runner = CliRunner()
 
     # Test activation-plan
-    result = runner.invoke(app, ["activation-plan", "--task-packet", str(packet_path)])
+    result = runner.invoke(
+        app,
+        [
+            "activation-plan",
+            "--task-packet",
+            str(packet_path),
+            "--root",
+            str(tmp_path),
+        ],
+    )
     assert result.exit_code == 0
     assert "activation_plan" in result.stdout
 

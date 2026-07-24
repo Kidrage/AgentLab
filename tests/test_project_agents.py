@@ -246,6 +246,7 @@ def test_factory_can_atomically_register_its_trusted_team(tmp_path: Path) -> Non
     assert len(
         registry.truth.resource_history("agents.manifest.architecture")
     ) == 1
+    registry.truth.audit()
 
 
 def test_factory_adds_prompt_requested_narrative_specialists() -> None:

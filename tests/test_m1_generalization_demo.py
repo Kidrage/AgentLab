@@ -28,9 +28,10 @@ def test_m1_demo_runner(tmp_path: Path):
     assert "# AgentLab M1 Generalization Demo Suite Report" in report_file.read_text(encoding="utf-8")
 
 
-def test_m1_demo_cli(tmp_path: Path):
+def test_m1_demo_cli(tmp_path: Path, monkeypatch):
     runner = CliRunner()
     out_dir = tmp_path / "out"
+    monkeypatch.chdir(tmp_path)
 
     res = runner.invoke(
         app,
@@ -38,6 +39,7 @@ def test_m1_demo_cli(tmp_path: Path):
             "m1-demo",
             "--suite", "all",
             "--out", str(out_dir),
+            "--root", str(tmp_path),
         ]
     )
 

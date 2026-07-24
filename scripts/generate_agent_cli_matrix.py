@@ -138,16 +138,16 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
     matrix_rows: list[dict[str, str]] = []
     required_performance_routes = {
         "supervisor": (
-            "codex",
-            "codex_supervisor",
-            "codex_gpt_5_6_sol_xhigh_cli_oauth",
+            "claude_code",
+            "claude_supervisor_fallback",
+            "deepseek_v4_pro",
         ),
         "reposcout": ("claude_code", "claude", "deepseek_v4_pro"),
         "interface_mapper": ("claude_code", "claude", "deepseek_v4_pro"),
         "narrative_planner": (
             "agy",
             "agy_narrative_planner",
-            "gemini_3_5_flash_high_agy_oauth",
+            "gemini_3_6_flash_high_agy_oauth",
         ),
         "tester_auditor": ("claude_code", "claude", "deepseek_v4_pro"),
         "verifier": ("claude_code", "claude", "deepseek_v4_flash"),

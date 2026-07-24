@@ -210,7 +210,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
         policy,
         {
             "schema_version": 1,
-            "policy_revision": 2,
+            "policy_revision": 3,
             "records": [
                 {
                     "id": "policy_adult_dark_intimacy",
@@ -239,6 +239,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                         },
                     },
                     "scene_controls": {
+                        "maximum_sensual_beats_per_scene": 4,
                         "prohibit_repeated_body_inventory": True,
                         "chapter_card_must_declare_level_above_1": True,
                     },
@@ -697,6 +698,36 @@ def test_seal_rejects_semantically_empty_character_content_policy(
         match="character_content_policy:missing_record:policy_adult_dark_intimacy",
     ):
         seal_crown_blueprint(tmp_path)
+
+
+def test_character_content_policy_rejects_retired_revision_or_intensity(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    policy["policy_revision"] = 2
+    records = {item["id"]: item for item in policy["records"]}
+    records["policy_adult_dark_intimacy"]["scene_controls"][
+        "maximum_sensual_beats_per_scene"
+    ] = 2
+    _write_yaml(policy_path, policy)
+    index_path = project / "production" / "canonical" / "index.yml"
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    for entry in index["fragments"]:
+        if entry["path"] == (
+            "production/canonical/character_content_policy.yml"
+        ):
+            entry["sha256"] = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    _write_yaml(index_path, index)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert "character_content_policy:revision_mismatch" in result["issues"]
+    assert "character_content_policy:adult_contract_incomplete" in result["issues"]
 
 
 def test_character_policy_rejects_old_context_invalidation_and_slender_isabella(

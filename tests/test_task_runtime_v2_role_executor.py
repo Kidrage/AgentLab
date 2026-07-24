@@ -271,4 +271,4 @@ def test_role_executor_resolves_the_cli_runtime_provider_from_catalog() -> None:
     profile, provider = executor._resolve_profile("Writer")
 
     assert provider == "agy-gemini-oauth"
-    assert profile["_resolved_model_id"] == "gemini-3.5-flash-high"
+    assert profile["_resolved_model_id"] == "gemini-3.6-flash-high"

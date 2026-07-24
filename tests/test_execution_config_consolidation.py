@@ -205,10 +205,10 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     tier = profiles["modes"]["full_cli"]["tiers"]["performance"]
 
-    assert tier["supervisor"]["cli_agent"] == "codex"
-    assert tier["supervisor"]["invocation_contract"] == "codex_supervisor"
-    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
-    assert tier["supervisor"]["capacity_route"] == "Supervisor"
+    assert tier["supervisor"]["cli_agent"] == "claude_code"
+    assert tier["supervisor"]["invocation_contract"] == "claude_supervisor_fallback"
+    assert tier["supervisor"]["default"] == "deepseek_v4_pro"
+    assert tier["supervisor"]["capacity_route"] == "SupervisorDeepSeek"
     assert tier["observer"]["cli_agent"] == "agy"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
 
@@ -222,7 +222,7 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
-    assert tier["researcher"]["default"] == "grok_4_3_hermes_oauth"
+    assert tier["researcher"]["default"] == "grok_4_5_hermes_oauth"
 
     assert tier["prompt_engineer"]["cli_agent"] == "claude_code"
     assert tier["prompt_engineer"]["invocation_contract"] == "claude"
@@ -231,14 +231,16 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["coder"]["cli_agent"] == "claude_code"
     assert tier["coder"]["default"] == "deepseek_v4_pro"
 
-    assert tier["artifact_producer"]["cli_agent"] == "grok"
-    assert tier["artifact_producer"]["invocation_contract"] == "grok_media"
-    assert tier["artifact_producer"]["default"] == "grok_4_3_hermes_oauth"
-    assert tier["artifact_producer"]["artifact_backend"] == "hermes_grok_oauth"
+    assert tier["artifact_producer"]["cli_agent"] == "codex"
+    assert tier["artifact_producer"]["invocation_contract"] == "codex"
+    assert (
+        tier["artifact_producer"]["default"]
+        == "codex_gpt_5_6_sol_medium_cli_oauth"
+    )
 
     assert tier["narrative_planner"]["cli_agent"] == "agy"
     assert tier["narrative_planner"]["invocation_contract"] == "agy_narrative_planner"
-    assert tier["narrative_planner"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["narrative_planner"]["default"] == "gemini_3_6_flash_high_agy_oauth"
     assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerAgy"
 
     assert tier["tester_auditor"]["cli_agent"] == "claude_code"
@@ -254,7 +256,7 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
 
     assert tier["writer"]["cli_agent"] == "agy"
     assert tier["writer"]["invocation_contract"] == "agy_writer"
-    assert tier["writer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["writer"]["default"] == "gemini_3_6_flash_high_agy_oauth"
     assert tier["writer"]["capacity_route"] == "WriterAgy"
 
 
@@ -262,9 +264,10 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     tier = profiles["modes"]["full_cli"]["tiers"]["full"]
 
-    assert tier["supervisor"]["cli_agent"] == "codex"
-    assert tier["supervisor"]["invocation_contract"] == "codex_supervisor"
-    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+    assert tier["supervisor"]["cli_agent"] == "claude_code"
+    assert tier["supervisor"]["invocation_contract"] == "claude_supervisor_fallback"
+    assert tier["supervisor"]["default"] == "deepseek_v4_pro"
+    assert tier["supervisor"]["capacity_route"] == "SupervisorDeepSeek"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
 
     assert tier["reposcout"]["cli_agent"] == "claude_code"
@@ -277,32 +280,96 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
-    assert tier["researcher"]["default"] == "grok_4_3_hermes_oauth"
+    assert tier["researcher"]["default"] == "grok_4_5_hermes_oauth"
 
-    assert tier["prompt_engineer"]["cli_agent"] == "hermes"
-    assert tier["prompt_engineer"]["default"] == "qwen3_7_max_dashscope"
+    assert tier["prompt_engineer"]["cli_agent"] == "claude_code"
+    assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
     assert tier["coder"]["default"] == "deepseek_v4_pro"
 
-    assert tier["tester_auditor"]["cli_agent"] == "hermes"
-    assert tier["tester_auditor"]["default"] == "qwen3_7_max_dashscope"
+    assert tier["tester_auditor"]["cli_agent"] == "claude_code"
+    assert tier["tester_auditor"]["default"] == "deepseek_v4_pro"
 
-    assert tier["verifier"]["cli_agent"] == "hermes"
-    assert tier["verifier"]["default"] == "qwen3_6_flash_dashscope"
+    assert tier["verifier"]["cli_agent"] == "claude_code"
+    assert tier["verifier"]["default"] == "deepseek_v4_flash"
 
     assert tier["archivist"]["cli_agent"] == "claude_code"
     assert tier["archivist"]["default"] == "deepseek_v4_pro"
 
-    assert tier["artifact_producer"]["cli_agent"] == "grok"
-    assert tier["artifact_producer"]["invocation_contract"] == "grok_media"
-    assert tier["narrative_planner"]["cli_agent"] == "claude_code"
-    assert tier["narrative_planner"]["default"] == "deepseek_v4_pro"
-    assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerRewrite"
+    assert tier["artifact_producer"]["cli_agent"] == "codex"
+    assert tier["artifact_producer"]["invocation_contract"] == "codex"
+    assert (
+        tier["artifact_producer"]["default"]
+        == "codex_gpt_5_6_sol_medium_cli_oauth"
+    )
+    assert tier["narrative_planner"]["cli_agent"] == "agy"
+    assert (
+        tier["narrative_planner"]["default"]
+        == "gemini_3_6_flash_high_agy_oauth"
+    )
+    assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerAgy"
     assert tier["writer"]["cli_agent"] == "agy"
     assert tier["writer"]["invocation_contract"] == "agy_writer"
-    assert tier["writer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["writer"]["default"] == "gemini_3_6_flash_high_agy_oauth"
     assert tier["writer"]["capacity_route"] == "WriterAgy"
+
+
+def test_full_cli_tiers_share_the_upgraded_role_matrix() -> None:
+    tiers = _load_config("agent_model_profiles.yml")["modes"]["full_cli"]["tiers"]
+    expected = {
+        "supervisor": (
+            "claude_code",
+            "claude_supervisor_fallback",
+            "deepseek_v4_pro",
+        ),
+        "observer": ("agy", "agy_observer", "gemini_3_6_flash_high_agy_oauth"),
+        "interface_mapper": ("claude_code", "claude", "deepseek_v4_pro"),
+        "researcher": ("grok", "grok_research", "grok_4_5_hermes_oauth"),
+        "prompt_engineer": ("claude_code", "claude", "deepseek_v4_flash"),
+        "coder": ("claude_code", "claude", "deepseek_v4_pro"),
+        "artifact_producer": (
+            "codex",
+            "codex",
+            "codex_gpt_5_6_sol_medium_cli_oauth",
+        ),
+        "narrative_planner": (
+            "agy",
+            "agy_narrative_planner",
+            "gemini_3_6_flash_high_agy_oauth",
+        ),
+        "tester_auditor": ("claude_code", "claude", "deepseek_v4_pro"),
+        "verifier": ("claude_code", "claude", "deepseek_v4_flash"),
+        "archivist": ("claude_code", "claude", "deepseek_v4_pro"),
+        "writer": ("agy", "agy_writer", "gemini_3_6_flash_high_agy_oauth"),
+        "reviewer": (
+            "claude_code",
+            "claude_narrative_audit",
+            "deepseek_v4_pro",
+        ),
+        "visual_reviewer": (
+            "agy",
+            "agy_visual_reviewer",
+            "gemini_3_6_flash_high_agy_oauth",
+        ),
+        "scribe": ("agy", "agy_scribe", "gemini_3_6_flash_high_agy_oauth"),
+    }
+
+    for tier_name, tier in tiers.items():
+        for role, (worker, contract, model_key) in expected.items():
+            route = tier[role]
+            assert route["cli_agent"] == worker, f"{tier_name}/{role}"
+            assert route["invocation_contract"] == contract, f"{tier_name}/{role}"
+            assert route["default"] == model_key, f"{tier_name}/{role}"
+
+    for tier_name in ("full", "performance"):
+        assert tiers[tier_name]["reposcout"]["cli_agent"] == "claude_code"
+        assert tiers[tier_name]["reposcout"]["default"] == "deepseek_v4_pro"
+    assert tiers["low"]["reposcout"]["cli_agent"] == "codex"
+    assert (
+        tiers["low"]["reposcout"]["default"]
+        == "codex_gpt_5_6_sol_high_cli_oauth"
+    )
 
 
 def test_narrative_planner_capacity_route_has_no_fallback() -> None:
@@ -341,11 +408,14 @@ def test_performance_narrative_planner_uses_agy_subscription_route() -> None:
         "executor_type": "cli_agent",
         "cli_agent": "agy",
         "invocation_contract": "agy_narrative_planner",
-        "default": "gemini_3_5_flash_high_agy_oauth",
+        "default": "gemini_3_6_flash_high_agy_oauth",
         "capacity_route": "NarrativePlannerAgy",
     }
-    assert profiles["full"]["narrative_planner"]["default"] == "deepseek_v4_pro"
-    assert profiles["full"]["narrative_planner"]["cli_agent"] == "claude_code"
+    assert (
+        profiles["full"]["narrative_planner"]["default"]
+        == "gemini_3_6_flash_high_agy_oauth"
+    )
+    assert profiles["full"]["narrative_planner"]["cli_agent"] == "agy"
     assert _cost_source(catalog[performance["default"]], {}) == "oauth/subscription quota"
 
     route = capacity["routes"]["NarrativePlannerAgy"]
@@ -353,7 +423,7 @@ def test_performance_narrative_planner_uses_agy_subscription_route() -> None:
         "role": "narrative_planner",
         "worker": "agy",
         "invocation_contract": "agy_narrative_planner",
-        "model_key": "gemini_3_5_flash_high_agy_oauth",
+        "model_key": "gemini_3_6_flash_high_agy_oauth",
         "pool": "agy_gemini_observer",
         "approved_fallbacks": [],
         "fallback_on": [],
@@ -376,15 +446,15 @@ def test_performance_narrative_planner_uses_agy_subscription_route() -> None:
     assert set(contract["required_receipts"]) <= delivery_receipts
 
 
-def test_narrative_planner_keeps_pro_for_full_and_existing_low_tiers() -> None:
+def test_narrative_planner_uses_agy_gemini_36_in_every_full_cli_tier() -> None:
     tiers = _load_config("agent_model_profiles.yml")["modes"]["full_cli"]["tiers"]
-    for tier_name in ("full", "low"):
+    for tier_name in ("full", "performance", "low"):
         planner = tiers[tier_name]["narrative_planner"]
         assert planner["executor_type"] == "cli_agent"
-        assert planner["cli_agent"] == "claude_code"
-        assert planner["invocation_contract"] == "claude_narrative_planner"
-        assert planner["default"] == "deepseek_v4_pro"
-        assert planner["capacity_route"] == "NarrativePlannerRewrite"
+        assert planner["cli_agent"] == "agy"
+        assert planner["invocation_contract"] == "agy_narrative_planner"
+        assert planner["default"] == "gemini_3_6_flash_high_agy_oauth"
+        assert planner["capacity_route"] == "NarrativePlannerAgy"
 
 
 def test_qwen_token_plan_cli_preserves_original_cli_allocation() -> None:
@@ -445,16 +515,16 @@ def test_agy_is_multimodal_observer_and_not_writer_or_image_renderer() -> None:
     assert profiles["default_mode"] == "full_cli"
     assert tier["observer"]["cli_agent"] == "agy"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
-    assert tier["observer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["observer"]["default"] == "gemini_3_6_flash_high_agy_oauth"
     assert tier["writer"]["cli_agent"] == "agy"
-    assert tier["artifact_producer"]["cli_agent"] == "grok"
+    assert tier["artifact_producer"]["cli_agent"] == "codex"
     assert "Writer" in bindings["workers"]["agy"]["allowed_roles"]
     assert "Observer" in bindings["workers"]["agy"]["allowed_roles"]
 
-    agy_model = catalog["models"]["gemini_3_5_flash_high_agy_oauth"]
+    agy_model = catalog["models"]["gemini_3_6_flash_high_agy_oauth"]
     assert agy_model["runtime_provider"] == "agy-gemini-oauth"
-    assert agy_model["model_id"] == "gemini-3.5-flash-high"
-    assert agy_model["cli_model_id"] == "gemini-3.5-flash-high"
+    assert agy_model["model_id"] == "gemini-3.6-flash-high"
+    assert agy_model["cli_model_id"] == "gemini-3.6-flash-high"
     assert agy_model["pricing"]["billing_source"] == "agy_oauth"
     assert agy_model["capabilities"]["input_modalities"] == [
         "text", "image", "video", "audio", "pdf"
@@ -467,8 +537,8 @@ def test_agy_is_multimodal_observer_and_not_writer_or_image_renderer() -> None:
     assert api_model["usage_policy"]["never_default"] is True
 
     assert providers["agy-gemini-oauth"]["type"] == "oauth_cli"
-    assert providers["agy-gemini-oauth"]["default_model"] == "gemini-3.5-flash-high"
-    assert catalog["providers"]["agy_gemini_oauth"]["cli_model_id"] == "gemini-3.5-flash-high"
+    assert providers["agy-gemini-oauth"]["default_model"] == "gemini-3.6-flash-high"
+    assert catalog["providers"]["agy_gemini_oauth"]["cli_model_id"] == "gemini-3.6-flash-high"
     assert providers["gemini-api"]["never_default"] is True
     assert providers["gemini-api"]["api_key"] == "env:GEMINI_API_KEY"
     assert "Do not use GEMINI_API_KEY" in contracts["agy_observer"]["template"]
@@ -620,7 +690,7 @@ def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
     assert "no preamble" in skill
 
 
-def test_codex_supervisor_uses_native_gpt_56_sol_at_xhigh_effort() -> None:
+def test_codex_supervisor_contract_remains_available_at_xhigh_effort() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     catalog = _load_config("model_catalog.yml")
     providers = _load_config("model_providers.yml")["providers"]
@@ -657,9 +727,10 @@ def test_codex_supervisor_uses_native_gpt_56_sol_at_xhigh_effort() -> None:
     assert "--skip-git-repo-check" in contracts["codex"]["template"]
     for tier in ("full", "performance", "low"):
         route = profiles["modes"]["full_cli"]["tiers"][tier]["supervisor"]
-        assert route["cli_agent"] == "codex"
-        assert route["invocation_contract"] == "codex_supervisor"
-        assert route["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+        assert route["cli_agent"] == "claude_code"
+        assert route["invocation_contract"] == "claude_supervisor_fallback"
+        assert route["default"] == "deepseek_v4_pro"
+        assert route["capacity_route"] == "SupervisorDeepSeek"
 
 
 def test_full_cli_codex_workers_only_use_codex_cli_models() -> None:
@@ -766,11 +837,11 @@ def test_writer_uses_agy_with_current_claude_deepseek_route_as_fallback() -> Non
     bindings = _load_config("agent_role_bindings.yml")
     capacity = _load_config("model_capacity.yml")["routes"]
 
-    for tier in ("full", "performance"):
+    for tier in ("full", "performance", "low"):
         route = profiles["modes"]["full_cli"]["tiers"][tier]["writer"]
         assert route["cli_agent"] == "agy"
         assert route["invocation_contract"] == "agy_writer"
-        assert route["default"] == "gemini_3_5_flash_high_agy_oauth"
+        assert route["default"] == "gemini_3_6_flash_high_agy_oauth"
         assert route["capacity_route"] == "WriterAgy"
     agy_writer = contracts["agy_writer"]
     assert agy_writer["worker_id"] == "agy"
@@ -781,7 +852,7 @@ def test_writer_uses_agy_with_current_claude_deepseek_route_as_fallback() -> Non
     agy_route = capacity["WriterAgy"]
     assert agy_route["worker"] == "agy"
     assert agy_route["invocation_contract"] == "agy_writer"
-    assert agy_route["model_key"] == "gemini_3_5_flash_high_agy_oauth"
+    assert agy_route["model_key"] == "gemini_3_6_flash_high_agy_oauth"
     assert agy_route["approved_fallbacks"] == ["Writer"]
     writer = contracts["claude_writer"]
     assert '--model "{model_id}"' in writer["template"]
@@ -808,7 +879,7 @@ def test_writer_uses_agy_with_current_claude_deepseek_route_as_fallback() -> Non
     assert "Writer" in bindings["workers"]["claude_code"]["allowed_roles"]
 
 
-def test_grok_has_separate_research_and_media_contracts() -> None:
+def test_grok_media_contract_remains_registered_but_is_not_the_default_producer() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
     bindings = _load_config("agent_role_bindings.yml")
@@ -816,7 +887,8 @@ def test_grok_has_separate_research_and_media_contracts() -> None:
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
-    assert tier["artifact_producer"]["invocation_contract"] == "grok_media"
+    assert tier["artifact_producer"]["cli_agent"] == "codex"
+    assert tier["artifact_producer"]["invocation_contract"] == "codex"
     assert contracts["grok_research"]["worker_id"] == "grok"
     assert "research evidence" in contracts["grok_research"]["template"]
     assert contracts["grok_media"]["worker_id"] == "grok"

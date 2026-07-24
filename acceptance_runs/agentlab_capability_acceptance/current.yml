@@ -221,7 +221,7 @@ capabilities:
   - config/media_generation_backends.yml
   - config/agent_model_profiles.yml
   summary: Full CLI mode governs native CLI shell capability and delivery contracts
-    instead of rebuilding shell scaffolds; families=13; full_cli_shells=agy,claude_code,codex,grok,hermes,qwen;
+    instead of rebuilding shell scaffolds; families=13; full_cli_shells=agy,claude_code,codex,grok;
     media_kernel=hermes_workflow_shell
   details:
     registered_shells:
@@ -236,8 +236,6 @@ capabilities:
     - claude_code
     - codex
     - grok
-    - hermes
-    - qwen
     registered_capability_families:
     - collaboration_board_governance
     - model_auth_and_fallback_governance
@@ -363,9 +361,9 @@ capabilities:
         executor_type: cli_agent
         cli_agent: agy
         invocation_contract: agy_writer
-        default: gemini_3_5_flash_high_agy_oauth
+        default: gemini_3_6_flash_high_agy_oauth
         capacity_route: WriterAgy
-      model_key: gemini_3_5_flash_high_agy_oauth
+      model_key: gemini_3_6_flash_high_agy_oauth
       model_provider: agy_gemini_oauth
       checks:
         role_worker_binding: true
@@ -388,7 +386,7 @@ capabilities:
       auth_probe: 'yes'
       worker: agy
       invocation_contract: agy_writer
-      model_key: gemini_3_5_flash_high_agy_oauth
+      model_key: gemini_3_6_flash_high_agy_oauth
 - id: crown_heavy_audit_scale
   title: Crown heavy audit and 1500-chapter scale governance
   status: pass

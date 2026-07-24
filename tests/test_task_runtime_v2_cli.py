@@ -77,7 +77,8 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
             "pause-two",
         ],
     )
-    doctor = runner.invoke(app, ["runtime-v2", "doctor", "--project", "Demo"])
+    doctor = runner.invoke(app, ["runtime", "doctor", "--project", "Demo"])
+    compatibility_help = runner.invoke(app, ["runtime-v2", "--help"])
 
     assert created.exit_code == 0, created.output
     assert paused.exit_code == 0, paused.output
@@ -87,6 +88,7 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
     assert paused_again.exit_code == 0, paused_again.output
     assert "status: paused" in paused_again.output
     assert doctor.exit_code == 0, doctor.output
+    assert compatibility_help.exit_code == 0, compatibility_help.output
     assert "ok: true" in doctor.output.lower()
 
 

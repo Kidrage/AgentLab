@@ -13,6 +13,7 @@ from agent_runtime.atomic_io import atomic_write_yaml
 from agent_runtime.narrative.blueprint_lifecycle import (
     validate_project_blueprint,
 )
+from agent_runtime.narrative.blueprint_validation import validate_crown_blueprint
 from agent_runtime.project_agents import (
     AgentContract,
     ProjectAgentRegistry,
@@ -321,13 +322,67 @@ def _truth_bindings(
     *,
     project: str,
 ) -> dict[str, Any]:
-    validation = validate_project_blueprint(root, project=project)
+    project_root = root / "projects" / project
+    authority_path = project_root / "production" / "blueprint_authority.yml"
+    try:
+        authority = yaml.safe_load(authority_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot read blueprint authority: {exc}") from exc
+    is_crown_profile = (
+        isinstance(authority, dict)
+        and authority.get("schema_version") == "crown-blueprint-authority/v1"
+    )
+    if is_crown_profile:
+        detailed_range = (authority.get("scope") or {}).get(
+            "detailed_chapter_contract_range"
+        )
+        if (
+            not isinstance(detailed_range, list)
+            or len(detailed_range) != 2
+            or any(type(item) is not int for item in detailed_range)
+        ):
+            raise ValueError("Crown blueprint detailed chapter range is invalid")
+        crown_validation = validate_crown_blueprint(
+            root,
+            project=project,
+            chapter_start=detailed_range[0],
+            chapter_end=detailed_range[1],
+        )
+        receipt_path = (
+            project_root / "project_brain" / "blueprint_validation_receipt.yml"
+        )
+        try:
+            seal_receipt = (
+                yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
+            )
+        except (OSError, UnicodeError, yaml.YAMLError):
+            seal_receipt = {}
+        authority_sha256 = artifact_sha256(authority_path)
+        artifact_hashes = (
+            seal_receipt.get("artifact_hashes")
+            if isinstance(seal_receipt, dict)
+            else {}
+        ) or {}
+        sealed = (
+            seal_receipt.get("status") == "pass"
+            and artifact_hashes.get("production/blueprint_authority.yml")
+            == authority_sha256
+        )
+        validation = {
+            **crown_validation,
+            "sealed": sealed,
+            "authority_sha256": authority_sha256,
+            "artifact_index_sha256": artifact_sha256(
+                project_root / "project_artifact_index.yml"
+            ),
+        }
+    else:
+        validation = validate_project_blueprint(root, project=project)
     if validation["status"] != "pass" or validation["sealed"] is not True:
         raise ValueError(
             "narrative task requires one validated sealed blueprint: "
             + ", ".join(str(item) for item in validation["issues"])
         )
-    project_root = root / "projects" / project
     fact_snapshot = project_root / "project_brain" / "project_fact_snapshot.yml"
     knowledge_snapshot_path = (
         project_root / "project_brain" / "knowledge_index_snapshot.yml"
@@ -346,21 +401,47 @@ def _truth_bindings(
     ):
         raise ValueError("project knowledge snapshot is missing or stale")
     indexed_hashes = knowledge_snapshot.get("indexed_source_hashes")
-    expected_indexed_hashes = {
-        f"projects/{project}/production/blueprint_authority.yml": validation[
-            "authority_sha256"
-        ],
-        f"projects/{project}/production/narrative_modification_contract.yml": (
-            artifact_sha256(
-                project_root
-                / "production"
-                / "narrative_modification_contract.yml"
-            )
-        ),
-        f"projects/{project}/project_brain/project_fact_snapshot.yml": (
-            artifact_sha256(fact_snapshot)
-        ),
-    }
+    manifest_path = project_root / "project.yml"
+    try:
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError):
+        manifest = {}
+    features = manifest.get("features") if isinstance(manifest, dict) else {}
+    if (features or {}).get("project_truth_mode") == "enforced":
+        truth = ProjectTruthStore(project_root)
+        truth.audit()
+        current = truth.current()
+        pointer_path = project_root / "project_truth.yml"
+        snapshot_path = (
+            project_root
+            / ".agentlab"
+            / "truth"
+            / "snapshots"
+            / f"{current.snapshot_id}.yml"
+        )
+        expected_indexed_hashes = {
+            f"projects/{project}/project_truth.yml": artifact_sha256(pointer_path),
+            (
+                f"projects/{project}/.agentlab/truth/snapshots/"
+                f"{current.snapshot_id}.yml"
+            ): artifact_sha256(snapshot_path),
+        }
+    else:
+        expected_indexed_hashes = {
+            f"projects/{project}/production/blueprint_authority.yml": validation[
+                "authority_sha256"
+            ],
+            f"projects/{project}/production/narrative_modification_contract.yml": (
+                artifact_sha256(
+                    project_root
+                    / "production"
+                    / "narrative_modification_contract.yml"
+                )
+            ),
+            f"projects/{project}/project_brain/project_fact_snapshot.yml": (
+                artifact_sha256(fact_snapshot)
+            ),
+        }
     if not isinstance(indexed_hashes, dict) or any(
         indexed_hashes.get(path) != digest
         for path, digest in expected_indexed_hashes.items()
@@ -368,11 +449,6 @@ def _truth_bindings(
         raise ValueError(
             "project knowledge snapshot does not match current narrative truth"
         )
-    authority = yaml.safe_load(
-        (
-            project_root / "production" / "blueprint_authority.yml"
-        ).read_text(encoding="utf-8")
-    )
     source_artifacts = (
         authority.get("source_artifacts") if isinstance(authority, dict) else {}
     )

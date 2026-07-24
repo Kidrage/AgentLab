@@ -64,6 +64,7 @@ def test_timeline_query_and_tail(tmp_path) -> None:
 def test_pipeline_commands_emit_governed_timeline_events(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("agent_runtime.run_task._PROJECT_ROOT", tmp_path)
     monkeypatch.setenv("AGENTLAB_ROOT", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     (tmp_path / "agentlab.sh").touch()
     (tmp_path / "agent_runtime").mkdir()
     monkeypatch.setattr(
@@ -90,7 +91,11 @@ def test_pipeline_commands_emit_governed_timeline_events(tmp_path, monkeypatch) 
     assert result.exit_code == 0
     assert query_timeline(str(tmp_path), event_type="cost_estimated")
 
-    shutil.copytree(Path("config").resolve(), tmp_path / "config", dirs_exist_ok=True)
+    shutil.copytree(
+        Path(__file__).resolve().parents[1] / "config",
+        tmp_path / "config",
+        dirs_exist_ok=True,
+    )
     result = runner.invoke(app, ["route-task", "--task-packet", str(task_packet)])
     assert result.exit_code == 0, result.output
     assert query_timeline(str(tmp_path), event_type="route_decision_created")

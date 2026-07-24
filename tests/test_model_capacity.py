@@ -421,6 +421,14 @@ def test_repository_policy_declares_safe_pools_routes_and_unknown_quota_values(t
     for pool_id, pool in policy["pools"].items():
         if pool.get("probe") is not None:
             capacity.safe_probe_command(pool_id)
+            capability = pool["probe_capability"]
+            assert capability["reports_remaining"] is False
+            assert capability["reports_reset_at"] is False
+    assert capacity.safe_probe_command("codex_cli_agentic") == (
+        "codex",
+        "login",
+        "status",
+    )
     assert ["hermes", "status", "--all"] in policy["probe_policy"]["forbidden_commands"]
 
     for route in policy["routes"].values():

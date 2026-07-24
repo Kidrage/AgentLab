@@ -1,15 +1,18 @@
 schema_version: 1
 policy_id: content_project_governance
 active_projects:
-  - NovelGen
   - Crown_of_Ash
 archived_projects:
+  - AgentLab_System
+  - NovelGen
+  - ProductDocs
   - demo_research_archive
   - demo_longform_text
   - DemoProject
   - demo_codebase_build
   - demo_video_generation
   - novel-moon-in-seal
+  - test_proj
 canonical_layout:
   project_brain:
     - project_state_contract.yml

@@ -23,8 +23,8 @@ agents:
     wrapper_kind: both
     auto_read_confidence: unknown
     invocation:
-      frontdesk: agy --sandbox --model gemini-3.5-flash-high -p "$AGENTLAB_SESSION_TEXT"
-      role: agy --sandbox --model gemini-3.5-flash-high -p "$AGENTLAB_SESSION_TEXT"
+      frontdesk: agy --sandbox --model gemini-3.6-flash-high -p "$AGENTLAB_SESSION_TEXT"
+      role: agy --sandbox --model gemini-3.6-flash-high -p "$AGENTLAB_SESSION_TEXT"
   openclaw:
     enabled: true
     command: openclaw

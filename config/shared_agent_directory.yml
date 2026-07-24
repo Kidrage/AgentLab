@@ -74,7 +74,7 @@ endpoints:
       hermes: "hermes -z \"You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers.\""
       claude_code: "claude -p \"{prompt}\""
       bl: "bl chat -p \"{prompt}\""
-      agy: "agy --sandbox --model gemini-3.5-flash-high -p \"{prompt}\""
+      agy: "agy --sandbox --model gemini-3.6-flash-high -p \"{prompt}\""
       openclaw: "openclaw run --prompt \"{prompt}\""
       codex: "codex --task \"{prompt}\""
       qwen: "qwen --bare --approval-mode default --output-format json \"{prompt}\""
@@ -248,22 +248,22 @@ agents:
     invocation:
       command: agy
       frontdesk_session: >-
-        agy --sandbox --model gemini-3.5-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
+        agy --sandbox --model gemini-3.6-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
       visual_reviewer_session: >-
-        agy --sandbox --model gemini-3.5-flash-high -p "Read the bounded
+        agy --sandbox --model gemini-3.6-flash-high -p "Read the bounded
         visual Reviewer packet at {task_packet_path}; inspect only staged assets
         and return four-dimension YAML evidence."
       narrative_planner_session: >-
-        agy --sandbox --model gemini-3.5-flash-high -p "Read the sealed
+        agy --sandbox --model gemini-3.6-flash-high -p "Read the sealed
         NarrativePlanner packet at {task_packet_path}; return planning and
         revision guidance only, never final prose."
       writer_session: >-
-        agy --sandbox --model gemini-3.5-flash-high -p "Treat the complete
+        agy --sandbox --model gemini-3.6-flash-high -p "Treat the complete
         sealed AgentLab Writer packet on stdin as the only task context; return
         only the required candidate prose envelopes."
-    default_model: gemini-3.5-flash-high
+    default_model: gemini-3.6-flash-high
     observer_models:
-      primary: gemini-3.5-flash-high
+      primary: gemini-3.6-flash-high
       fallback: Claude Sonnet 4.6 (Thinking)
       capacity_source: config/model_capacity.yml
       remaining: null
@@ -282,11 +282,11 @@ agents:
     invocation:
       command: hermes
       research_session: >-
-        hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z "Read the
+        hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z "Read the
         Researcher task packet at {task_packet_path}; return sourced social/web
         evidence and a source ledger."
       media_session: >-
-        hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z "Read the
+        hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z "Read the
         ArtifactProducer task packet at {task_packet_path}; call the registered
         image-generation tool and return real candidate asset paths and hashes."
     auth: hermes_xai_oauth_session

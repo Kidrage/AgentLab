@@ -1705,6 +1705,39 @@ def test_compile_binds_enabled_project_agents_before_creating_task(
         actor_id="user",
         approved=True,
     )
+    current_truth_snapshot = (
+        project_root
+        / ".agentlab"
+        / "truth"
+        / "snapshots"
+        / f"{created.snapshot_id}.yml"
+    )
+    _write_yaml(
+        project_root / "project_brain" / "knowledge_index_snapshot.yml",
+        {
+            "schema_version": 1,
+            "status": "sealed",
+            "namespace": "project.Novel",
+            "index_snapshot": "idx_fixture",
+            "formal_fact_roots": ["canonical_truth"],
+            "indexed_paths": [
+                "projects/Novel/project_truth.yml",
+                (
+                    "projects/Novel/.agentlab/truth/snapshots/"
+                    f"{created.snapshot_id}.yml"
+                ),
+            ],
+            "indexed_source_hashes": {
+                "projects/Novel/project_truth.yml": artifact_sha256(
+                    project_root / "project_truth.yml"
+                ),
+                (
+                    "projects/Novel/.agentlab/truth/snapshots/"
+                    f"{created.snapshot_id}.yml"
+                ): artifact_sha256(current_truth_snapshot),
+            },
+        },
+    )
     request = {
         "change_kind": "blueprint_change",
         "requested_delta": "Change one world rule.",
@@ -1742,6 +1775,39 @@ def test_compile_binds_enabled_project_agents_before_creating_task(
         actor_id="user",
     )
     assert archived.snapshot_id != created.snapshot_id
+    archived_truth_snapshot = (
+        project_root
+        / ".agentlab"
+        / "truth"
+        / "snapshots"
+        / f"{archived.snapshot_id}.yml"
+    )
+    _write_yaml(
+        project_root / "project_brain" / "knowledge_index_snapshot.yml",
+        {
+            "schema_version": 1,
+            "status": "sealed",
+            "namespace": "project.Novel",
+            "index_snapshot": "idx_fixture_after_archive",
+            "formal_fact_roots": ["canonical_truth"],
+            "indexed_paths": [
+                "projects/Novel/project_truth.yml",
+                (
+                    "projects/Novel/.agentlab/truth/snapshots/"
+                    f"{archived.snapshot_id}.yml"
+                ),
+            ],
+            "indexed_source_hashes": {
+                "projects/Novel/project_truth.yml": artifact_sha256(
+                    project_root / "project_truth.yml"
+                ),
+                (
+                    "projects/Novel/.agentlab/truth/snapshots/"
+                    f"{archived.snapshot_id}.yml"
+                ): artifact_sha256(archived_truth_snapshot),
+            },
+        },
+    )
     rejected_task_root = (
         project_root / "runtime" / "tasks" / "task-incomplete-agent-team"
     )

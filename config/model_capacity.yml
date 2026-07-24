@@ -39,12 +39,16 @@ transient_network_backoff_seconds: 900
 probe_policy:
   allowlist_shapes:
     - [agy, models]
+    - [codex, login, status]
     - [hermes, auth, status, "<provider>"]
   forbidden_commands:
     - [hermes, status, --all]
   notes:
     - Never use a broad Hermes status command for capacity discovery because it may expose secrets.
     - Probe output is classified in memory and is never persisted verbatim.
+    - Agy models is catalog-only; Agy exposes no remaining-quota or reset-time command.
+    - Codex login status and Hermes auth status are auth-only and do not report quota balances.
+    - remaining and reset_at stay null until provider runtime evidence supplies them.
 
 pools:
   agy_gemini_observer:
@@ -52,6 +56,11 @@ pools:
     provider: agy_gemini_oauth
     billing_mode: subscription
     probe: [agy, models]
+    probe_capability:
+      kind: catalog_only
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_and_reset_canary
     declared_windows:
       rolling:
         period_seconds: 18000
@@ -73,6 +82,11 @@ pools:
     provider: agy_claude_oauth
     billing_mode: subscription
     probe: [agy, models]
+    probe_capability:
+      kind: catalog_only
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_and_reset_canary
     declared_windows:
       rolling:
         period_seconds: 18000
@@ -94,6 +108,11 @@ pools:
     provider: hermes_codex_oauth
     billing_mode: subscription
     probe: [hermes, auth, status, openai-codex]
+    probe_capability:
+      kind: auth_only
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_and_reset_canary
     declared_windows:
       rolling:
         period_seconds: null
@@ -114,7 +133,12 @@ pools:
     shared_pool_id: codex_cli_agentic
     provider: codex_cli_oauth
     billing_mode: subscription
-    probe: [codex, --version]
+    probe: [codex, login, status]
+    probe_capability:
+      kind: auth_only
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_and_reset_canary
     declared_windows:
       rolling:
         period_seconds: null
@@ -136,6 +160,11 @@ pools:
     provider: hermes_xai_oauth
     billing_mode: subscription
     probe: [hermes, auth, status, xai-oauth]
+    probe_capability:
+      kind: auth_only
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_and_reset_canary
     declared_windows:
       rolling:
         period_seconds: null
@@ -157,6 +186,11 @@ pools:
     provider: deepseek_official
     billing_mode: metered_api
     probe: null
+    probe_capability:
+      kind: none
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_only
     declared_windows:
       rolling:
         period_seconds: null
@@ -171,6 +205,11 @@ pools:
     provider: dashscope_cn
     billing_mode: metered_api
     probe: null
+    probe_capability:
+      kind: none
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_only
     declared_windows:
       rolling:
         period_seconds: null
@@ -202,7 +241,7 @@ routes:
     role: observer
     worker: agy
     invocation_contract: agy_observer
-    model_key: gemini_3_5_flash_high_agy_oauth
+    model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
     approved_fallbacks: [ObserverClaude]
@@ -221,7 +260,7 @@ routes:
     role: reviewer
     worker: agy
     invocation_contract: agy_visual_reviewer
-    model_key: gemini_3_5_flash_high_agy_oauth
+    model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
     approved_fallbacks: [VisualReviewerClaude]
@@ -240,7 +279,7 @@ routes:
     role: researcher
     worker: grok
     invocation_contract: grok_research
-    model_key: grok_4_3_hermes_oauth
+    model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: []
     fallback_on: []
@@ -249,7 +288,7 @@ routes:
     role: artifact_producer
     worker: grok
     invocation_contract: grok_media
-    model_key: grok_4_3_hermes_oauth
+    model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     media_backend: hermes_grok_oauth
     input_modalities: [image, video, image_to_video]
@@ -304,7 +343,7 @@ routes:
     role: narrative_planner
     worker: agy
     invocation_contract: agy_narrative_planner
-    model_key: gemini_3_5_flash_high_agy_oauth
+    model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     approved_fallbacks: []
     fallback_on: []
@@ -322,7 +361,7 @@ routes:
     role: writer
     worker: agy
     invocation_contract: agy_writer
-    model_key: gemini_3_5_flash_high_agy_oauth
+    model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     approved_fallbacks: [Writer]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable]

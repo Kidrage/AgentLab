@@ -13,8 +13,6 @@ indexing:
   project_allowlist:
   - AgentLab
   - Crown_of_Ash
-  - NovelGen
-  - AgentLab_System
   refresh_on_prepare: false
   bootstrap_missing_spaces: true
   max_file_bytes: 1000000
