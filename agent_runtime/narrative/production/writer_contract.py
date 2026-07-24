@@ -43,16 +43,24 @@ def _apply_prose_length_contract(
     if result["status"] != "pass" or prose_length_contract is None:
         return result
     from agent_runtime.narrative.quality.prose_length import (
-        evaluate_han_character_contract,
+        evaluate_character_contract,
     )
 
-    length_result = evaluate_han_character_contract(
+    length_result = evaluate_character_contract(
         str(result.get("canonical_prose") or ""),
         prose_length_contract,
     )
-    result["han_character_count"] = length_result["han_character_count"]
+    result["character_count"] = length_result["character_count"]
+    count_field = str(length_result.get("count_field") or "character_count")
+    result[count_field] = length_result["character_count"]
     result["prose_length_contract"] = length_result["contract"]
     if length_result["status"] != "pass":
+        # Keep rejected bytes only as explicitly non-authoritative retry input.
+        # They still have no receipt and must never be materialized.
+        result["rejected_canonical_prose"] = str(
+            result.get("canonical_prose") or ""
+        )
+        result["rejected_prose_sha256"] = str(result.get("prose_sha256") or "")
         result["status"] = "blocked"
         result["issues"] = [str(length_result["issue"])]
         result["prose_sha256"] = ""

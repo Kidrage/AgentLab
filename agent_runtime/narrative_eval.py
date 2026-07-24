@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 from typing import Any
 import os
@@ -21,6 +22,7 @@ from agent_runtime.narrative_delivery import (
     write_narrative_delivery_receipt,
 )
 from agent_runtime.crown_candidate_audit import validate_writer_execution_contract
+from agent_runtime.narrative.blueprint_validation import validate_blueprint_seal
 from agent_runtime.policies import ensure_safe_task_id
 from agent_runtime.report_sanitizer import write_report_yaml
 from agent_runtime.writer_output_materializer import (
@@ -32,7 +34,6 @@ from agent_runtime.writer_output_materializer import (
 
 DEFAULT_SUITE = "crown_reset_acceptance_v1"
 DEFAULT_CHAPTERS = [1, 2, 3]
-DEFAULT_SCALE_CHAPTERS = 1500
 ALLOWED_FORESHADOWING_STATUSES = ["introduced", "touched", "escalated", "resolved", "deferred"]
 VALID_MODES = {"audit-only", "mock", "live"}
 CHAPTER_ATTEMPT_OUTPUTS = (
@@ -75,6 +76,154 @@ def _rel(path: Path, base: Path) -> str:
 def _write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _read_yaml(path: Path, default: Any = None) -> Any:
+    if not path.is_file():
+        return default
+    try:
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return default
+
+
+def _approved_scale_plan(
+    root: Path,
+    project: str,
+) -> tuple[int, list[tuple[int, int]] | None]:
+    """Return only a scale proven by the project's current blueprint seal."""
+    project_root = _project_root(root, project)
+    seal = validate_blueprint_seal(
+        root,
+        project=project,
+        chapter_start=1,
+        chapter_end=1,
+    )
+    if seal.get("status") != "pass":
+        issues = ", ".join(str(item) for item in seal.get("issues") or [])
+        raise ValueError(f"blueprint scale seal is not valid: {issues or 'blocked'}")
+    authority = _read_yaml(
+        project_root / "production" / "blueprint_authority.yml",
+        {},
+    )
+    scope = authority.get("scope") if isinstance(authority, dict) else None
+    if isinstance(scope, dict):
+        total = scope.get("planned_total_chapters")
+        raw_parts = scope.get("parts")
+        part_ranges: list[tuple[int, int]] = []
+        for item in raw_parts if isinstance(raw_parts, list) else []:
+            chapter_range = item.get("chapter_range") if isinstance(item, dict) else None
+            if (
+                isinstance(chapter_range, list)
+                and len(chapter_range) == 2
+                and all(type(value) is int for value in chapter_range)
+            ):
+                part_ranges.append((chapter_range[0], chapter_range[1]))
+        if (
+            type(total) is int
+            and total > 0
+            and len(part_ranges) == 3
+            and part_ranges[0][0] == 1
+            and part_ranges[-1][1] == total
+            and all(
+                part_ranges[index][1] + 1 == part_ranges[index + 1][0]
+                for index in range(2)
+            )
+        ):
+            return total, part_ranges
+    raise ValueError("sealed blueprint authority has no valid three-part scale")
+
+
+def _write_writer_authorization_scope(
+    root: Path,
+    project: str,
+    suite: str,
+    eval_id: str,
+    eval_dir: Path,
+    chapters: list[int],
+    *,
+    writer_worker: str | None,
+    writer_capacity_route: str | None,
+    writer_model_key: str | None,
+    writer_budget_mode: str,
+    chapter_state_plan: str | None,
+) -> dict[str, Any]:
+    """Write one deterministic approval scope for a derived chapter batch."""
+    if not chapters:
+        raise ValueError("writer authorization scope requires at least one chapter")
+    required_bindings = {
+        "writer_worker": writer_worker,
+        "writer_capacity_route": writer_capacity_route,
+        "writer_model_key": writer_model_key,
+        "chapter_state_plan": chapter_state_plan,
+    }
+    missing = [
+        name
+        for name, value in required_bindings.items()
+        if not str(value or "").strip()
+    ]
+    if missing:
+        raise ValueError(
+            "writer authorization scope missing bindings: " + ", ".join(missing)
+        )
+
+    project_root = _project_root(root, project)
+    authority_paths = [
+        project_root / "project_brain" / "project_fact_snapshot.yml",
+        project_root / "project_brain" / "knowledge_index_snapshot.yml",
+        project_root / str(chapter_state_plan),
+    ]
+    authority_files: list[dict[str, Any]] = []
+    for path in authority_paths:
+        if not path.is_file():
+            raise ValueError(
+                f"writer authorization scope authority file missing: "
+                f"{_rel(path, project_root)}"
+            )
+        payload = path.read_bytes()
+        authority_files.append(
+            {
+                "path": _rel(path, project_root),
+                "bytes": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+
+    contract = {
+        "schema_version": 1,
+        "scope_type": "strict_v3_writer_derived_chapter_batch",
+        "project": project,
+        "suite": suite,
+        "eval_id": eval_id,
+        "chapters": sorted(set(int(chapter) for chapter in chapters)),
+        "role": "Writer",
+        "story_authority_mode": "strict_v3_chapter_knowledge_contract",
+        "authority_files": authority_files,
+        "execution": {
+            "worker": str(writer_worker),
+            "capacity_route": str(writer_capacity_route),
+            "model_key": str(writer_model_key),
+            "budget_mode": writer_budget_mode,
+            "capacity_fallback_allowed": False,
+            "cli_api_fallback_allowed": False,
+        },
+        "continuity_policy": {
+            "first_chapter": "sealed_fact_and_knowledge_snapshot",
+            "later_chapters": "previous_candidate_sources_plus_chapter_contract",
+        },
+        "candidate_only": True,
+        "production_allowed": False,
+        "heavy_audit_authorized": False,
+    }
+    scope_path = eval_dir / "writer_authorization_scope.yml"
+    _write_yaml(scope_path, contract)
+    scope_sha256 = hashlib.sha256(scope_path.read_bytes()).hexdigest()
+    return {
+        "path": _rel(scope_path, root),
+        "sha256": scope_sha256,
+        "chapters": contract["chapters"],
+        "first_chapter": min(contract["chapters"]),
+    }
 
 
 def _clear_chapter_attempt_outputs(
@@ -236,16 +385,29 @@ def _write_writer_contract_retry_feedback(
             measurements = contract.get("measurements") or {}
             observed = measurements.get("fiction_draft_characters")
             hard_range = character_ranges.get("hard_character_range")
+            target_range = character_ranges.get("target_character_range")
             if isinstance(observed, int):
                 character_ranges["observed_characters"] = observed
                 if isinstance(hard_range, list) and len(hard_range) == 2:
                     if observed < hard_range[0]:
+                        desired_minimum = (
+                            target_range[0]
+                            if isinstance(target_range, list)
+                            and len(target_range) == 2
+                            else hard_range[0]
+                        )
                         character_ranges["minimum_characters_to_add"] = (
-                            hard_range[0] - observed
+                            desired_minimum - observed
                         )
                     elif observed > hard_range[1]:
+                        desired_maximum = (
+                            target_range[1]
+                            if isinstance(target_range, list)
+                            and len(target_range) == 2
+                            else hard_range[1]
+                        )
                         character_ranges["minimum_characters_to_remove"] = (
-                            observed - hard_range[1]
+                            observed - desired_maximum
                         )
         except (OSError, yaml.YAMLError, AttributeError):
             pass
@@ -525,10 +687,7 @@ def _audit_fact_sources(
     blueprint_refs: list[str] = []
     if require_knowledge_contract:
         blueprint_required = (
-            "production/series_scale_decision.yml",
-            "production/chapter_length_policy.yml",
-            "production/canonical/index.yml",
-            "production/chapter_cards/index.yml",
+            "production/blueprint_authority.yml",
             "project_brain/blueprint_validation_receipt.yml",
             "project_brain/knowledge_index_snapshot.yml",
         )
@@ -541,6 +700,26 @@ def _audit_fact_sources(
                         "severity": "error",
                         "check": "sealed_rag_blueprint_present",
                         "message": f"missing {relative}",
+                    }
+                )
+        if not issues:
+            from agent_runtime.narrative.blueprint_validation import (
+                validate_blueprint_seal,
+            )
+
+            seal = validate_blueprint_seal(
+                project_root.parents[1],
+                project=project,
+            )
+            if seal.get("status") != "pass":
+                issues.append(
+                    {
+                        "severity": "error",
+                        "check": "sealed_blueprint_validation",
+                        "message": ", ".join(
+                            str(item) for item in seal.get("issues") or []
+                        )
+                        or "blueprint seal validation failed",
                     }
                 )
     else:
@@ -958,6 +1137,7 @@ def _write_live_chapter_outputs(
     writer_budget_mode: str = "balanced",
     workflow_plan: Any | None = None,
     clear_attempt_outputs: bool = True,
+    initial_capacity_route: str | None = None,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     if clear_attempt_outputs:
@@ -974,6 +1154,7 @@ def _write_live_chapter_outputs(
             "candidate_only": True,
             "writer_role_session_required": True,
             "writer_cli_fallback_allowed": allow_writer_cli_fallback,
+            "writer_capacity_fallback_allowed": False,
             "provider_surface_fallback_allowed": False,
             "model_capacity_governance": "centralized",
             "required_outputs": [
@@ -1002,6 +1183,11 @@ def _write_live_chapter_outputs(
         writer_materialized = False
         retry_attempts: list[dict[str, Any]] = []
         contract_redos = 0
+        sticky_capacity_route = (
+            str(initial_capacity_route).strip()
+            if initial_capacity_route
+            else None
+        )
         max_attempts = 1 + WRITER_MAX_CONTRACT_REDOS
         for attempt in range(1, max_attempts + 1):
             if attempt > 1:
@@ -1014,6 +1200,12 @@ def _write_live_chapter_outputs(
                 run_dir / "writer_role_session_capture.md",
                 apply_patches=False,
                 allow_cli_api_fallback=False,
+                allow_capacity_fallback=False,
+                **(
+                    {"capacity_route_override": sticky_capacity_route}
+                    if sticky_capacity_route
+                    else {}
+                ),
             )
             writer_materialized = materialize_writer_candidate_result(
                 writer_result,
@@ -1022,6 +1214,14 @@ def _write_live_chapter_outputs(
             )
             raw_usage = getattr(writer_result, "raw_usage", None)
             raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
+            successful_capacity_route = str(
+                raw_usage.get("capacity_route_id") or ""
+            ).strip()
+            if (
+                getattr(writer_result, "status", None) == "completed"
+                and successful_capacity_route
+            ):
+                sticky_capacity_route = successful_capacity_route
             record = {
                 "attempt": attempt,
                 "result_status": getattr(writer_result, "status", None),
@@ -1032,6 +1232,7 @@ def _write_live_chapter_outputs(
                 "materialized": writer_materialized,
                 "resolved_model_key": raw_usage.get("resolved_model_key"),
                 "resolved_cli_model_id": raw_usage.get("cli_model_id"),
+                "capacity_route_id": raw_usage.get("capacity_route_id"),
             }
             if writer_materialized or attempt == max_attempts:
                 retry_attempts.append(record)
@@ -1129,6 +1330,7 @@ def _generate_chapters(
     writer_budget_mode: str = "balanced",
     predecessor_task_id: str | None = None,
     require_knowledge_contract: bool = False,
+    writer_authorization_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
@@ -1183,6 +1385,7 @@ def _generate_chapters(
             previous_chapter,
             previous_task_id,
         )
+    batch_writer_capacity_route: str | None = None
     for chapter in chapters:
         task_id = _safe_eval_task_id(chapter, eval_id)
         run_dir = project_root / "runs" / task_id
@@ -1226,6 +1429,12 @@ def _generate_chapters(
                 replacement_reason = "upstream_candidate_regenerated_on_resume"
         if resume_valid:
             resume_chain_intact = False
+        existing_packet = _read_yaml(run_dir / "chapter_packet.yml", {})
+        existing_packet_created_at = (
+            str(existing_packet.get("created_at") or "").strip()
+            if isinstance(existing_packet, dict)
+            else ""
+        )
         _clear_chapter_attempt_outputs(
             run_dir,
             replacement_reason=replacement_reason,
@@ -1264,6 +1473,8 @@ def _generate_chapters(
             candidate_fact_ledger=candidate_fact_ledger,
             chapter_state_plan=chapter_state_plan,
             require_knowledge_contract=require_knowledge_contract,
+            created_at=existing_packet_created_at or None,
+            writer_authorization_scope=writer_authorization_scope,
         )
         if mode == "mock":
             _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources, baseline_mode)
@@ -1297,7 +1508,29 @@ def _generate_chapters(
                     writer_budget_mode=writer_budget_mode,
                     workflow_plan=workflow_plan,
                     clear_attempt_outputs=False,
+                    initial_capacity_route=batch_writer_capacity_route,
                 )
+                execution_chain = _read_yaml(
+                    run_dir / "model_execution_chain_writer.yml",
+                    {},
+                )
+                final_route = (
+                    str(
+                        (execution_chain.get("final") or {}).get(
+                            "capacity_route"
+                        )
+                        or ""
+                    ).strip()
+                    if isinstance(execution_chain, dict)
+                    else ""
+                )
+                final_status = (
+                    str((execution_chain.get("final") or {}).get("status") or "")
+                    if isinstance(execution_chain, dict)
+                    else ""
+                )
+                if final_status == "pass" and final_route:
+                    batch_writer_capacity_route = final_route
             else:
                 _write_live_guard_error(run_dir, agent="Writer", guard=guard)
 
@@ -1337,6 +1570,7 @@ def _generate_chapters(
         "writer_budget_mode": writer_budget_mode,
         "predecessor_task_id": predecessor_task_id,
         "model_capacity_governance": "centralized",
+        "batch_writer_capacity_route": batch_writer_capacity_route,
     }
 
 
@@ -1414,10 +1648,21 @@ def _write_generation_checkpoint(
     return quality_rows
 
 
-def _build_scale_simulation(eval_dir: Path, suite: str, chapter_count: int = DEFAULT_SCALE_CHAPTERS) -> dict[str, Any]:
+def _build_scale_simulation(
+    eval_dir: Path,
+    suite: str,
+    chapter_count: int,
+    *,
+    part_ranges: list[tuple[int, int]] | None = None,
+) -> dict[str, Any]:
     phase_size = chapter_count // 3
-    second_checkpoint = max(1, phase_size)
-    third_checkpoint = max(1, phase_size * 2)
+    effective_ranges = part_ranges or [
+        (1, phase_size),
+        (phase_size + 1, phase_size * 2),
+        (phase_size * 2 + 1, chapter_count),
+    ]
+    second_checkpoint = effective_ranges[0][1]
+    third_checkpoint = effective_ranges[1][1]
     governance_cadence = {
         "chapter_ledger": "every chapter",
         "continuity_batch_audit": "every 3 chapters",
@@ -1451,9 +1696,23 @@ def _build_scale_simulation(eval_dir: Path, suite: str, chapter_count: int = DEF
         "target_total_chapters": chapter_count,
         "simulation_scope": "governance_ledger_only",
         "parts": [
-            {"part": 1, "chapters": [1, phase_size], "phase": "survival_and_discovery"},
-            {"part": 2, "chapters": [phase_size + 1, phase_size * 2], "phase": "war_and_cost"},
-            {"part": 3, "chapters": [phase_size * 2 + 1, chapter_count], "phase": "reckoning_and_rebuild"},
+            {
+                "part": index,
+                "chapters": list(chapter_range),
+                "phase": phase,
+            }
+            for index, (chapter_range, phase) in enumerate(
+                zip(
+                    effective_ranges,
+                    (
+                        "survival_and_discovery",
+                        "war_and_cost",
+                        "reckoning_and_rebuild",
+                    ),
+                    strict=True,
+                ),
+                start=1,
+            )
         ],
         "governance_cadence": governance_cadence,
     }
@@ -1482,13 +1741,36 @@ def _build_scale_simulation(eval_dir: Path, suite: str, chapter_count: int = DEF
     character_arc = {
         "arcs_have_phase_changes": True,
         "major_arcs": [
-            {"character": "protagonist", "phase_changes": [1, 180, 620, 1180, 1500]},
-            {"character": "exile_scribe", "phase_changes": [1, 220, 700, 1100, 1450]},
+            {
+                "character": "protagonist",
+                "phase_changes": [
+                    1,
+                    max(2, chapter_count * 12 // 100),
+                    second_checkpoint,
+                    max(second_checkpoint + 1, chapter_count * 80 // 100),
+                    chapter_count,
+                ],
+            },
+            {
+                "character": "exile_scribe",
+                "phase_changes": [
+                    1,
+                    max(2, chapter_count * 15 // 100),
+                    max(3, chapter_count * 47 // 100),
+                    max(4, chapter_count * 74 // 100),
+                    max(5, chapter_count * 97 // 100),
+                ],
+            },
         ],
     }
     timeline_worldline = {
         "timeline_monotonic": True,
-        "worldline_phase_changes": [1, 500, 1000, 1500],
+        "worldline_phase_changes": [
+            1,
+            second_checkpoint,
+            third_checkpoint,
+            chapter_count,
+        ],
         "static_worldline_detected": False,
     }
     _write_yaml(eval_dir / "series_arc_ledger.yml", series_arc)
@@ -1557,6 +1839,9 @@ def run_narrative_eval(
     writer_budget_mode: str = "balanced",
     predecessor_task_id: str | None = None,
     require_knowledge_contract: bool = False,
+    writer_batch_authorization_required: bool = False,
+    writer_capacity_route: str | None = None,
+    writer_model_key: str | None = None,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -1575,6 +1860,25 @@ def run_narrative_eval(
     l1 = _audit_history(project_root)
     deprecated_sources = [item["path"] for item in l1["deprecated_production_chapters"]]
     reset_proposal = _write_reset_proposal(eval_dir, project, deprecated_sources)
+    writer_authorization_scope = None
+    if (
+        writer_batch_authorization_required
+        and mode == "live"
+        and require_knowledge_contract
+    ):
+        writer_authorization_scope = _write_writer_authorization_scope(
+            root,
+            project,
+            suite,
+            eval_id,
+            eval_dir,
+            selected_chapters,
+            writer_worker=writer_worker,
+            writer_capacity_route=writer_capacity_route,
+            writer_model_key=writer_model_key,
+            writer_budget_mode=writer_budget_mode,
+            chapter_state_plan=chapter_state_plan,
+        )
 
     if chapter_state_plan:
         chapter_state_plan_validation = validate_chapter_state_plan(
@@ -1643,9 +1947,29 @@ def run_narrative_eval(
             writer_budget_mode=writer_budget_mode,
             predecessor_task_id=predecessor_task_id,
             require_knowledge_contract=require_knowledge_contract,
+            writer_authorization_scope=writer_authorization_scope,
         )
 
-    l3 = _build_scale_simulation(eval_dir, suite)
+    try:
+        scale_chapters, scale_part_ranges = _approved_scale_plan(root, project)
+    except ValueError as exc:
+        l3 = {
+            "status": "blocked",
+            "reason": str(exc),
+            "simulation_scope": "governance_ledger_only",
+            "text_generation": {
+                "draft_chapters_generated": 0,
+                "draft_text_generated": False,
+            },
+        }
+        _write_yaml(eval_dir / "series_scale_simulation.yml", l3)
+    else:
+        l3 = _build_scale_simulation(
+            eval_dir,
+            suite,
+            scale_chapters,
+            part_ranges=scale_part_ranges,
+        )
     overall_status = "pass"
     if l0["status"] != "pass" or l2["status"] == "blocked" or l3["status"] != "pass":
         overall_status = "fail"
@@ -1664,6 +1988,8 @@ def run_narrative_eval(
         "chapter_state_plan": chapter_state_plan,
         "writer_budget_mode": writer_budget_mode,
         "predecessor_task_id": predecessor_task_id,
+        "writer_batch_authorization_required": writer_batch_authorization_required,
+        "writer_authorization_scope": writer_authorization_scope,
         "chapter_state_plan_validation": chapter_state_plan_validation,
         "model_capacity_governance": "centralized",
         "created_at": datetime.now(timezone.utc).isoformat(),

@@ -124,9 +124,21 @@ def build_writer_packet_preview(
             "role": "system",
             "content": (
                 "Act only as the prose Writer for this chapter. Preserve the "
-                "CreativeBrief and supplied canon/state facts. Return exactly one "
-                "fiction_draft.md prose candidate; do not emit reports, audits, "
-                "state ledgers, promotion decisions, or workspace edits."
+                "CreativeBrief and supplied canon/state facts. Facts absent from "
+                "the sealed evidence remain unknown and must not be invented. "
+                "Apply fact_invention_policy literally: only transient scene "
+                "texture is creative freedom; never create persistent backstory, "
+                "institutions, rules, classifications, debts, resources, or "
+                "relationships without sealed evidence. "
+                "Treat must_not_repeat and forbidden_facts as hard prohibitions. "
+                "Supporting-actor state is causal guidance, not permission to "
+                "enter another character's mind; preserve the declared POV and "
+                "show hidden motives only through observable evidence. "
+                "Return exactly one fiction_draft.md prose candidate containing "
+                "only a chapter title and fiction prose; do not emit reader "
+                "questions, author notes, reports, audits, state ledgers, "
+                "promotion decisions, or workspace edits. Use readable paragraph "
+                "breaks instead of a few oversized paragraphs."
             ),
         },
         {

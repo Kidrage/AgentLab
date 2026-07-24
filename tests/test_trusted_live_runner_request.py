@@ -35,16 +35,15 @@ def test_trusted_live_runner_request_materializes_internal_smoke_commands_withou
     assert report["terminology"]["not_a_default_production_workflow"] is True
     assert report["runner_boundary"]["role_session_acceptance_commands_allowed_only_by_runner"] is True
     assert any(
-        "worker-invocation-probe --worker claude_writer" in command
+        "worker-invocation-probe --worker agy" in command
         for command in pre_run["commands"]
     )
     assert any("grok-cli-smoke --live" in command for command in pre_run["commands"])
     assert any("internal-live-readiness" in command for command in pre_run["commands"])
     assert any("internal_live_readiness.yml" in command for command in pre_run["commands"])
     assert by_id["run_crown_internal_writer_eval"]["agentlab_execution_owner"] == "Writer"
-    assert by_id["run_crown_internal_writer_eval"]["assigned_worker"] == "claude_code"
-    assert "--writer-worker claude_code" in by_id["run_crown_internal_writer_eval"]["command"]
-    assert "--writer-worker agy" not in by_id["run_crown_internal_writer_eval"]["command"]
+    assert by_id["run_crown_internal_writer_eval"]["assigned_worker"] == "agy"
+    assert "--writer-worker agy" in by_id["run_crown_internal_writer_eval"]["command"]
     assert "trusted_live_test_writer" in by_id["run_crown_internal_writer_eval"]["command"]
     assert by_id["run_crown_internal_writer_eval"]["expected_outputs"]["type"] == "narrative_live_smoke"
     assert "fiction_draft.md" in "\n".join(by_id["run_crown_internal_writer_eval"]["expected_outputs"]["required_files"])
@@ -147,19 +146,17 @@ def test_trusted_live_runner_request_cli_writes_yaml_and_script(tmp_path: Path) 
     assert report["local_runner_package"]["session_health_only_command"].endswith(" --session-health-only")
     assert "trusted-live-runner-preflight" in report["local_runner_package"]["preflight_report_command"]
     assert any(
-        "worker-invocation-probe --worker claude_writer" in command
+        "worker-invocation-probe --worker agy" in command
         for command in report["local_runner_package"]["recommended_pre_run_session_health_commands"]
     )
     assert any(
         "grok-cli-smoke --live" in command
         for command in report["local_runner_package"]["recommended_pre_run_session_health_commands"]
     )
-    assert "command -v claude" in report["local_runner_package"]["preflight_commands"]
-    assert "command -v agy" not in report["local_runner_package"]["preflight_commands"]
+    assert "command -v agy" in report["local_runner_package"]["preflight_commands"]
     assert "command -v hermes" in report["local_runner_package"]["preflight_commands"]
     text = script.read_text(encoding="utf-8")
-    assert "require_command claude" in text
-    assert "require_command agy" not in text
+    assert "require_command agy" in text
     assert "require_command hermes" in text
     assert "trusted-live-runner-preflight --request" in text
     assert "trusted-live-runner-collect --request" in text
@@ -172,7 +169,7 @@ def test_trusted_live_runner_request_cli_writes_yaml_and_script(tmp_path: Path) 
     assert "guard_clean_session_health" in text
     assert "selected_session_health_issue_count" in text
     assert "should_run_session_health_command" in text
-    assert "current_claude_writer_session_health" in text
+    assert "current_agy_writer_session_health" in text
     assert "current_grok_session_health" in text
     assert "skipped_for_selected_item=$RUN_ONLY" in text
     assert "TRUSTED_LIVE_RUNNER=\"${AGENTLAB_TRUSTED_LIVE_RUNNER:-}\"" in text
@@ -201,8 +198,8 @@ def test_trusted_live_runner_request_cli_writes_yaml_and_script(tmp_path: Path) 
     assert "session_health_issue_report_unreadable" in text
     assert "reason={reason} next_action={next_action}" in text
     assert "session_health_issues" in text
-    assert "worker-invocation-probe --worker claude_writer" in text
-    assert "claude_writer_session_probe.yml" in text
+    assert "worker-invocation-probe --worker agy" in text
+    assert "agy_writer_session_probe.yml" in text
     assert "grok-cli-smoke --live" in text
     assert "internal-live-readiness" in text
     assert "internal_live_readiness.yml" in text
@@ -420,15 +417,15 @@ def test_trusted_live_runner_status_reports_pending_until_outputs_return(
     )
 
 
-def test_trusted_live_runner_status_reports_claude_session_gate_for_missing_writer_artifacts(
+def test_trusted_live_runner_status_reports_agy_session_gate_for_missing_writer_artifacts(
     tmp_path: Path,
 ) -> None:
     smoke_dir = tmp_path / "acceptance_runs" / "agentlab_capability_acceptance"
     smoke_dir.mkdir(parents=True)
-    (smoke_dir / "claude_writer_session_probe.yml").write_text(
+    (smoke_dir / "agy_writer_session_probe.yml").write_text(
         yaml.safe_dump(
             {
-                "worker_id": "claude_writer",
+                "worker_id": "agy",
                 "installed": True,
                 "exit_code": 1,
                 "timeout": False,
@@ -446,8 +443,8 @@ def test_trusted_live_runner_status_reports_claude_session_gate_for_missing_writ
                 "items": [
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "assigned_worker": "claude_code",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
+                        "assigned_worker": "agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/writer_out",
@@ -473,7 +470,7 @@ def test_trusted_live_runner_status_reports_claude_session_gate_for_missing_writ
 
     assert writer["status"] == "pending"
     assert writer["acceptance_blocker"] == "missing_required_files"
-    assert writer["pending_reason"] == "claude_writer_session_health_blocked_before_private_writer_smoke"
+    assert writer["pending_reason"] == "agy_writer_session_health_blocked_before_private_writer_smoke"
     assert writer["session_health_gate"]["reason"] == "auth_required"
     assert writer["session_health_gate"]["command_available"] is True
 
@@ -540,7 +537,7 @@ def test_trusted_live_runner_status_reports_observed_error(tmp_path: Path) -> No
     assert writer["observed_error"]["error"] == "CLI agent exited 1."
     assert writer["pending_reason"] == "historical_writer_role_session_agy_cli_exit"
     assert writer["next_action"] == (
-        "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke"
+        "regenerate_trusted_writer_request_for_agy_then_rerun_trusted_writer_smoke"
     )
 
 
@@ -1289,7 +1286,7 @@ def test_trusted_live_runner_status_classifies_agy_localhost_bind_denied(tmp_pat
 
     assert writer["pending_reason"] == "historical_frontdesk_sandbox_agy_localhost_bind_denied"
     assert writer["next_action"] == (
-        "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke"
+        "regenerate_trusted_writer_request_for_agy_then_rerun_trusted_writer_smoke"
     )
     assert "local language-server bind" in writer["evidence_interpretation"]
 
@@ -1365,7 +1362,7 @@ def test_trusted_live_runner_status_keeps_old_agy_smoke_as_historical_evidence(t
 
     assert writer["pending_reason"] == "historical_frontdesk_sandbox_agy_localhost_bind_denied"
     assert writer["next_action"] == (
-        "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke"
+        "regenerate_trusted_writer_request_for_agy_then_rerun_trusted_writer_smoke"
     )
     assert writer["observed_error"]["historical_writer_route"] == "agy"
     assert writer["observed_error"]["historical_writer_route_is_current"] is False

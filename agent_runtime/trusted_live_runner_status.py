@@ -531,17 +531,17 @@ def _historical_agy_session_smoke(root: Path, error_path: Path | None = None) ->
     return smoke
 
 
-def _current_claude_writer_session_probe(root: Path) -> dict[str, Any] | None:
+def _current_agy_writer_session_probe(root: Path) -> dict[str, Any] | None:
     path = (
         root
         / "acceptance_runs"
         / "agentlab_capability_acceptance"
-        / "claude_writer_session_probe.yml"
+        / "agy_writer_session_probe.yml"
     )
     if not path.exists():
         return None
     probe = _read_yaml(path)
-    if probe.get("worker_id") != "claude_writer":
+    if probe.get("worker_id") != "agy":
         return None
     error_class = str(probe.get("error_class") or "").lower()
     passed = (
@@ -551,7 +551,7 @@ def _current_claude_writer_session_probe(root: Path) -> dict[str, Any] | None:
         and error_class in {"", "none"}
     )
     probe["status"] = "pass" if passed else "blocked"
-    probe["reason"] = None if passed else (error_class or "claude_writer_probe_failed")
+    probe["reason"] = None if passed else (error_class or "agy_writer_probe_failed")
     probe["_path"] = str(path)
     return probe
 
@@ -774,10 +774,10 @@ def _pending_diagnostics(
             return {
                 "pending_reason": "historical_frontdesk_sandbox_agy_localhost_bind_denied",
                 "evidence_interpretation": (
-                    "The previous Writer error came from the retired Agy Writer route. Its session smoke "
-                    "is historical evidence only and does not establish current Claude Writer health."
+                    "The previous Writer error came from an older AGY invocation. Its session smoke "
+                    "is historical evidence only and does not establish current AGY Writer health."
                 ),
-                "next_action": "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke",
+                "next_action": "regenerate_trusted_writer_request_for_agy_then_rerun_trusted_writer_smoke",
             }
         return {
             "pending_reason": "media_live_artifacts_not_rerun_after_grok_session_pass",
@@ -817,19 +817,19 @@ def _pending_diagnostics(
             return {
                 "pending_reason": "historical_frontdesk_sandbox_agy_localhost_bind_denied",
                 "evidence_interpretation": (
-                    "The retired Agy Writer route reached its CLI, but the Codex/frontdesk sandbox "
+                    "The AGY Writer route reached its CLI, but the Codex/frontdesk sandbox "
                     "denied the local language-server bind. This is historical evidence and does "
-                    "not establish current Claude Writer health."
+                    "not establish current AGY Writer health."
                 ),
-                "next_action": "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke",
+                "next_action": "regenerate_trusted_writer_request_for_agy_then_rerun_trusted_writer_smoke",
             }
         return {
             "pending_reason": "historical_writer_role_session_agy_cli_exit",
             "evidence_interpretation": (
-                "The retired Agy Writer route exited before returning the required narrative "
+                "The AGY Writer route exited before returning the required narrative "
                 "candidate artifacts. This remains historical error evidence only."
             ),
-            "next_action": "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke",
+            "next_action": "regenerate_trusted_writer_request_for_agy_then_rerun_trusted_writer_smoke",
         }
     if observed_error and missing:
         return {
@@ -866,24 +866,24 @@ def _missing_candidate_session_health_diagnostics(
         or item.get("id") != "run_crown_internal_writer_eval"
     ):
         return {}
-    session_probe = _current_claude_writer_session_probe(root)
+    session_probe = _current_agy_writer_session_probe(root)
     if session_probe and session_probe.get("status") == "pass":
         return {}
     return {
-        "pending_reason": "claude_writer_session_health_blocked_before_private_writer_smoke",
+        "pending_reason": "agy_writer_session_health_blocked_before_private_writer_smoke",
         "evidence_interpretation": (
             "The trusted runner has not returned Writer artifacts because the pre-run "
-            "non-private Claude Writer contract probe is missing or blocked; "
+            "non-private AGY Writer contract probe is missing or blocked; "
             "the generated runner will not send private Crown context until this passes."
         ),
-        "next_action": "rerun_claude_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke",
+        "next_action": "rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke",
         "session_health_gate": {
-            "id": "current_claude_writer_session_health",
+            "id": "current_agy_writer_session_health",
             "status": session_probe.get("status") if session_probe else "missing",
             "reason": (
                 session_probe.get("reason")
                 if session_probe
-                else "claude_writer_session_probe_missing"
+                else "agy_writer_session_probe_missing"
             ),
             "session_probe_path": session_probe.get("_path") if session_probe else None,
             "command_available": session_probe.get("installed") if session_probe else None,

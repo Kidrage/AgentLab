@@ -81,6 +81,55 @@ def test_code_fences_and_markdown_headings_are_excluded() -> None:
     assert report["status"] == "pass"
 
 
+def test_meta_footer_is_blocked_as_non_prose_output() -> None:
+    prose = (
+        "# 第一章 灰从谷底升起\n\n"
+        "凯恩把最后一铲煤送进炉膛。\n\n"
+        "---\n\n"
+        "**读者疑问**：灰为什么会靠近他的旧伤？\n"
+    )
+
+    report = evaluate_prose_conventions(prose)
+
+    assert report["status"] == "blocked"
+    assert report["mechanical_status"] == "blocked"
+    assert any(issue["id"] == "non_prose_meta_section" for issue in report["issues"])
+
+
+def test_long_chapter_with_mega_paragraphs_is_blocked() -> None:
+    prose = "# 第一章\n\n" + "\n\n".join("灰" * 900 for _ in range(5))
+
+    report = evaluate_prose_conventions(
+        prose,
+        chapter_context={"enforce_paragraph_structure": True},
+    )
+
+    assert report["status"] == "blocked"
+    assert report["metrics"]["paragraph_count"] == 5
+    assert report["metrics"]["max_paragraph_han"] == 900
+    assert any(issue["id"] == "mega_paragraph" for issue in report["issues"])
+    assert any(issue["id"] == "insufficient_paragraph_breaks" for issue in report["issues"])
+
+
+def test_hash_bound_forbidden_fact_marker_blocks_candidate() -> None:
+    prose = "# 第一章\n\n师父老格林三天前已经死了，铁匠铺只剩下凯恩。\n"
+
+    report = evaluate_prose_conventions(
+        prose,
+        chapter_context={
+            "chapter": 1,
+            "forbidden_facts": ["师父老格林", "税债"],
+        },
+    )
+
+    assert report["status"] == "blocked"
+    assert any(
+        issue["id"] == "forbidden_story_fact"
+        and issue["marker"] == "师父老格林"
+        for issue in report["issues"]
+    )
+
+
 def test_writer_contract_blocks_quotes_but_leaves_rhetoric_for_editor() -> None:
     dialogue = validate_writer_v2_output(
         {"fiction_draft.md": "阿德里安说：你必须在天亮前离开。\n"},

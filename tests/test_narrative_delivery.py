@@ -90,6 +90,7 @@ def test_prepare_chapter_packet_uses_current_story_sources(tmp_path: Path) -> No
 
     assert packet["chapter"] == 2
     assert packet["continuity_source_kind"] == "production_manuscript"
+    assert "writer_context_profile" not in packet
     assert "project_brain/project_fact_snapshot.yml" in packet["must_read"]
     assert "project_artifact_index.yml" in packet["must_read"]
     assert packet["previous_chapters"] == ["production/manuscript/第01章_灰谷镇的灰.md"]
@@ -101,6 +102,32 @@ def test_prepare_chapter_packet_uses_current_story_sources(tmp_path: Path) -> No
     } <= set(packet["required_outputs"])
     assert "fiction_review.yml" not in packet["required_outputs"]
     assert written["path"] == "projects/Crown_of_Ash/runs/task_ch02/chapter_packet.yml"
+
+
+def test_chapter_packet_accepts_stable_created_at_for_exact_payload_rebuild(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    _make_crown_project(root)
+    created_at = "2026-07-23T10:11:12+00:00"
+
+    first = build_chapter_packet(
+        root,
+        "Crown_of_Ash",
+        "task_ch01",
+        1,
+        created_at=created_at,
+    )
+    written = write_chapter_packet(
+        root,
+        "Crown_of_Ash",
+        "task_ch01",
+        1,
+        created_at=created_at,
+    )
+
+    assert first == written["packet"]
+    assert written["packet"]["created_at"] == created_at
 
 
 def test_candidate_state_plan_adds_hash_bound_story_authority_overlay(tmp_path: Path) -> None:

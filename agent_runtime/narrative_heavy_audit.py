@@ -416,10 +416,24 @@ def validate_revision_draft_binding(
     root = project_root.parent.parent
     source_run = project_root / "runs" / source_task_id
     revision_run = project_root / "runs" / revision_task_id
-    request_path = revision_run / "narrative_v2_writer_request.yml"
+    legacy_request_path = revision_run / "narrative_v2_writer_request.yml"
+    generic_revision = not legacy_request_path.is_file()
+    request_path = (
+        revision_run / "revision_request.yml"
+        if generic_revision
+        else legacy_request_path
+    )
     draft = revision_run / "fiction_draft.md"
-    output_contract_path = revision_run / "writer_v2_output_contract.yml"
-    session_receipt_path = revision_run / "narrative_v2_writer_session_receipt.yml"
+    output_contract_path = revision_run / (
+        "writer_output_contract.yml"
+        if generic_revision
+        else "writer_v2_output_contract.yml"
+    )
+    session_receipt_path = revision_run / (
+        "writer_session_receipt.yml"
+        if generic_revision
+        else "narrative_v2_writer_session_receipt.yml"
+    )
     issues: list[str] = []
     for path, label in (
         (request_path, "request"),
@@ -436,6 +450,9 @@ def validate_revision_draft_binding(
         output_contract = yaml.safe_load(
             output_contract_path.read_text(encoding="utf-8")
         ) or {}
+        session_receipt = yaml.safe_load(
+            session_receipt_path.read_text(encoding="utf-8")
+        ) or {}
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
         return {
             "status": "blocked",
@@ -446,6 +463,8 @@ def validate_revision_draft_binding(
         request = {}
     if not isinstance(output_contract, dict):
         output_contract = {}
+    if not isinstance(session_receipt, dict):
+        session_receipt = {}
     expected_request = {
         "schema_version": 1,
         "job_kind": "narrative_revision",
@@ -459,23 +478,43 @@ def validate_revision_draft_binding(
     }
     if any(request.get(key) != value for key, value in expected_request.items()):
         issues.append("revision_request_identity_mismatch")
-    try:
-        from agent_runtime.narrative.production.live_writer_preflight import (
-            load_validated_workflow_plan_data,
-        )
+    if generic_revision:
+        try:
+            plan_path = revision_run / "workflow_plan.yml"
+            plan = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
+            if (
+                not isinstance(plan, dict)
+                or plan.get("project") != project_root.name
+                or plan.get("task_id") != revision_task_id
+                or Path(str(plan.get("run_dir") or "")).resolve() != revision_run
+                or Path(str(plan.get("user_request_path") or "")).resolve()
+                != request_path
+                or request.get("workflow_plan_sha256") != _sha256(plan_path)
+                or session_receipt.get("workflow_plan_sha256")
+                != _sha256(plan_path)
+                or session_receipt.get("request_sha256") != _sha256(request_path)
+            ):
+                issues.append("revision_plan_activation_invalid")
+        except (OSError, RuntimeError, TypeError, ValueError, yaml.YAMLError):
+            issues.append("revision_plan_activation_invalid")
+    else:
+        try:
+            from agent_runtime.narrative.production.live_writer_preflight import (
+                load_validated_workflow_plan_data,
+            )
 
-        plan = load_validated_workflow_plan_data(
-            agentlab_root=root,
-            project=project_root.name,
-            task_id=revision_task_id,
-            plan_path=revision_run / "workflow_plan.yml",
-        )
-        if str(plan.get("sealed_user_request_content") or "").encode("utf-8") != (
-            request_path.read_bytes()
-        ):
-            issues.append("revision_request_not_activated")
-    except (OSError, RuntimeError, TypeError, ValueError):
-        issues.append("revision_plan_activation_invalid")
+            plan = load_validated_workflow_plan_data(
+                agentlab_root=root,
+                project=project_root.name,
+                task_id=revision_task_id,
+                plan_path=revision_run / "workflow_plan.yml",
+            )
+            if str(plan.get("sealed_user_request_content") or "").encode(
+                "utf-8"
+            ) != request_path.read_bytes():
+                issues.append("revision_request_not_activated")
+        except (OSError, RuntimeError, TypeError, ValueError):
+            issues.append("revision_plan_activation_invalid")
 
     draft_hash = _sha256(draft)
     if (
@@ -486,6 +525,16 @@ def validate_revision_draft_binding(
         or output_contract.get("prose_sha256") != draft_hash
     ):
         issues.append("revision_output_contract_mismatch")
+    if generic_revision and (
+        session_receipt.get("status") != "pass"
+        or session_receipt.get("task_id") != revision_task_id
+        or session_receipt.get("candidate_only") is not True
+        or session_receipt.get("production_modified") is not False
+        or session_receipt.get("source_candidate_sha256")
+        != _sha256(source_run / "fiction_draft.md")
+        or session_receipt.get("prose_sha256") != draft_hash
+    ):
+        issues.append("revision_session_receipt_mismatch")
 
     def verify_ref(field: str, *, expected: Path | None = None) -> Path | None:
         value = request.get(field)

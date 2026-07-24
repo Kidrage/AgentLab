@@ -2,12 +2,16 @@ schema_version: 1
 report_type: agentlab_acceptance_report_hygiene
 root: .
 status: pass
-canonical_report_count: 9
+canonical_report_count: 10
 canonical_reports:
 - path: acceptance_runs/agentlab_capability_acceptance/current.yml
   exists: true
   expected_report_type: agentlab_capability_acceptance
   actual_report_type: agentlab_capability_acceptance
+- path: acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml
+  exists: true
+  expected_report_type: agentlab_capability_current_evidence_chain
+  actual_report_type: agentlab_capability_current_evidence_chain
 - path: acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml
   exists: true
   expected_report_type: agentlab_objective_requirement_audit
@@ -88,6 +92,7 @@ private_selected_command_policy: selected private role-session commands must inc
   AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
 private_selected_command_scan_artifacts:
 - current.yml
+- current_evidence_chain.yml
 - goal_completion_audit.yml
 - internal_live_readiness.yml
 - live_unblock_plan.yml
@@ -100,8 +105,15 @@ private_selected_command_scan_artifacts:
 - trusted_live_runner_request.yml
 - trusted_live_runner_status.yml
 stale_private_selected_command_hits: []
+capability_current_evidence_chain:
+  path: acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml
+  verification_status: pass
+  issue_count: 0
+  issues: []
 consistency_issues: []
 notes:
 - This audit does not delete historical evidence or execute live commands.
 - Historical policy rejection files remain valid evidence; current-state snapshots
   must not contradict canonical reports.
+- Exactly one canonical current evidence chain is machine-verified; archive/run_history
+  paths never count as current.

@@ -9,6 +9,7 @@ import yaml
 
 from agent_runtime.writer_output_materializer import (
     REQUIRED_WRITER_OUTPUTS,
+    _normalize_candidate_chinese_quotes,
     materialize_writer_candidate_content,
 )
 
@@ -89,6 +90,24 @@ def test_materializer_normalizes_duplicate_end_token_and_records_it(
     ]
     capture = (run_dir / "writer_role_session_capture.md").read_text(encoding="utf-8")
     assert "<!-- END END AGENTLAB_EDIT -->" in capture
+
+
+def test_materializer_normalizes_balanced_ascii_quotes_in_chinese_prose() -> None:
+    materialized = {
+        "fiction_draft.md": (
+            '# 第一章\n\n灰谷人称它为"灰烬之暮"。\n\n'
+            '亚德里安说："北路不太好走。"\n'
+        )
+    }
+
+    normalizations = _normalize_candidate_chinese_quotes(materialized)
+
+    assert normalizations == [
+        {"id": "ascii_chinese_quote_pair_to_curly", "count": 4}
+    ]
+    assert '"灰烬之暮"' not in materialized["fiction_draft.md"]
+    assert "“灰烬之暮”" in materialized["fiction_draft.md"]
+    assert "“北路不太好走。”" in materialized["fiction_draft.md"]
 
 
 def test_materializer_normalizes_event_scope_copied_from_event_type(
@@ -252,6 +271,96 @@ def test_materializer_rejects_short_governed_chapter_before_writing(tmp_path: Pa
     )
 
 
+def test_governed_v3_materializer_applies_prose_and_forbidden_fact_gates(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "task_ch01"
+    run_dir.mkdir(parents=True)
+    (run_dir / "chapter_packet.yml").write_text(
+        yaml.safe_dump(
+            {
+                "chapter": 1,
+                "baseline_mode": "reset",
+                "chapter_intent": {
+                    "source_kind": "candidate_chapter_contract_v3",
+                    "hard_character_range": [3000, 8000],
+                    "beat_plan": {
+                        "forbidden_facts": ["登记官已经到了谷口"],
+                        "must_not_repeat": ["second_first_awakening"],
+                    },
+                },
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    draft = (
+        "# 第一章\n\n"
+        + "\n\n".join("灰谷的炉火仍在呼吸。" * 28 for _ in range(22))
+        + "\n\n登记官已经到了谷口。\n"
+    )
+    values = {
+        "fiction_draft.md": draft,
+        "continuity_ledger.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "chapter": 1,
+                "baseline_mode": "reset",
+                "timeline": {"monotonic": True},
+                "plot_state_changes": ["灰响应旧伤"],
+                "character_changes": ["凯恩决定隐瞒"],
+                "relationship_or_worldline_changes": ["日常秩序破裂"],
+                "foreshadowing": ["冷灰脉动"],
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        "state_transition_proposal.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "candidate",
+                "chapter": 1,
+                "requires_user_promotion": True,
+                "events": [{"event_type": "plot", "scope": "candidate_only"}],
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        "narrative_delivery_receipt.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "checks": {
+                    "chapter_and_title": "pass",
+                    "required_beats": "pass",
+                    "continuity_outputs": "pass",
+                    "production_untouched": "pass",
+                    "deprecated_sources_excluded": "pass",
+                },
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+    }
+    content = "\n\n".join(
+        f"<!-- AGENTLAB_EDIT: runs/task_ch01/{name} -->\n{value.rstrip()}\n"
+        "<!-- END AGENTLAB_EDIT -->"
+        for name, value in values.items()
+    )
+
+    assert not materialize_writer_candidate_content(content, run_dir, "task_ch01")
+    contract = yaml.safe_load(
+        (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert any(
+        issue.startswith("prose_conventions:forbidden_story_fact")
+        for issue in contract["issues"]
+    )
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
 def test_materializer_rejects_substantive_paragraph_copied_from_previous_chapter(
     tmp_path: Path,
 ) -> None:
@@ -400,6 +509,40 @@ def test_writer_v2_materializes_only_fiction_draft(tmp_path: Path) -> None:
     assert (run_dir / "fiction_draft.md").is_file()
     content = (run_dir / "fiction_draft.md").read_text(encoding="utf-8")
     assert "章十" in content
+
+
+def test_writer_v2_blocks_hash_bound_forbidden_story_fact(tmp_path: Path) -> None:
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = (
+        "<!-- AGENTLAB_EDIT: runs/task_ch01/fiction_draft.md -->\n"
+        "# 第一章\n\n"
+        "师父老格林三天前已经死了，铁匠铺只剩下凯恩。\n"
+        "<!-- END AGENTLAB_EDIT -->"
+    )
+
+    result = materialize_writer_v2_content(
+        content,
+        run_dir,
+        "task_ch01",
+        provider="agy",
+        model="gemini-3.5-flash-high",
+        call_id="call-forbidden-fact",
+        chapter_context={
+            "chapter": 1,
+            "forbidden_facts": ["老格林"],
+        },
+    )
+
+    assert result["status"] == "blocked"
+    assert any(
+        issue.startswith("prose_conventions:forbidden_story_fact")
+        for issue in result["issues"]
+    )
+    assert not (run_dir / "fiction_draft.md").exists()
 
 
 def test_writer_v2_rejects_forbidden_v1_outputs(tmp_path: Path) -> None:

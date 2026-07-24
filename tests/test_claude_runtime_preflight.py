@@ -123,7 +123,40 @@ def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
     plan.route.route_key = "narrative_heavy_audit"
     profile = _role_profile("claude_narrative_audit")
 
-    with patch(
+    with patch.dict(
+        "agent_runtime.cli_executor.os.environ",
+        {"AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1"},
+        clear=False,
+    ), patch(
+        "agent_runtime.cli_executor.shutil.which", return_value="/usr/bin/claude"
+    ), patch(
+        "agent_runtime.cli_executor.subprocess.run"
+    ) as provider_process:
+        blocked = run_cli_agent(
+            plan,
+            "Reviewer",
+            profile,
+            sealed_messages=REVIEWER_SEALED_MESSAGES,
+        )
+
+    provider_process.assert_not_called()
+    assert blocked.status == "blocked_user_decision"
+    manifest = yaml.safe_load(
+        (
+            Path(plan.run_dir) / "outbound_context_manifest_reviewer.yml"
+        ).read_text(encoding="utf-8")
+    )
+
+    with patch.dict(
+        "agent_runtime.cli_executor.os.environ",
+        {
+            "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
+            "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256": manifest[
+                "payload"
+            ]["sha256"],
+        },
+        clear=False,
+    ), patch(
         "agent_runtime.cli_executor.shutil.which", return_value="/usr/bin/claude"
     ), patch(
         "agent_runtime.cli_executor.subprocess.run", return_value=_provider_result()

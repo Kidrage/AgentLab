@@ -87,7 +87,7 @@ def _session_health_check(
     if report.get("reason"):
         check["reason"] = report.get("reason")
     elif is_worker_probe and not passed:
-        check["reason"] = probe_error_class or "claude_writer_probe_missing_or_invalid"
+        check["reason"] = probe_error_class or "writer_probe_missing_or_invalid"
     elif not passed:
         check["reason"] = "session_health_report_missing_or_invalid"
     if not passed:
@@ -145,28 +145,28 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
     root = root.resolve()
     unblock_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "live_unblock_plan.yml"
     handoff_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "frontdesk_live_handoff.yml"
-    claude_writer_probe_path = (
+    agy_writer_probe_path = (
         root
         / "acceptance_runs"
         / "agentlab_capability_acceptance"
-        / "claude_writer_session_probe.yml"
+        / "agy_writer_session_probe.yml"
     )
     grok_smoke_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "grok_cli_session_smoke.yml"
     unblock = build_live_unblock_plan(root)
     handoff = _read_yaml(handoff_path)
-    claude_writer_probe = _read_yaml(claude_writer_probe_path)
+    agy_writer_probe = _read_yaml(agy_writer_probe_path)
     grok_smoke = _read_yaml(grok_smoke_path)
     historical_policy_rejections = _historical_policy_rejections(root)
     unblock_items = [item for item in unblock.get("items", []) if isinstance(item, dict)]
     crown = _item_by_id(unblock_items, "run_crown_internal_writer_eval") or _item_by_id(unblock_items, "approve_crown_external_writer_context")
     if crown.get("id") == "run_crown_internal_writer_eval":
         crown = dict(crown)
-        crown["assigned_worker"] = "claude_code"
+        crown["assigned_worker"] = "agy"
         for key in ("agentlab_command", "safe_command_after_approval"):
             if crown.get(key):
                 crown[key] = str(crown[key]).replace(
-                    "--writer-worker agy",
                     "--writer-worker claude_code",
+                    "--writer-worker agy",
                 )
     media = _item_by_id(unblock_items, "run_crown_internal_media_smoke") or _item_by_id(unblock_items, "approve_crown_media_grok_oauth_context")
     crown_evidence = [str(path) for path in crown.get("evidence", []) if path]
@@ -187,7 +187,7 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
             "status": "pass"
             if crown.get("status") == "ready"
             and "narrative-eval run" in str(crown.get("agentlab_command") or crown.get("safe_command_after_approval", ""))
-            and "--writer-worker claude_code" in str(
+            and "--writer-worker agy" in str(
                 crown.get("agentlab_command") or crown.get("safe_command_after_approval", "")
             )
             and any("do not run broad" in str(item) for item in crown.get("must_not_do", []))
@@ -249,11 +249,11 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
     ]
     session_health_checks = [
         _session_health_check(
-            claude_writer_probe,
-            check_id="current_claude_writer_session_health",
-            healthy_message="The current non-private Claude Writer contract probe can start the Claude CLI.",
-            blocked_message="The current non-private Claude Writer contract probe is missing or did not pass.",
-            next_action="rerun_claude_writer_contract_probe_from_the_trusted_agentlab_runtime",
+            agy_writer_probe,
+            check_id="current_agy_writer_session_health",
+            healthy_message="The current non-private AGY Writer contract probe can start the AGY CLI.",
+            blocked_message="The current non-private AGY Writer contract probe is missing or did not pass.",
+            next_action="rerun_agy_writer_contract_probe_from_the_trusted_agentlab_runtime",
         ),
         _session_health_check(
             grok_smoke,
@@ -288,14 +288,14 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
         "source_reports": {
             "live_unblock_plan": str(unblock_path),
             "frontdesk_live_handoff": str(handoff_path),
-            "claude_writer_session_probe": str(claude_writer_probe_path),
+            "agy_writer_session_probe": str(agy_writer_probe_path),
             "grok_cli_session_smoke": str(grok_smoke_path),
         },
         "source_report_health": _evidence_health(
             [
                 str(unblock_path),
                 str(handoff_path),
-                str(claude_writer_probe_path),
+                str(agy_writer_probe_path),
                 str(grok_smoke_path),
             ]
         ),

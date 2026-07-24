@@ -67,8 +67,8 @@ def _current_writer_item(item: dict[str, Any]) -> dict[str, Any]:
         command = str(current.get(field) or "")
         if command:
             current[field] = command.replace(
-                "--writer-worker agy",
                 "--writer-worker claude_code",
+                "--writer-worker agy",
             )
     return current
 
@@ -126,7 +126,7 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
         _handoff_item(
             crown,
             role="Writer",
-            worker="claude_code",
+            worker="agy",
             observe_artifacts=[
                 "acceptance_runs/narrative_eval/Crown_of_Ash/*/longform_eval_report.yml",
                 "projects/Crown_of_Ash/runs/task_narrative_eval_*/fiction_draft.md",
@@ -179,7 +179,7 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
         {
             "id": "writer_command_has_role_session_worker",
             "status": "pass"
-            if "--writer-worker claude_code"
+            if "--writer-worker agy"
             in handoff_items[0].get("agentlab_command", "")
             else "fail",
             "summary": "Crown Writer live command creates Writer role-session evidence",

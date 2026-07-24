@@ -136,10 +136,10 @@ def test_forced_worker_cannot_bypass_protocol_role_binding(tmp_path: Path) -> No
     state_path = root / ".agentlab" / "control_state.yml"
     state_path.parent.mkdir(parents=True)
 
-    for role in ("Writer", "ArtifactProducer"):
+    for role, worker in (("Writer", "qwen"), ("ArtifactProducer", "agy")):
         state_path.write_text(
             yaml.safe_dump(
-                {"workers": {"agy": {"status": "enabled", "force_role": role}}},
+                {"workers": {worker: {"status": "enabled", "force_role": role}}},
                 sort_keys=False,
             ),
             encoding="utf-8",
@@ -147,11 +147,11 @@ def test_forced_worker_cannot_bypass_protocol_role_binding(tmp_path: Path) -> No
         decision = RoleAssignmentEngine(root).assign(
             role,
             artifact_type="image" if role == "ArtifactProducer" else None,
-            available_workers=["agy"],
+            available_workers=[worker],
         )
 
         assert decision.selected_worker is None
-        rejection = next(item for item in decision.rejected_workers if item.worker == "agy")
+        rejection = next(item for item in decision.rejected_workers if item.worker == worker)
         assert "protocol binding rejected" in rejection.reason
 
 

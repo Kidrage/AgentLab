@@ -21,6 +21,7 @@ def _policy() -> dict:
     return {
         "schema_version": 1,
         "canary_lease_seconds": 300,
+        "transient_network_backoff_seconds": 900,
         "pools": {
             "shared_oauth": {
                 "probe": ["hermes", "auth", "status", "openai-codex"],
@@ -162,7 +163,9 @@ def test_auth_and_model_failures_are_distinct_and_keep_unknown_times_null(tmp_pa
         assert observation["confidence"] == "unknown"
 
 
-def test_network_failure_stays_on_primary_route_without_cost_fallback(tmp_path):
+def test_network_failure_opens_short_primary_backoff_without_undeclared_fallback(
+    tmp_path,
+):
     capacity = ModelCapacity(_policy(), tmp_path / "ledger.yml", clock=lambda: NOW)
 
     observation = capacity.record_failure(
@@ -175,9 +178,11 @@ def test_network_failure_stays_on_primary_route_without_cost_fallback(tmp_path):
     )
 
     assert observation["failure_class"] == "network_required"
-    assert observation["reset_at"] is None
-    assert decision["status"] == "selected"
-    assert decision["route_id"] == "primary"
+    assert observation["reset_at"] == "2026-07-13T04:15:00Z"
+    assert observation["confidence"] == "medium"
+    assert decision["status"] == "blocked"
+    assert decision["route_id"] is None
+    assert decision["failure_class"] == "network_required"
 
 
 def test_pool_breaker_blocks_every_route_in_pool_and_uses_approved_fallback(tmp_path):
@@ -425,6 +430,15 @@ def test_repository_policy_declares_safe_pools_routes_and_unknown_quota_values(t
     writer_fallback = policy["routes"][writer["approved_fallbacks"][0]]
     assert writer["fallback_on"] == ["model_unavailable"]
     assert writer_fallback["pool"] == writer["pool"]
+    writer_agy = policy["routes"]["WriterAgy"]
+    assert writer_agy["worker"] == "agy"
+    assert writer_agy["approved_fallbacks"] == ["Writer"]
+    assert writer_agy["fallback_on"] == [
+        "quota_exhausted",
+        "rate_limited",
+        "auth_missing",
+        "model_unavailable",
+    ]
     artifact = policy["routes"]["ArtifactProducer"]
     assert artifact["pool"] == "xai_subscription_shared"
     assert artifact["approved_fallbacks"] == []
@@ -458,6 +472,56 @@ def test_fallback_requires_both_an_approved_route_and_failure_class(tmp_path):
         "primary", role="observer", attempt_id="quota-selection"
     )
     assert quota_decision["route_id"] == "fallback"
+
+
+def test_network_failure_selects_fallback_and_opens_short_canary_backoff(
+    tmp_path,
+):
+    policy = _policy()
+    policy["routes"]["primary"]["fallback_on"].append("network_required")
+    capacity = ModelCapacity(policy, tmp_path / "network.yml", clock=lambda: NOW)
+
+    observation = capacity.record_failure(
+        "primary",
+        message="CLI agent network required (exit 1).",
+        attempt_id="network-failure",
+    )
+    decision = capacity.select_route(
+        "primary",
+        role="observer",
+        attempt_id="network-fallback",
+        attempt_failures={"primary": observation["failure_class"]},
+    )
+
+    assert observation["failure_class"] == "network_required"
+    assert decision["status"] == "selected"
+    assert decision["route_id"] == "fallback"
+    assert decision["selection_kind"] == "approved_fallback"
+    ledger = yaml.safe_load(
+        (tmp_path / "network.yml").read_text(encoding="utf-8")
+    )
+    assert ledger["pools"]["shared_oauth"]["status"] == "open"
+    assert ledger["pools"]["shared_oauth"]["failure_class"] == "network_required"
+    assert ledger["pools"]["shared_oauth"]["reset_at"] == "2026-07-13T04:15:00Z"
+
+    next_chapter = capacity.select_route(
+        "primary",
+        role="observer",
+        attempt_id="next-chapter",
+    )
+    assert next_chapter["route_id"] == "fallback"
+
+    recovered = ModelCapacity(
+        policy,
+        tmp_path / "network.yml",
+        clock=lambda: NOW + timedelta(seconds=901),
+    ).select_route(
+        "primary",
+        role="observer",
+        attempt_id="network-canary",
+    )
+    assert recovered["route_id"] == "primary"
+    assert recovered["capacity_status"] == "canary"
 
 
 def test_logged_out_probe_is_auth_missing_even_when_command_exits_zero(tmp_path):

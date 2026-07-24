@@ -68,6 +68,13 @@ def _status_items(status: dict[str, Any]) -> list[dict[str, Any]]:
     return [item for item in items if isinstance(item, dict)]
 
 
+def _compat_pending_reason(reason: Any) -> str:
+    text = str(reason)
+    if text == "agy_writer_session_health_blocked_before_private_writer_smoke":
+        return "claude_writer_session_health_blocked_before_private_writer_smoke"
+    return text
+
+
 def _selected_item_report(item_id: str, status_items: list[dict[str, Any]]) -> dict[str, Any]:
     selected = next((item for item in status_items if item.get("id") == item_id), None)
     if not selected:
@@ -182,7 +189,7 @@ def _refresh_acceptance_reports(root: Path) -> dict[str, dict[str, Any]]:
     goal_abs = base / "goal_completion_audit.yml"
     hygiene_abs = base / "acceptance_report_hygiene.yml"
 
-    from capability_acceptance import build_capability_acceptance_report
+    from capability_acceptance import write_capability_acceptance_report
     from acceptance_report_hygiene import sync_snapshot_aliases, write_acceptance_report_hygiene
     from goal_completion_audit import write_goal_completion_audit
     from live_unblock_plan import build_live_unblock_plan
@@ -190,8 +197,7 @@ def _refresh_acceptance_reports(root: Path) -> dict[str, dict[str, Any]]:
 
     live_unblock = build_live_unblock_plan(root)
     write_report_yaml(live_unblock_abs, live_unblock, root)
-    capability = build_capability_acceptance_report(root)
-    write_report_yaml(current_abs, capability, root)
+    capability = write_capability_acceptance_report(root, current_abs)
     goal = write_goal_completion_audit(root, goal_abs)
     objective = write_objective_requirement_audit(root, objective_abs)
     sync_snapshot_aliases(base)
@@ -299,11 +305,7 @@ def build_trusted_live_runner_collect(
     if status_pass_has_unaccepted_items:
         acceptance_blockers = sorted({*acceptance_blockers, "returned_artifacts_not_accepted"})
     acceptance_blocker_reasons = sorted(
-        {
-            str(item.get("pending_reason"))
-            for item in pending
-            if isinstance(item, dict) and item.get("pending_reason")
-        }
+        {_compat_pending_reason(item.get("pending_reason")) for item in pending if isinstance(item, dict) and item.get("pending_reason")}
     )
     if status_pass_has_unaccepted_items:
         acceptance_blocker_reasons = sorted(

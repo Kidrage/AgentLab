@@ -9,6 +9,7 @@ from typing import Any, Iterable, Mapping
 
 import yaml
 
+from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.narrative.fact_authority import (
     assert_fact_authority_evidence,
     assert_fact_authority_projection,
@@ -43,6 +44,19 @@ def _hash(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _has_symlink_component(path: Path, root: Path) -> bool:
+    try:
+        relative = path.absolute().relative_to(root.absolute())
+    except ValueError:
+        return True
+    cursor = root.absolute()
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
 def _validated_source(
     project_root: Path,
     relative: str,
@@ -57,8 +71,13 @@ def _validated_source(
         raise ChapterKnowledgeContractError(
             f"canonical evidence is outside production/project_brain: {normalized}"
         )
-    path = (project_root / Path(*pure.parts)).resolve()
     root = project_root.resolve()
+    raw_path = root / Path(*pure.parts)
+    if _has_symlink_component(raw_path, root):
+        raise ChapterKnowledgeContractError(
+            f"chapter evidence path contains a symlink: {normalized}"
+        )
+    path = raw_path.resolve()
     if root not in path.parents or not path.is_file():
         raise ChapterKnowledgeContractError(f"missing chapter evidence: {normalized}")
     return normalized, path
@@ -231,6 +250,118 @@ def build_chapter_knowledge_contract(
             source_paths[key] = path
         evidence_groups[group] = resolved
 
+    artifact_index_path = root / "project_artifact_index.yml"
+    artifact_index = (
+        _read_mapping(artifact_index_path, "project artifact index")
+        if artifact_index_path.is_file()
+        else {}
+    )
+    current_artifacts = artifact_index.get("current")
+    blueprint_relative = "production/blueprint_authority.yml"
+    blueprint_selected = isinstance(current_artifacts, Mapping) and (
+        blueprint_relative in current_artifacts.values()
+    )
+    blueprint_path = root / blueprint_relative
+    if blueprint_path.is_file() or blueprint_selected:
+        if not blueprint_selected:
+            raise ChapterKnowledgeContractError(
+                "blueprint authority exists but is not the selected current blueprint"
+            )
+        blueprint_records = [
+            item
+            for item in artifact_index.get("artifacts") or []
+            if isinstance(item, dict)
+            and item.get("status") == "current"
+            and item.get("production_path") == blueprint_relative
+        ]
+        if len(blueprint_records) != 1:
+            raise ChapterKnowledgeContractError(
+                "selected blueprint authority has no unique artifact record"
+            )
+        if blueprint_records[0].get("production_sha256") != _hash(blueprint_path):
+            raise ChapterKnowledgeContractError(
+                "selected blueprint authority hash does not match artifact index"
+            )
+        blueprint = _read_mapping(blueprint_path, "blueprint authority")
+        if (
+            blueprint.get("schema_version") != "crown-blueprint-authority/v1"
+            or blueprint.get("project") != project
+            or blueprint.get("status") != "active"
+            or blueprint.get("sole_writer_entrypoint") is not True
+            or blueprint.get("conflict_action")
+            != "fail_closed_before_context_compilation"
+        ):
+            raise ChapterKnowledgeContractError(
+                "selected blueprint authority identity or fail-closed policy is invalid"
+            )
+        components = blueprint.get("components")
+        if not isinstance(components, list) or not components:
+            raise ChapterKnowledgeContractError(
+                "selected blueprint authority has no components"
+            )
+        for item in components:
+            if not isinstance(item, dict):
+                raise ChapterKnowledgeContractError(
+                    "selected blueprint authority has an invalid component"
+                )
+            component_key = str(item.get("path") or "")
+            component_pure = PurePosixPath(component_key)
+            if (
+                component_pure.is_absolute()
+                or not component_pure.parts
+                or component_pure.parts[0] != "production"
+                or any(part in {"", ".", ".."} for part in component_pure.parts)
+            ):
+                raise ChapterKnowledgeContractError(
+                    "selected blueprint authority has an unsafe component"
+                )
+            component_path = root / Path(*component_pure.parts)
+            if not (component_path.is_file() or component_path.is_dir()):
+                raise ChapterKnowledgeContractError(
+                    f"selected blueprint component is missing: {component_key}"
+                )
+            if str(item.get("sha256") or "") != artifact_sha256(component_path):
+                raise ChapterKnowledgeContractError(
+                    f"selected blueprint component hash mismatch: {component_key}"
+                )
+        blueprint_key, blueprint_source = _validated_source(
+            root,
+            blueprint_relative,
+            canonical_only=True,
+        )
+        if blueprint_key not in evidence_groups["timeline_world_rules"]:
+            evidence_groups["timeline_world_rules"].append(blueprint_key)
+        source_paths[blueprint_key] = blueprint_source
+        policy_refs = blueprint.get("policy_refs")
+        policy_relative = (
+            str(policy_refs.get("character_content_authority") or "")
+            if isinstance(policy_refs, dict)
+            else ""
+        )
+        policy_key, policy_path = _validated_source(
+            root,
+            policy_relative,
+            canonical_only=True,
+        )
+        if policy_key not in evidence_groups["character_state"]:
+            evidence_groups["character_state"].append(policy_key)
+        source_paths[policy_key] = policy_path
+        from agent_runtime.narrative.blueprint_validation import (
+            validate_blueprint_seal,
+        )
+
+        seal = validate_blueprint_seal(
+            root.parents[1],
+            project=project,
+            chapter_start=chapter,
+            chapter_end=chapter,
+        )
+        if seal.get("status") != "pass":
+            raise ChapterKnowledgeContractError(
+                "selected blueprint seal is invalid: "
+                + ", ".join(str(item) for item in seal.get("issues") or [])
+            )
+
     fact_authority_declarations = _active_fact_authority_declarations(root)
     active_authority: dict[str, Any] | None = None
     active_authority_sha256: str | None = None
@@ -258,12 +389,7 @@ def build_chapter_knowledge_contract(
         )
     fact_authority_path = root / Path(*authority_pure.parts)
     artifact_index_selects_authority = False
-    artifact_index_path = root / "project_artifact_index.yml"
     if artifact_index_path.is_file():
-        artifact_index = _read_mapping(
-            artifact_index_path,
-            "project artifact index",
-        )
         current = artifact_index.get("current")
         artifact_index_selects_authority = isinstance(
             current,

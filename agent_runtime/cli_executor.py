@@ -93,6 +93,14 @@ _AGY_DIRECT_API_KEY_ENV_VARS = {
     "GOOGLE_GENERATIVE_AI_API_KEY",
     "GOOGLE_GENAI_API_KEY",
 }
+_AGY_PROXY_ENV_VARS = (
+    "HTTPS_PROXY",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+)
 _ALLOWED_CONTRACT_ENV_UNSETS = {
     "CLAUDE_CODE_EFFORT_LEVEL",
     *_AGY_DIRECT_API_KEY_ENV_VARS,
@@ -1537,6 +1545,7 @@ def _agy_oauth_preflight(
     role_profile: dict[str, Any],
     argv: list[str],
     model_values: dict[str, str],
+    process_env: dict[str, str],
 ) -> dict[str, Any]:
     """Bind governed Agy execution to the selected OAuth model and command."""
     if str(role_profile.get("cli_agent") or "").strip() != "agy":
@@ -1547,6 +1556,7 @@ def _agy_oauth_preflight(
         "agy_observer",
         "agy_visual_reviewer",
         "agy_narrative_planner",
+        "agy_writer",
     }
     requested_model_key = str(model_values.get("model_key") or "")
     requested_cli_model_id = str(model_values.get("model_id") or "")
@@ -1579,6 +1589,12 @@ def _agy_oauth_preflight(
         issues.append("agy_command_model_binding_mismatch")
     if governed and provider not in {"agy-gemini-oauth", "agy-claude-oauth"}:
         issues.append("agy_oauth_provider_binding_mismatch")
+    proxy_environment_names = sorted(
+        name for name in _AGY_PROXY_ENV_VARS if str(process_env.get(name) or "").strip()
+    )
+    proxy_binding_verified = bool(proxy_environment_names)
+    if governed and not proxy_binding_verified:
+        issues.append("agy_oauth_proxy_environment_missing")
 
     return {
         "applicable": True,
@@ -1592,6 +1608,8 @@ def _agy_oauth_preflight(
         "provider": provider or None,
         "profile_binding_verified": profile_binding_verified,
         "command_binding_verified": command_binding_verified,
+        "proxy_binding_verified": proxy_binding_verified,
+        "proxy_environment_names": proxy_environment_names,
         "capacity_route": role_profile.get("capacity_selected_route"),
         "capacity_pool": role_profile.get("capacity_pool"),
         "attempt_id": role_profile.get("_runtime_model_execution_attempt_id"),
@@ -1711,7 +1729,7 @@ def _write_agy_model_receipt(
         "role": agent_name,
         "worker": "agy",
         "invocation_contract": preflight.get("invocation_contract"),
-        "auth_mode": "local_agy_oauth_session",
+        "auth_mode": "local_agy_oauth_session_via_proxy",
         "provider": preflight.get("provider"),
         "requested_model_key": preflight.get("requested_model_key"),
         "requested_model_id": preflight.get("requested_model_id"),
@@ -1720,6 +1738,8 @@ def _write_agy_model_receipt(
         "capacity_pool": preflight.get("capacity_pool"),
         "profile_binding_verified": preflight.get("profile_binding_verified") is True,
         "command_binding_verified": preflight.get("command_binding_verified") is True,
+        "proxy_binding_verified": preflight.get("proxy_binding_verified") is True,
+        "proxy_environment_names": list(preflight.get("proxy_environment_names") or []),
         "direct_api_key_environment_unset": sorted(
             name
             for name in set(environment_unset)
@@ -1740,6 +1760,212 @@ def _write_agy_model_receipt(
         agent_name,
         preflight,
         receipt,
+    )
+
+
+def narrative_approval_policy(
+    plan: WorkflowPlan,
+    agent_name: str,
+    role_profile: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve exact-payload and derived-batch approval requirements."""
+    policy = {
+        "payload_sha256_required": False,
+        "scope_sha256_required": False,
+        "scope_contract_valid": True,
+        "expected_scope_sha256": None,
+    }
+    route_key = str(getattr(plan.route, "route_key", "") or "")
+    if route_key == "narrative_heavy_audit":
+        policy["payload_sha256_required"] = agent_name == "Reviewer"
+        return policy
+    if agent_name != "Writer":
+        return policy
+
+    packet_path = Path(plan.run_dir) / "chapter_packet.yml"
+    if not packet_path.is_file():
+        return policy
+    try:
+        packet = yaml.safe_load(packet_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return policy
+    if not isinstance(packet, dict):
+        return policy
+    story_authority = packet.get("story_authority")
+    if not isinstance(story_authority, dict):
+        return policy
+    strict_v3 = (
+        str(story_authority.get("authority_mode") or "")
+        == "strict_v3_chapter_knowledge_contract"
+    )
+    if not strict_v3:
+        return policy
+
+    scope_ref = packet.get("writer_authorization_scope")
+    if not isinstance(scope_ref, dict):
+        policy["payload_sha256_required"] = True
+        return policy
+
+    policy["scope_sha256_required"] = True
+    expected_scope_sha256 = str(scope_ref.get("sha256") or "").strip()
+    policy["expected_scope_sha256"] = expected_scope_sha256 or None
+    chapter = int(packet.get("chapter") or 0)
+    first_chapter = int(scope_ref.get("first_chapter") or 0)
+    policy["payload_sha256_required"] = chapter == first_chapter
+
+    scope_valid = bool(expected_scope_sha256 and chapter and first_chapter)
+    scope_path_value = str(scope_ref.get("path") or "").strip()
+    root = Path(plan.agentlab_root).resolve(strict=False)
+    raw_scope_path = root / scope_path_value
+    scope_path = raw_scope_path.resolve(strict=False)
+    try:
+        scope_path.relative_to(root)
+    except ValueError:
+        scope_valid = False
+    contract: dict[str, Any] = {}
+    if scope_valid and scope_path.is_file() and not raw_scope_path.is_symlink():
+        try:
+            scope_bytes = scope_path.read_bytes()
+            scope_valid = hashlib.sha256(scope_bytes).hexdigest() == expected_scope_sha256
+            loaded = yaml.safe_load(scope_bytes.decode("utf-8"))
+            contract = loaded if isinstance(loaded, dict) else {}
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            scope_valid = False
+    else:
+        scope_valid = False
+
+    contract_chapters = {
+        int(item)
+        for item in contract.get("chapters", [])
+        if isinstance(item, int) or str(item).isdigit()
+    }
+    execution = contract.get("execution")
+    execution = execution if isinstance(execution, dict) else {}
+    continuity_policy = contract.get("continuity_policy")
+    continuity_policy = (
+        continuity_policy if isinstance(continuity_policy, dict) else {}
+    )
+    suite = str(contract.get("suite") or "").strip()
+    eval_id = str(contract.get("eval_id") or "").strip()
+    cleaned_eval_id = (
+        re.sub(r"[^A-Za-z0-9_-]+", "_", eval_id).strip("_-") or "eval"
+    )
+    expected_task_id = (
+        f"task_narrative_eval_ch{chapter:02d}_{cleaned_eval_id}"[:85]
+    )
+    expected_scope_path = (
+        root
+        / "acceptance_runs"
+        / "narrative_eval"
+        / str(plan.project)
+        / suite
+        / eval_id
+        / "writer_authorization_scope.yml"
+    ).resolve(strict=False)
+    authority_files = contract.get("authority_files")
+    authority_files = authority_files if isinstance(authority_files, list) else []
+    authority_paths: set[str] = set()
+    authority_files_valid = len(authority_files) >= 3
+    project_root = (root / "projects" / str(plan.project)).resolve(strict=False)
+    for item in authority_files:
+        if not isinstance(item, dict):
+            authority_files_valid = False
+            continue
+        relative = str(item.get("path") or "").strip()
+        expected_hash = str(item.get("sha256") or "").strip()
+        raw_authority_path = project_root / relative
+        authority_path = raw_authority_path.resolve(strict=False)
+        try:
+            authority_path.relative_to(project_root)
+        except ValueError:
+            authority_files_valid = False
+            continue
+        if (
+            not relative
+            or not expected_hash
+            or not authority_path.is_file()
+            or raw_authority_path.is_symlink()
+        ):
+            authority_files_valid = False
+            continue
+        try:
+            authority_bytes = authority_path.read_bytes()
+        except OSError:
+            authority_files_valid = False
+            continue
+        if (
+            hashlib.sha256(authority_bytes).hexdigest() != expected_hash
+            or int(item.get("bytes") or -1) != len(authority_bytes)
+        ):
+            authority_files_valid = False
+        authority_paths.add(relative)
+    authority_files_valid = authority_files_valid and {
+        "project_brain/project_fact_snapshot.yml",
+        "project_brain/knowledge_index_snapshot.yml",
+    }.issubset(authority_paths)
+    scope_valid = scope_valid and all(
+        (
+            contract.get("scope_type")
+            == "strict_v3_writer_derived_chapter_batch",
+            contract.get("story_authority_mode")
+            == "strict_v3_chapter_knowledge_contract",
+            contract.get("project") == plan.project,
+            bool(suite),
+            bool(eval_id),
+            scope_path == expected_scope_path,
+            str(plan.task_id) == expected_task_id,
+            contract.get("role") == "Writer",
+            contract.get("candidate_only") is True,
+            contract.get("production_allowed") is False,
+            contract.get("heavy_audit_authorized") is False,
+            continuity_policy.get("first_chapter")
+            == "sealed_fact_and_knowledge_snapshot",
+            continuity_policy.get("later_chapters")
+            == "previous_candidate_sources_plus_chapter_contract",
+            authority_files_valid,
+            execution.get("capacity_fallback_allowed") is False,
+            execution.get("cli_api_fallback_allowed") is False,
+            execution.get("budget_mode") == plan.budget_mode,
+            chapter in contract_chapters,
+            contract_chapters
+            == {
+                int(item)
+                for item in scope_ref.get("chapters", [])
+                if isinstance(item, int) or str(item).isdigit()
+            },
+            first_chapter == min(contract_chapters) if contract_chapters else False,
+        )
+    )
+    if role_profile is None:
+        scope_valid = False
+    else:
+        selected_worker = str(role_profile.get("cli_agent") or "")
+        selected_route = str(
+            role_profile.get("capacity_selected_route")
+            or role_profile.get("capacity_route")
+            or ""
+        )
+        selected_model_key = str(role_profile.get("default") or "")
+        scope_valid = scope_valid and all(
+            (
+                selected_worker == str(execution.get("worker") or ""),
+                selected_route == str(execution.get("capacity_route") or ""),
+                selected_model_key == str(execution.get("model_key") or ""),
+            )
+        )
+    policy["scope_contract_valid"] = scope_valid
+    return policy
+
+
+def narrative_hash_bound_approval_required(
+    plan: WorkflowPlan,
+    agent_name: str,
+) -> bool:
+    """Compatibility wrapper for exact-payload approval checks."""
+    return bool(
+        narrative_approval_policy(plan, agent_name)[
+            "payload_sha256_required"
+        ]
     )
 
 
@@ -2088,15 +2314,23 @@ def _claude_runtime_preflight(
             rendered_schema = json.loads(argv[14])
         except (IndexError, TypeError, json.JSONDecodeError):
             rendered_schema = None
-        expected_schema = _claude_narrative_heavy_audit_output_schema(
-            str(packet_payload.get("agent") or "")
-        )
+        packet_agent = str(packet_payload.get("agent") or "")
+        expected_schemas = [
+            _claude_narrative_heavy_audit_output_schema(packet_agent)
+        ]
+        if packet_agent == "Verifier":
+            expected_schemas.append(
+                _claude_narrative_heavy_audit_output_schema(
+                    packet_agent,
+                    blocking_rewrite_required=True,
+                )
+            )
         command_binding_verified = (
             command_binding_verified
             and packet_payload.get("packet_type")
             == "agentlab_sealed_role_session"
-            and packet_payload.get("agent") == "Reviewer"
-            and rendered_schema == expected_schema
+            and packet_agent in {"Reviewer", "Scribe", "Verifier"}
+            and rendered_schema in expected_schemas
         )
 
     forbidden_flag_names = {
@@ -3769,6 +4003,15 @@ def run_cli_agent(
             if production_pack_session
             else PRIVATE_CONTEXT_APPROVAL_ENV_NAME
         )
+        narrative_approval = narrative_approval_policy(
+            plan,
+            agent_name,
+            role_profile,
+        )
+        approval_required = approval_required or bool(
+            narrative_approval["payload_sha256_required"]
+            or narrative_approval["scope_sha256_required"]
+        )
         manifest = write_outbound_context_manifest(
             Path(plan.agentlab_root),
             manifest_path,
@@ -3788,6 +4031,18 @@ def run_cli_agent(
             execution_workspace_isolated=True,
             approval_required=approval_required,
             approval_env_name=approval_env_name,
+            approval_payload_sha256_required=(
+                narrative_approval["payload_sha256_required"]
+            ),
+            approval_scope_sha256_required=(
+                narrative_approval["scope_sha256_required"]
+            ),
+            approval_scope_contract_valid=(
+                narrative_approval["scope_contract_valid"]
+            ),
+            expected_scope_sha256=(
+                narrative_approval["expected_scope_sha256"]
+            ),
             provider_shell_or_browser_requested=agent_name == "Researcher",
             source_inventory_required=(
                 production_pack_session
@@ -4154,6 +4409,7 @@ def run_cli_agent(
             role_profile,
             argv,
             model_values,
+            process_env,
         )
         claude_preflight = _claude_runtime_preflight(
             role_profile,

@@ -67,6 +67,9 @@ BRIEF_OPTIONAL_FIELDS: tuple[str, ...] = (
     "recent_patterns_to_avoid",
     "risk_signals",
     "word_count_target",
+    "must_not_repeat",
+    "forbidden_facts",
+    "fact_invention_policy",
 )
 
 _V1_DIMENSION_MAP: dict[str, str] = {
@@ -133,6 +136,18 @@ class CreativeBrief:
     @property
     def must_preserve(self) -> list[str]:
         return list(self._data.get("must_preserve") or [])
+
+    @property
+    def must_not_repeat(self) -> list[str]:
+        return list(self._data.get("must_not_repeat") or [])
+
+    @property
+    def forbidden_facts(self) -> list[str]:
+        return list(self._data.get("forbidden_facts") or [])
+
+    @property
+    def fact_invention_policy(self) -> dict[str, Any]:
+        return dict(self._data.get("fact_invention_policy") or {})
 
     @property
     def creative_freedom(self) -> list[str]:
@@ -245,11 +260,32 @@ class BriefCompiler:
 
         # --- must-preserve --------------------------------------------------
         must_preserve: list[str] = []
-        mp_raw = plan.get("must_preserve") or plan.get("must_not_repeat")
+        mp_raw = plan.get("must_preserve")
         if isinstance(mp_raw, list):
             must_preserve = [str(item) for item in mp_raw if str(item).strip()]
         elif isinstance(mp_raw, str) and mp_raw.strip():
             must_preserve = [mp_raw.strip()]
+        must_not_repeat: list[str] = []
+        mnr_raw = plan.get("must_not_repeat")
+        if isinstance(mnr_raw, list):
+            must_not_repeat = [
+                str(item) for item in mnr_raw if str(item).strip()
+            ]
+        elif isinstance(mnr_raw, str) and mnr_raw.strip():
+            must_not_repeat = [mnr_raw.strip()]
+        forbidden_facts: list[str] = []
+        ff_raw = plan.get("forbidden_facts")
+        if isinstance(ff_raw, list):
+            forbidden_facts = [
+                str(item) for item in ff_raw if str(item).strip()
+            ]
+        elif isinstance(ff_raw, str) and ff_raw.strip():
+            forbidden_facts = [ff_raw.strip()]
+        fact_invention_policy = (
+            dict(plan.get("fact_invention_policy") or {})
+            if isinstance(plan.get("fact_invention_policy"), dict)
+            else {}
+        )
 
         # --- creative freedom -----------------------------------------------
         creative: list[str] = []
@@ -308,19 +344,24 @@ class BriefCompiler:
             "cost": cost,
             "reader_question": reader_q,
             "must_preserve": must_preserve,
+            "must_not_repeat": must_not_repeat,
+            "forbidden_facts": forbidden_facts,
             "creative_freedom": creative,
             "source_hashes": hashes,
             "v1_source": True,
         }
         if plan.get("schema_version") == "chapter-contract/v3":
+            data["fact_invention_policy"] = fact_invention_policy
             data["v1_source"] = False
             data["chapter_position"] = plan.get("chapter_position")
             data["chapter_contract"] = {
                 "protagonist_drive": drive,
+                "character_intent_gate": plan.get("character_intent_gate") or {},
                 "supporting_actor_states": plan.get("supporting_actor_states") or [],
                 "hook_contract": hook,
                 "foreshadow_actions": plan.get("foreshadow_actions") or [],
                 "world_state_delta": plan.get("world_state_delta"),
+                "fact_invention_policy": fact_invention_policy,
             }
         if secondary:
             data["secondary_function"] = secondary
@@ -440,6 +481,35 @@ def validate_creative_brief(data: dict[str, Any]) -> list[str]:
     mp = data.get("must_preserve")
     if not isinstance(mp, list) or not all(isinstance(v, str) for v in mp):
         issues.append("must_preserve_must_be_string_list")
+    for field in ("must_not_repeat", "forbidden_facts"):
+        value = data.get(field, [])
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) and item.strip() for item in value
+        ):
+            issues.append(f"{field}_must_be_nonempty_string_list")
+    fact_policy = data.get("fact_invention_policy")
+    if fact_policy is not None:
+        if not isinstance(fact_policy, dict):
+            issues.append("fact_invention_policy_must_be_mapping")
+        else:
+            absent_rule = fact_policy.get("absent_fact_rule")
+            if not isinstance(absent_rule, str) or not absent_rule.strip():
+                issues.append("fact_invention_policy_absent_fact_rule_required")
+            for field in (
+                "allowed_scene_texture",
+                "forbidden_persistent_fact_classes",
+            ):
+                value = fact_policy.get(field)
+                if not (
+                    isinstance(value, list)
+                    and value
+                    and all(
+                        isinstance(item, str) and item.strip() for item in value
+                    )
+                ):
+                    issues.append(
+                        f"fact_invention_policy_{field}_must_be_nonempty_string_list"
+                    )
 
     # --- creative_freedom --------------------------------------------------
     cf = data.get("creative_freedom")

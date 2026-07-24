@@ -566,6 +566,9 @@ def _chapter_intent_from_state_plan(
     if data.get("schema_version") == 3:
         drive = entry["protagonist_drive"]
         hook = entry["hook_contract"]
+        must_not_repeat = list(entry["must_not_repeat"])
+        forbidden_facts = list(entry["forbidden_facts"])
+        fact_invention_policy = dict(entry["fact_invention_policy"])
         return {
             "status": "planned",
             "chapter": chapter,
@@ -586,12 +589,21 @@ def _chapter_intent_from_state_plan(
                 "closing_state": entry.get("closing_state") or drive["desire_delta"],
                 "pov": entry["pov"],
                 "protagonist_drive": drive,
+                "character_intent_gate": entry["character_intent_gate"],
                 "supporting_actor_states": entry["supporting_actor_states"],
                 "hook_contract": hook,
+                "must_not_repeat": must_not_repeat,
+                "forbidden_facts": forbidden_facts,
+                "fact_invention_policy": fact_invention_policy,
                 "constraints": [
                     "preserve the declared self-initiated move and failure cost",
+                    "keep focal-character knowledge, fear, risk tolerance, trigger, and action inside the character_intent_gate",
+                    "never replace character knowledge with author knowledge or introduce untriggered power experimentation",
                     "do not reduce material supporting actors to information delivery",
+                    "supporting_actor_states guide causality but never grant POV access; reveal them only through observable behavior, objects, or consequences",
                     "close on the declared causal next action or reader question",
+                    "treat must_not_repeat and forbidden_facts as hard prohibitions, never as material to preserve or dramatize",
+                    "apply fact_invention_policy: absent persistent facts remain unknown; invent only transient scene texture that creates no cross-chapter obligation",
                 ],
             },
             "target_character_range": data.get("target_character_range", [4500, 5500]),
@@ -816,6 +828,8 @@ def build_chapter_packet(
     candidate_fact_ledger: str | None = None,
     chapter_state_plan: str | None = None,
     require_knowledge_contract: bool = False,
+    created_at: str | None = None,
+    writer_authorization_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     run_rel = f"runs/{task_id}"
@@ -847,11 +861,21 @@ def build_chapter_packet(
         if require_knowledge_contract
         else None
     )
+    strict_v3_authority = bool(
+        knowledge_contract
+        and chapter_intent.get("source_kind") == "candidate_chapter_contract_v3"
+    )
+    governed_bible_refs = [] if strict_v3_authority else bible_refs
+    governed_outline_refs = [] if strict_v3_authority else outline_refs
+    governed_state_plan_refs = [] if strict_v3_authority else (
+        [chapter_state_plan] if chapter_state_plan else []
+    )
     packet = {
         "schema_version": 1,
         "project": project,
         "task_id": task_id,
         "chapter": chapter,
+        "writer_context_profile": "chapter_relevance_v1",
         "baseline_mode": baseline_mode,
         "continuity_source_kind": (
             "reset_snapshot"
@@ -860,7 +884,7 @@ def build_chapter_packet(
             if baseline_mode in {"continuation", "candidate_continuation"}
             else "production_manuscript"
         ),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": created_at or datetime.now(timezone.utc).isoformat(),
         "source_of_truth": {
             "fact_snapshot": "project_brain/project_fact_snapshot.yml",
             "artifact_index": "project_artifact_index.yml",
@@ -875,17 +899,25 @@ def build_chapter_packet(
         "must_read": [
             "project_brain/project_fact_snapshot.yml",
             "project_artifact_index.yml",
-            *bible_refs,
-            *outline_refs,
-            *([chapter_state_plan] if chapter_state_plan else []),
+            *governed_bible_refs,
+            *governed_outline_refs,
+            *governed_state_plan_refs,
             *candidate_story_authority_refs,
             *([candidate_fact_ledger] if candidate_fact_ledger else []),
             *(sorted(knowledge_contract["source_hashes"]) if knowledge_contract else []),
             *resolved_previous_chapters[-3:],
         ],
         "story_authority": {
-            "bible_refs": bible_refs,
-            "outline_refs": outline_refs,
+            "authority_mode": (
+                "strict_v3_chapter_knowledge_contract"
+                if strict_v3_authority
+                else "legacy_story_authority_overlay"
+            ),
+            "bible_refs": governed_bible_refs,
+            "outline_refs": governed_outline_refs,
+            "excluded_legacy_refs": (
+                [*bible_refs, *outline_refs] if strict_v3_authority else []
+            ),
             "candidate_refs": candidate_story_authority_refs,
             "previous_chapters": resolved_previous_chapters[-3:],
             "candidate_fact_ledger": candidate_fact_ledger,
@@ -903,6 +935,10 @@ def build_chapter_packet(
             f"{run_rel}/narrative_delivery_receipt.yml",
         ],
     }
+    if strict_v3_authority:
+        packet["writer_context_profile"] = "chapter_relevance_v1"
+    if writer_authorization_scope is not None:
+        packet["writer_authorization_scope"] = writer_authorization_scope
     return packet
 
 
@@ -918,6 +954,8 @@ def write_chapter_packet(
     candidate_fact_ledger: str | None = None,
     chapter_state_plan: str | None = None,
     require_knowledge_contract: bool = False,
+    created_at: str | None = None,
+    writer_authorization_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     packet = build_chapter_packet(
         root,
@@ -930,6 +968,8 @@ def write_chapter_packet(
         candidate_fact_ledger=candidate_fact_ledger,
         chapter_state_plan=chapter_state_plan,
         require_knowledge_contract=require_knowledge_contract,
+        created_at=created_at,
+        writer_authorization_scope=writer_authorization_scope,
     )
     path = _project_root(root, project) / "runs" / task_id / "chapter_packet.yml"
     _write_yaml(path, packet)

@@ -647,9 +647,9 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
         ),
         _check(
             agy_info.get("may_execute_agentlab_roles_directly")
-            == ["Observer", "Reviewer", "NarrativePlanner"],
+            == ["Observer", "Reviewer", "NarrativePlanner", "Writer"],
             "agy_role_scope_is_bounded",
-            "agy direct role scope is limited to Observer, Reviewer, and NarrativePlanner",
+            "agy direct role scope is limited to Observer, Reviewer, NarrativePlanner, and Writer",
         ),
     ])
 

@@ -29,9 +29,9 @@ def _persisted_writer_request_is_current(root: Path) -> bool:
     )
     package = report.get("local_runner_package") or {}
     return (
-        writer.get("assigned_worker") == "claude_code"
-        and "--writer-worker claude_code" in str(writer.get("command") or "")
-        and "command -v claude" in (package.get("preflight_commands") or [])
+        writer.get("assigned_worker") == "agy"
+        and "--writer-worker agy" in str(writer.get("command") or "")
+        and "command -v agy" in (package.get("preflight_commands") or [])
     )
 
 

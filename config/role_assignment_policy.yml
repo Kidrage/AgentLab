@@ -19,7 +19,7 @@ roles:
   NarrativePlanner:
     candidates: [claude_code]
   Writer:
-    candidates: [claude_code]
+    candidates: [agy, claude_code]
   Reviewer:
     candidates: [qwen, agy, claude_code]
   Scribe:

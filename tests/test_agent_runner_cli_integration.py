@@ -127,8 +127,9 @@ def test_writer_without_explicit_opt_in_keeps_the_pure_writer_contract(
     )
 
     assert profile.get("writer_workflow_activation_status") is None
-    assert profile["invocation_contract"] == "claude_writer"
-    assert profile["capacity_route"] == "Writer"
+    assert profile["cli_agent"] == "agy"
+    assert profile["invocation_contract"] == "agy_writer"
+    assert profile["capacity_route"] == "WriterAgy"
 
 
 def test_narrative_planner_resolves_fixed_agy_gemini_route(

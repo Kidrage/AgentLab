@@ -7,17 +7,16 @@ legacy_command_aliases:
 - external-acceptance-readiness
 readiness_type: internal_agentlab_live_smoke
 root: .
-status: route_ready_session_blocked
+status: fail
 source_reports:
   live_unblock_plan: acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
   frontdesk_live_handoff: acceptance_runs/agentlab_capability_acceptance/frontdesk_live_handoff.yml
   claude_writer_session_probe: acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml
   grok_cli_session_smoke: acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml
 source_report_health:
-  status: missing_evidence
+  status: pass
   checked: 4
-  missing:
-  - acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml
+  missing: []
 checks:
 - id: internal_role_routes_own_execution
   status: pass
@@ -34,18 +33,19 @@ checks:
     checked: 5
     missing: []
 - id: grok_media_internal_route_ready
-  status: pass
+  status: fail
   accepted_env: []
   agentlab_commands:
-  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
     --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
-  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
     --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_<id>/artifacts/media_backend_live_internal_<id>
     --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_<id>
   evidence_health:
-    status: pass
+    status: missing_evidence
     checked: 6
-    missing: []
+    missing:
+    - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
 - id: secret_values_not_rendered
   status: pass
 - id: frontdesk_live_handoff_ready
@@ -59,28 +59,42 @@ checks:
     reason: tenant_policy_forbids_external_disclosure_of_private_workspace_context
 session_health_checks:
 - id: current_claude_writer_session_health
-  status: blocked
-  session_smoke_status: missing
-  evidence_interpretation: The current non-private Claude Writer contract probe is
-    missing or did not pass.
-  reason: session_health_report_missing_or_invalid
-  next_action: rerun_claude_writer_contract_probe_from_the_trusted_agentlab_runtime
-- id: current_grok_session_health
   status: pass
   session_smoke_status: pass
   command_available: true
+  evidence_interpretation: The current non-private Claude Writer contract probe can
+    start the Claude CLI.
+  worker_id: claude_writer
+  installed: true
+  exit_code: 0
+  timeout: false
+  error_class: none
+- id: current_grok_session_health
+  status: blocked
+  session_smoke_status: blocked
+  command_available: true
   command_path: <local_path:hermes>
-  created_at: '2026-07-09T15:37:19.377548+00:00'
-  evidence_interpretation: The local Grok CLI entrypoint and the AgentLab non-interactive
-    prompt contract both completed for a non-private smoke prompt.
+  created_at: '2026-07-23T04:29:35.351696+00:00'
+  evidence_interpretation: The Grok CLI entrypoint is present, but the non-interactive
+    AgentLab prompt contract failed before producing accepted output.
+  reason: grok_cli_auth_session_unhealthy
+  next_action: rerun_from_user_terminal_with_healthy_local_grok_session_and_required_network_region
   cli_entrypoint_available: true
   local_cli_entrypoint_available: true
   local_cli_entrypoint_is_internal_worker: true
   local_cli_auth_mode: oauth_cli_session
   local_cli_requires_api_key: false
   tested_invocation_mode: non_interactive_prompt_contract
-  non_interactive_prompt_contract_status: pass
+  non_interactive_prompt_contract_status: blocked
   interactive_cli_start_is_not_task_contract_proof: true
+  block_scope: local_grok_session_health
+  diagnostics_summary:
+    auth_status: not_authenticated
+    auth_session_healthy: false
+    not_authenticated_marker_present: true
+    model_catalog_visible: false
+    login_or_model_catalog_visible: false
+    settings_fetch_failed: false
 ready_items:
 - id: run_crown_internal_writer_eval
   required_operator_action: Submit the formal Crown single-chapter live eval as an
@@ -93,20 +107,53 @@ ready_items:
     the AgentLab ArtifactProducer role-session and monitor run-local candidate artifacts.
   accepted_env: []
   agentlab_commands:
-  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
     --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
-  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
     --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_<id>/artifacts/media_backend_live_internal_<id>
     --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_<id>
-issues: []
+issues:
+- id: grok_media_internal_route_ready
+  status: fail
+  accepted_env: []
+  agentlab_commands:
+  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
+  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_<id>/artifacts/media_backend_live_internal_<id>
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_<id>
+  evidence_health:
+    status: missing_evidence
+    checked: 6
+    missing:
+    - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
 session_health_issues:
-- id: current_claude_writer_session_health
+- id: current_grok_session_health
   status: blocked
-  session_smoke_status: missing
-  evidence_interpretation: The current non-private Claude Writer contract probe is
-    missing or did not pass.
-  reason: session_health_report_missing_or_invalid
-  next_action: rerun_claude_writer_contract_probe_from_the_trusted_agentlab_runtime
+  session_smoke_status: blocked
+  command_available: true
+  command_path: <local_path:hermes>
+  created_at: '2026-07-23T04:29:35.351696+00:00'
+  evidence_interpretation: The Grok CLI entrypoint is present, but the non-interactive
+    AgentLab prompt contract failed before producing accepted output.
+  reason: grok_cli_auth_session_unhealthy
+  next_action: rerun_from_user_terminal_with_healthy_local_grok_session_and_required_network_region
+  cli_entrypoint_available: true
+  local_cli_entrypoint_available: true
+  local_cli_entrypoint_is_internal_worker: true
+  local_cli_auth_mode: oauth_cli_session
+  local_cli_requires_api_key: false
+  tested_invocation_mode: non_interactive_prompt_contract
+  non_interactive_prompt_contract_status: blocked
+  interactive_cli_start_is_not_task_contract_proof: true
+  block_scope: local_grok_session_health
+  diagnostics_summary:
+    auth_status: not_authenticated
+    auth_session_healthy: false
+    not_authenticated_marker_present: true
+    model_catalog_visible: false
+    login_or_model_catalog_visible: false
+    settings_fetch_failed: false
 policy_rejections: []
 historical_policy_rejections:
 - schema_version: 1

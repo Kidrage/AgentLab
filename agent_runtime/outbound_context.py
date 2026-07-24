@@ -17,6 +17,12 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
 
 TRUSTED_RUNNER_ENV_NAME = "AGENTLAB_TRUSTED_LIVE_RUNNER"
 PRIVATE_CONTEXT_APPROVAL_ENV_NAME = "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED"
+PRIVATE_CONTEXT_APPROVAL_PAYLOAD_SHA256_ENV_NAME = (
+    "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256"
+)
+PRIVATE_CONTEXT_APPROVAL_SCOPE_SHA256_ENV_NAME = (
+    "AGENTLAB_ROLE_SESSION_ACCEPTANCE_SCOPE_SHA256"
+)
 PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME = (
     "AGENTLAB_PRODUCTION_PACK_CONTEXT_APPROVED"
 )
@@ -132,6 +138,18 @@ def build_outbound_context_manifest(
     approval_required: bool,
     approval_granted: bool | None = None,
     approval_env_name: str = PRIVATE_CONTEXT_APPROVAL_ENV_NAME,
+    approval_payload_sha256_required: bool = False,
+    approved_payload_sha256: str | None = None,
+    approval_payload_sha256_env_name: str = (
+        PRIVATE_CONTEXT_APPROVAL_PAYLOAD_SHA256_ENV_NAME
+    ),
+    approval_scope_sha256_required: bool = False,
+    approval_scope_contract_valid: bool = True,
+    expected_scope_sha256: str | None = None,
+    approved_scope_sha256: str | None = None,
+    approval_scope_sha256_env_name: str = (
+        PRIVATE_CONTEXT_APPROVAL_SCOPE_SHA256_ENV_NAME
+    ),
     provider_project_scan_requested: bool = False,
     provider_shell_or_browser_requested: bool = False,
     source_inventory_required: bool = False,
@@ -142,6 +160,15 @@ def build_outbound_context_manifest(
         approval_granted = os.getenv(approval_env_name) == "1"
 
     payload_bytes = payload_text.encode("utf-8")
+    payload_sha256 = _sha256_bytes(payload_bytes)
+    if approved_payload_sha256 is None:
+        approved_payload_sha256 = str(
+            os.getenv(approval_payload_sha256_env_name) or ""
+        ).strip()
+    if approved_scope_sha256 is None:
+        approved_scope_sha256 = str(
+            os.getenv(approval_scope_sha256_env_name) or ""
+        ).strip()
     secret_patterns = _secret_pattern_names(payload_text)
     sources, source_issues = _source_records(root, source_paths)
     issues = list(source_issues)
@@ -157,8 +184,33 @@ def build_outbound_context_manifest(
         issues.append("secret_pattern_detected")
     if approval_required and not approval_granted:
         issues.append("explicit_private_context_approval_missing")
+    if approval_required and approval_granted and approval_payload_sha256_required:
+        if not approved_payload_sha256:
+            issues.append(
+                "explicit_private_context_payload_sha256_approval_missing"
+            )
+        elif approved_payload_sha256 != payload_sha256:
+            issues.append("approved_private_context_payload_sha256_mismatch")
+    if approval_scope_sha256_required:
+        if not approval_scope_contract_valid or not expected_scope_sha256:
+            issues.append("narrative_approval_scope_contract_invalid")
+        elif approval_required and approval_granted:
+            if not approved_scope_sha256:
+                issues.append(
+                    "explicit_private_context_scope_sha256_approval_missing"
+                )
+            elif approved_scope_sha256 != expected_scope_sha256:
+                issues.append("approved_private_context_scope_sha256_mismatch")
 
-    only_approval_pending = issues == ["explicit_private_context_approval_missing"]
+    only_approval_pending = bool(issues) and all(
+        issue
+        in {
+            "explicit_private_context_approval_missing",
+            "explicit_private_context_payload_sha256_approval_missing",
+            "explicit_private_context_scope_sha256_approval_missing",
+        }
+        for issue in issues
+    )
     status = (
         "pass"
         if not issues
@@ -188,7 +240,7 @@ def build_outbound_context_manifest(
         "payload": {
             "kind": payload_kind,
             "bytes": len(payload_bytes),
-            "sha256": _sha256_bytes(payload_bytes),
+            "sha256": payload_sha256,
             "secret_pattern_hit_count": len(secret_patterns),
             "secret_pattern_names": secret_patterns,
         },
@@ -202,6 +254,24 @@ def build_outbound_context_manifest(
             "approval_required": approval_required,
             "approval_env_name": approval_env_name,
             "approval_observed": bool(approval_granted),
+            "payload_sha256_required": approval_payload_sha256_required,
+            "payload_sha256_env_name": approval_payload_sha256_env_name,
+            "payload_sha256_observed": bool(approved_payload_sha256),
+            "payload_sha256_matched": (
+                approved_payload_sha256 == payload_sha256
+                if approved_payload_sha256
+                else False
+            ),
+            "scope_sha256_required": approval_scope_sha256_required,
+            "scope_contract_valid": approval_scope_contract_valid,
+            "scope_sha256_env_name": approval_scope_sha256_env_name,
+            "scope_sha256_expected": expected_scope_sha256,
+            "scope_sha256_observed": bool(approved_scope_sha256),
+            "scope_sha256_matched": (
+                approved_scope_sha256 == expected_scope_sha256
+                if approved_scope_sha256 and expected_scope_sha256
+                else False
+            ),
             "trusted_runner_env_name": TRUSTED_RUNNER_ENV_NAME,
             "trusted_runner_observed": os.getenv(TRUSTED_RUNNER_ENV_NAME) == "1",
             "env_values_rendered": False,

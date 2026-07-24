@@ -260,9 +260,31 @@ class ModelCapacity:
             attempt_id=attempt_id,
             source_kind=source_kind,
         )
+        if observation["failure_class"] == "network_required":
+            pool_policy = self.policy.get("pools", {}).get(pool_id, {})
+            backoff_seconds = int(
+                (
+                    pool_policy.get("transient_network_backoff_seconds")
+                    if isinstance(pool_policy, Mapping)
+                    else None
+                )
+                or self.policy.get("transient_network_backoff_seconds")
+                or 900
+            )
+            reset_at = _as_utc(self.clock()) + timedelta(
+                seconds=max(1, backoff_seconds)
+            )
+            observation["expires_at"] = _timestamp(reset_at)
+            observation["reset_at"] = _timestamp(reset_at)
+            observation["confidence"] = "medium"
         ledger = self._load_ledger()
         pool_state = ledger["pools"].setdefault(pool_id, {})
-        if observation["failure_class"] in {"rate_limited", "quota_exhausted", "auth_missing"}:
+        if observation["failure_class"] in {
+            "rate_limited",
+            "quota_exhausted",
+            "auth_missing",
+            "network_required",
+        }:
             pool_state["status"] = "open"
             pool_state["failure_class"] = observation["failure_class"]
             pool_state["reset_at"] = observation["reset_at"]
@@ -472,6 +494,7 @@ class ModelCapacity:
         role: str,
         attempt_id: str,
         required_modalities: list[str] | set[str] | tuple[str, ...] | None = None,
+        attempt_failures: Mapping[str, str] | None = None,
     ) -> dict[str, Any]:
         with self._exclusive_ledger_lock():
             return self._select_route_locked(
@@ -479,6 +502,7 @@ class ModelCapacity:
                 role=role,
                 attempt_id=attempt_id,
                 required_modalities=required_modalities,
+                attempt_failures=attempt_failures,
             )
 
     def _select_route_locked(
@@ -488,6 +512,7 @@ class ModelCapacity:
         role: str,
         attempt_id: str,
         required_modalities: list[str] | set[str] | tuple[str, ...] | None = None,
+        attempt_failures: Mapping[str, str] | None = None,
     ) -> dict[str, Any]:
         """Select the first capacity-eligible route in an approved same-role chain."""
 
@@ -500,6 +525,11 @@ class ModelCapacity:
             str(item).strip().lower()
             for item in (required_modalities or [])
             if str(item).strip()
+        }
+        failed_this_attempt = {
+            str(candidate_id): str(failure_class)
+            for candidate_id, failure_class in (attempt_failures or {}).items()
+            if str(candidate_id).strip() and str(failure_class).strip()
         }
         if _canonical_role(primary.get("role")) != requested_role:
             raise CapacityPolicyError(
@@ -581,6 +611,17 @@ class ModelCapacity:
 
         def evaluate_candidate(candidate_id: str, path: list[str]) -> dict[str, Any]:
             candidate = routes[candidate_id]
+            if candidate_id in failed_this_attempt:
+                return {
+                    "status": "blocked",
+                    "route_id": None,
+                    "route_chain": list(path),
+                    "pool_id": candidate.get("pool"),
+                    "capacity_status": "attempt_failed",
+                    "failure_class": failed_this_attempt[candidate_id],
+                    "reset_at": None,
+                    "attempt_id": attempt_id,
+                }
             supported = {
                 str(item).strip().lower()
                 for item in candidate.get("input_modalities", []) or []

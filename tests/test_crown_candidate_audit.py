@@ -816,6 +816,134 @@ def test_crown_completion_batch_audit_rejects_writer_model_fallback(
     assert "writer_execution_contract" in report["chapters"][0]["issues"]
 
 
+def test_crown_completion_batch_audit_accepts_declared_same_role_fallback(
+    tmp_path: Path,
+) -> None:
+    manuscript = tmp_path / "projects" / "Crown_of_Ash" / "production" / "manuscript"
+    manuscript.mkdir(parents=True)
+    _write_batch_chapter(tmp_path, 1, "fixture")
+    run_dir = tmp_path / "projects" / "Crown_of_Ash" / "runs" / "task_narrative_eval_ch01_fixture"
+    task_id = "task_narrative_eval_ch01_fixture"
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "model_capacity.yml").write_text(
+        yaml.safe_dump(
+            {
+                "routes": {
+                    "WriterAgy": {
+                        "role": "writer",
+                        "worker": "agy",
+                        "invocation_contract": "agy_writer",
+                        "model_key": "agy_model",
+                        "approved_fallbacks": ["Writer"],
+                    },
+                    "Writer": {
+                        "role": "writer",
+                        "worker": "claude_code",
+                        "invocation_contract": "claude_writer",
+                        "model_key": "deepseek_v4_pro",
+                        "approved_fallbacks": [],
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "workflow_plan.yml").write_text(
+        yaml.safe_dump(
+            {
+                "task_id": task_id,
+                "included_agents": {"Writer": {"execution_owner": "agy"}},
+                "model_profiles": {
+                    "Writer": {
+                        "capacity_route": "WriterAgy",
+                        "provider": "agy-gemini-oauth",
+                        "model": "gemini-3.5-flash-high",
+                    }
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "live_writer_role_session_guard.yml").write_text(
+        yaml.safe_dump(
+            {
+                "status": "pass",
+                "role": "Writer",
+                "worker": "agy",
+                "project": "Crown_of_Ash",
+                "task_id": task_id,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    receipt_path = run_dir / "writer_fallback_receipt.yml"
+    receipt_path.write_text(
+        yaml.safe_dump(
+            {
+                "status": "pass",
+                "role": "Writer",
+                "worker": "claude_code",
+                "invocation_contract": "claude_writer",
+                "selected_provider": "deepseek",
+                "selected_model_key": "deepseek_v4_pro",
+                "selected_model_id": "deepseek-v4-pro",
+                "capacity_route": "Writer",
+                "profile_binding_verified": True,
+                "command_binding_verified": True,
+                "provider_model_binding_verified": True,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "model_execution_chain_writer.yml").write_text(
+        yaml.safe_dump(
+            {
+                "role": "Writer",
+                "status": "pass",
+                "fallback_used": True,
+                "attempts": [
+                    {
+                        "status": "fail",
+                        "capacity_route": "WriterAgy",
+                        "fallback_detected": False,
+                    },
+                    {
+                        "status": "pass",
+                        "capacity_route": "Writer",
+                        "fallback_detected": True,
+                    },
+                ],
+                "final": {
+                    "status": "pass",
+                    "capacity_route": "Writer",
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
+                    "receipt_path": str(receipt_path),
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_crown_completion_batch_audit(
+        tmp_path,
+        eval_id="fixture",
+        through_chapter=1,
+    )
+
+    assert report["status"] == "pass"
+    authorization = report["chapters"][0]["writer_execution"]["route_authorization"]
+    assert authorization["status"] == "pass"
+    assert authorization["expected_route"] == "WriterAgy"
+    assert authorization["final_route"] == "Writer"
+    assert authorization["receipt_verified"] is True
+
+
 def test_crown_completion_batch_audit_rejects_cross_chapter_passage_reuse(
     tmp_path: Path,
 ) -> None:

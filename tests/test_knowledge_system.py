@@ -26,6 +26,7 @@ from agent_runtime.knowledge_system import (
 from agent_runtime.local_search.document import Document, SourceCategory
 from agent_runtime.local_search.storage import save_index
 from agent_runtime.knowledge_system.storage import KnowledgeStore
+from agent_runtime.knowledge_system.sources import SourceCollector
 
 
 def _write_config(
@@ -1229,6 +1230,78 @@ def test_sync_committed_indexes_only_governed_project_truth(tmp_path: Path) -> N
     assert {item.source.path for item in prepared.evidence_bundle.items} == {
         "projects/Alpha/production/spec.md"
     }
+
+
+def test_sole_blueprint_entrypoint_expands_only_hash_verified_components(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    _write_config(root, refresh_on_prepare=False, bootstrap_missing_spaces=True)
+    project = root / "projects" / "Alpha"
+    policy = project / "production" / "canonical" / "policy.yml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("status: active\nmarker: VERIFIED-POLICY\n", encoding="utf-8")
+    scale = project / "production" / "series_scale_decision.yml"
+    scale.write_text("planned_total_chapters: 1980\n", encoding="utf-8")
+    length = project / "production" / "chapter_length_policy.yml"
+    length.write_text("target: 5200\n", encoding="utf-8")
+    cards = project / "production" / "chapter_cards"
+    cards.mkdir()
+    (cards / "ch001.yml").write_text("chapter: 1\n", encoding="utf-8")
+    component_paths = (
+        "production/series_scale_decision.yml",
+        "production/chapter_length_policy.yml",
+        "production/canonical",
+        "production/chapter_cards",
+    )
+    authority = project / "production" / "blueprint_authority.yml"
+    authority.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "crown-blueprint-authority/v1",
+                "project": "Alpha",
+                "status": "active",
+                "sole_writer_entrypoint": True,
+                "conflict_action": "fail_closed_before_context_compilation",
+                "components": [
+                    {
+                        "path": relative,
+                        "sha256": artifact_sha256(project / relative),
+                    }
+                    for relative in component_paths
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    _write_current_artifacts(root, "Alpha", "production/blueprint_authority.yml")
+    unrelated_brain = project / "project_brain" / "candidate_plan.yml"
+    unrelated_brain.parent.mkdir()
+    unrelated_brain.write_text("status: candidate\n", encoding="utf-8")
+
+    built_paths = {
+        item.source.path
+        for item in SourceCollector(root).collect_project(
+            "Alpha",
+            domain="longform_narrative",
+        )
+    }
+
+    assert "projects/Alpha/production/blueprint_authority.yml" in built_paths
+    assert "projects/Alpha/production/canonical/policy.yml" in built_paths
+    assert "projects/Alpha/project_brain/candidate_plan.yml" not in built_paths
+
+    policy.write_text("status: active\nmarker: TAMPERED\n", encoding="utf-8")
+    rebuilt_paths = {
+        item.source.path
+        for item in SourceCollector(root).collect_project(
+            "Alpha",
+            domain="longform_narrative",
+        )
+    }
+
+    assert rebuilt_paths == set()
 
 
 def test_sync_failure_marks_index_stale_without_touching_committed_truth(tmp_path: Path) -> None:

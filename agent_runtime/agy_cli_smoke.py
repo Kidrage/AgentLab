@@ -29,6 +29,14 @@ _DIRECT_GEMINI_API_KEY_ENV_VARS = {
     "GOOGLE_GENERATIVE_AI_API_KEY",
     "GOOGLE_GENAI_API_KEY",
 }
+_PROXY_ENV_VARS = (
+    "HTTPS_PROXY",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+)
 
 
 def _is_direct_gemini_api_key_environment(name: str) -> bool:
@@ -257,6 +265,10 @@ def build_agy_cli_smoke_report(
     task_packet = smoke_dir / "task_packet.yml"
     log_path = smoke_dir / "agy_cli_smoke.log"
     _write_task_packet(task_packet)
+    proxy_environment_names = sorted(
+        name for name in _PROXY_ENV_VARS if str(os.environ.get(name) or "").strip()
+    )
+    proxy_binding_verified = bool(proxy_environment_names)
     command_variants = _command_variants(root, task_packet, log_path)
     if not command_variants or not command_variants[0]:
         return {
@@ -269,6 +281,8 @@ def build_agy_cli_smoke_report(
             "prompt_scope": "non_private_observer_session_reachability_smoke",
             "private_project_context_loaded": False,
             "secret_values_rendered": False,
+            "proxy_binding_verified": proxy_binding_verified,
+            "proxy_environment_names": proxy_environment_names,
             "worker": "agy",
             "invocation_contract": "agy_observer",
             "expected_stdout_token": EXPECTED,
@@ -290,6 +304,8 @@ def build_agy_cli_smoke_report(
         "prompt_scope": "non_private_observer_session_reachability_smoke",
         "private_project_context_loaded": False,
         "secret_values_rendered": False,
+        "proxy_binding_verified": proxy_binding_verified,
+        "proxy_environment_names": proxy_environment_names,
         "worker": "agy",
         "invocation_contract": "agy_observer",
         "command": first_args[0],
@@ -308,6 +324,15 @@ def build_agy_cli_smoke_report(
     }
     if not first_path:
         report.update({"status": "blocked", "reason": "agy_cli_not_found"})
+        return report
+
+    if not proxy_binding_verified:
+        report.update(
+            {
+                "status": "blocked",
+                "reason": "agy_oauth_proxy_environment_missing",
+            }
+        )
         return report
 
     if not live:

@@ -67,6 +67,30 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             "--writer-budget",
             help="Writer budget mode used to resolve the recorded workflow/model contract.",
         ),
+        require_knowledge_contract: bool = typer.Option(
+            True,
+            "--knowledge-contract-required/--legacy-context",
+            help=(
+                "Use the sealed project knowledge contract and strict V3 authority "
+                "boundary. Legacy context is explicit opt-out only."
+            ),
+        ),
+        writer_batch_authorization_required: bool = typer.Option(
+            False,
+            "--writer-batch-authorization-required/--per-chapter-authorization",
+            help=(
+                "Bind a derived multi-chapter Writer scope while keeping the first "
+                "chapter payload and later heavy audit separately authorized."
+            ),
+        ),
+        writer_capacity_route: str | None = typer.Option(
+            None,
+            "--writer-capacity-route",
+        ),
+        writer_model_key: str | None = typer.Option(
+            None,
+            "--writer-model-key",
+        ),
     ) -> None:
         """Run L0-L3 longform acceptance checks without modifying production."""
         if mode not in VALID_MODES:
@@ -85,6 +109,12 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             chapter_state_plan=chapter_state_plan,
             writer_budget_mode=writer_budget,
             predecessor_task_id=predecessor_task_id,
+            require_knowledge_contract=require_knowledge_contract,
+            writer_batch_authorization_required=(
+                writer_batch_authorization_required
+            ),
+            writer_capacity_route=writer_capacity_route,
+            writer_model_key=writer_model_key,
         )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") == "fail":

@@ -69,11 +69,11 @@ from state_store import load_state, mark_agent_completed, mark_planned, save_sta
 from workflow_plan import build_workflow_plan, write_mission_contract_artifacts
 
 # -- M2-10 TUI Module Integration --
-def run_tui():
+def run_tui(project: str | None = None) -> None:
     try:
-        from agentlab_tui.app import AgentLabTUI
-        tui = AgentLabTUI()
-        tui.run()
+        from agentlab_tui.app import run_tui as launch_tui
+
+        launch_tui(project=project)
     except ImportError as e:
         print(f"Failed to load TUI module: {e}")
 
@@ -93,7 +93,7 @@ def tui_cmd(headless: bool = typer.Option(False, "--headless", help="Run in head
         from agentlab_tui.snapshot_renderer import render_tui_snapshot
         print(render_tui_snapshot(project=project, view=view))
     else:
-        run_tui()
+        run_tui(project)
 
 @app.command("webui")
 def webui_cmd(host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"), port: int = typer.Option(8765, "--port", help="Port to bind to")):
@@ -193,6 +193,9 @@ register_routing_commands(app, lambda: _PROJECT_ROOT, console)
 
 from agent_runtime.cli.capability_contracts import register_capability_contract_commands
 register_capability_contract_commands(app, console)
+
+from agent_runtime.cli.capability_acceptance import register_capability_acceptance_commands
+register_capability_acceptance_commands(app, _PROJECT_ROOT, console)
 
 from agent_runtime.cli.runtime_hygiene import register_runtime_hygiene_commands
 register_runtime_hygiene_commands(app, lambda: _PROJECT_ROOT, console)
@@ -4901,26 +4904,6 @@ def artifact_check_cmd(
         for iss in result['issues'][:10]:
             console.print(f"    - {iss.get('file', '?')}: {iss.get('issue', '?')}")
     console.print(f"  Manifest: {run_dir}/artifact_manifest.yml")
-
-
-@app.command("capability-acceptance")
-def capability_acceptance_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-) -> None:
-    """Aggregate local evidence for AgentLab's core capability acceptance matrix."""
-    agentlab_root, _project_name = runtime_context(None)
-    from capability_acceptance import build_capability_acceptance_report
-
-    report = build_capability_acceptance_report(agentlab_root)
-    text = dump_report_yaml(report, agentlab_root)
-    if out:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(text, encoding="utf-8")
-        console.print(f"wrote {out}")
-    else:
-        console.print(text.rstrip())
-    if report.get("overall_status") == "fail":
-        raise typer.Exit(code=1)
 
 
 @app.command("frontdesk-boundary-audit")

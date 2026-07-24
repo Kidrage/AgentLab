@@ -32,6 +32,7 @@ def run_single_judge_pipeline(
         plan,
         "Reviewer",
         run_dir / "reviewer_role_session_capture.md",
+        apply_patches=False,
     )
     materialized = materialize_narrative_heavy_audit_result(
         result,
@@ -103,6 +104,7 @@ def run_revision_support_role(
         plan,
         role,
         run_dir / f"{role.lower()}_role_session_capture.md",
+        apply_patches=False,
     )
     if not materialize_narrative_heavy_audit_result(
         result,

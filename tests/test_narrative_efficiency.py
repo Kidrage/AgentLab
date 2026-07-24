@@ -1065,7 +1065,7 @@ def test_revision_support_roles_run_only_through_findings_adapter(
         lambda *_args, **_kwargs: plan,
     )
 
-    def run_model(_root, _plan, role: str, _output):
+    def run_model(_root, _plan, role: str, _output, **_kwargs):
         roles.append(role)
         return SimpleNamespace(provider="fake", model="fake", status="completed")
 

@@ -44,41 +44,41 @@ execution_boundary:
   selected_session_health_gates:
     run_crown_internal_writer_eval:
       required_issue_ids:
-      - current_claude_writer_session_health
-      blocking_issue_ids:
-      - current_claude_writer_session_health
-      clean: false
-      blocked_until_relevant_session_health_clean: true
-    run_crown_internal_media_smoke:
-      required_issue_ids:
-      - current_grok_session_health
+      - current_agy_writer_session_health
       blocking_issue_ids: []
       clean: true
       blocked_until_relevant_session_health_clean: false
-  writer_request_route_current: true
+    run_crown_internal_media_smoke:
+      required_issue_ids:
+      - current_grok_session_health
+      blocking_issue_ids:
+      - current_grok_session_health
+      clean: false
+      blocked_until_relevant_session_health_clean: true
+  writer_request_route_current: false
   trusted_status_request_current: true
   trusted_preflight_request_current: true
 selected_item_readiness:
   summary: top-level handoff status covers the full writer+media acceptance set; selected
     items may still be runnable when their own session gate is clean
   ready_item_ids:
-  - run_crown_internal_media_smoke
-  blocked_item_ids:
   - run_crown_internal_writer_eval
+  blocked_item_ids:
+  - run_crown_internal_media_smoke
   items:
     run_crown_internal_writer_eval:
-      can_run_now: false
-      blocked_by_session_health: true
-      required_session_health_issue_ids:
-      - current_claude_writer_session_health
-      blocking_session_health_issue_ids:
-      - current_claude_writer_session_health
-    run_crown_internal_media_smoke:
       can_run_now: true
       blocked_by_session_health: false
       required_session_health_issue_ids:
-      - current_grok_session_health
+      - current_agy_writer_session_health
       blocking_session_health_issue_ids: []
+    run_crown_internal_media_smoke:
+      can_run_now: false
+      blocked_by_session_health: true
+      required_session_health_issue_ids:
+      - current_grok_session_health
+      blocking_session_health_issue_ids:
+      - current_grok_session_health
 operator_steps:
 - step: preflight
   loads_private_project_context: false
@@ -98,10 +98,10 @@ operator_steps:
   runtime_outbound_context_manifest_required: true
   blocked_until_session_health_clean: true
   required_session_health_issue_ids:
-  - current_claude_writer_session_health
+  - current_agy_writer_session_health
   - current_grok_session_health
   blocking_session_health_issue_ids:
-  - current_claude_writer_session_health
+  - current_grok_session_health
   runs_all_items: true
 - step: writer_role_session_acceptance_smoke
   loads_private_project_context: true
@@ -112,12 +112,11 @@ operator_steps:
   approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
   runtime_outbound_context_manifest_required: true
   sealed_writer_context_required: true
-  blocked_until_session_health_clean: true
-  blocked_until_relevant_session_health_clean: true
+  blocked_until_session_health_clean: false
+  blocked_until_relevant_session_health_clean: false
   relevant_session_health_issue_ids:
-  - current_claude_writer_session_health
-  blocking_session_health_issue_ids:
-  - current_claude_writer_session_health
+  - current_agy_writer_session_health
+  blocking_session_health_issue_ids: []
   runs_only: run_crown_internal_writer_eval
   recommended_before_media_for_incremental_acceptance: true
   selective_run_supported: true
@@ -137,11 +136,12 @@ operator_steps:
   approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
   runtime_outbound_context_manifest_required: true
   exact_media_prompt_digest_required: true
-  blocked_until_session_health_clean: false
-  blocked_until_relevant_session_health_clean: false
+  blocked_until_session_health_clean: true
+  blocked_until_relevant_session_health_clean: true
   relevant_session_health_issue_ids:
   - current_grok_session_health
-  blocking_session_health_issue_ids: []
+  blocking_session_health_issue_ids:
+  - current_grok_session_health
   runs_only: run_crown_internal_media_smoke
   recommended_after_writer_or_after_grok_session_health_is_clean: true
   selective_run_supported: true
@@ -184,7 +184,7 @@ candidate_items:
   - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
   trusted_status_item_present: true
   current_status: pending
-  current_pending_reason: claude_writer_session_health_blocked_before_private_writer_smoke
+  current_pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
   missing:
   - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
   - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
@@ -216,17 +216,36 @@ candidate_items:
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
 session_health:
-  status: route_ready_session_blocked
+  status: fail
   clean: false
   issue_count: 1
   issues:
-  - id: current_claude_writer_session_health
+  - id: current_grok_session_health
     status: blocked
-    session_smoke_status: missing
-    evidence_interpretation: The current non-private Claude Writer contract probe
-      is missing or did not pass.
-    reason: session_health_report_missing_or_invalid
-    next_action: rerun_claude_writer_contract_probe_from_the_trusted_agentlab_runtime
+    session_smoke_status: blocked
+    command_available: true
+    command_path: <local_path:hermes>
+    created_at: '2026-07-23T04:29:35.351696+00:00'
+    evidence_interpretation: The Grok CLI entrypoint is present, but the non-interactive
+      AgentLab prompt contract failed before producing accepted output.
+    reason: grok_cli_auth_session_unhealthy
+    next_action: rerun_from_user_terminal_with_healthy_local_grok_session_and_required_network_region
+    cli_entrypoint_available: true
+    local_cli_entrypoint_available: true
+    local_cli_entrypoint_is_internal_worker: true
+    local_cli_auth_mode: oauth_cli_session
+    local_cli_requires_api_key: false
+    tested_invocation_mode: non_interactive_prompt_contract
+    non_interactive_prompt_contract_status: blocked
+    interactive_cli_start_is_not_task_contract_proof: true
+    block_scope: local_grok_session_health
+    diagnostics_summary:
+      auth_status: not_authenticated
+      auth_session_healthy: false
+      not_authenticated_marker_present: true
+      model_catalog_visible: false
+      login_or_model_catalog_visible: false
+      settings_fetch_failed: false
   next_action: rerun_session_health_from_trusted_runtime_before_role_session_acceptance_smoke
 current_return_status:
   status: pending
@@ -246,6 +265,7 @@ acceptance_rule: AgentLab accepts returned role-session acceptance smoke evidenc
 secret_values_rendered: false
 issues:
 - internal_live_readiness_not_clean
+- trusted_live_runner_writer_route_stale
 notes:
 - This handoff does not execute private role-session acceptance commands.
 - It is safe for Codex/frontdesk to generate and inspect this report.

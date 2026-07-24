@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -29,6 +30,9 @@ _CONTRACT_SCALAR_FIELDS = (
     "allowed_freedom",
     "decision_cost",
     "new_information",
+)
+_PROPOSAL_SCALAR_FIELDS = tuple(
+    field for field in _CONTRACT_SCALAR_FIELDS if field != "revision_contract_id"
 )
 
 
@@ -217,6 +221,180 @@ def _contract_issues(contract: Mapping[str, Any], *, chapter: int) -> list[str]:
     return list(dict.fromkeys(issues))
 
 
+def _blocking_revision_chapters(heavy: Mapping[str, Any]) -> set[int]:
+    """Return chapters with evidence-bound blocking findings in the heavy audit."""
+    chapters: set[int] = set()
+    for document_name, collection_name in (
+        ("fiction_review", "findings"),
+        ("continuity_failure_report_data", "failures"),
+    ):
+        document = heavy.get(document_name)
+        if not isinstance(document, Mapping):
+            continue
+        for finding in document.get(collection_name) or []:
+            if not isinstance(finding, Mapping) or finding.get("severity") != "blocking":
+                continue
+            try:
+                chapter = int(finding.get("chapter") or 0)
+            except (TypeError, ValueError):
+                continue
+            if chapter > 0:
+                chapters.add(chapter)
+    scorecard = heavy.get("narrative_quality_scorecard")
+    if isinstance(scorecard, Mapping):
+        for chapter_record in scorecard.get("chapters") or []:
+            if not isinstance(chapter_record, Mapping):
+                continue
+            if chapter_record.get("status") != "blocked":
+                continue
+            try:
+                chapter = int(chapter_record.get("chapter_id") or 0)
+            except (TypeError, ValueError):
+                continue
+            if chapter > 0:
+                chapters.add(chapter)
+    return chapters
+
+
+def _deduplicated_strings(
+    contracts: list[Mapping[str, Any]],
+    field: str,
+) -> list[str]:
+    values: list[str] = []
+    for contract in contracts:
+        raw_values = contract.get(field)
+        if not isinstance(raw_values, list) or not raw_values:
+            raise ValueError("revision_contract_incomplete")
+        for raw in raw_values:
+            value = str(raw).strip()
+            if value and value not in values:
+                values.append(value)
+    if not values:
+        raise ValueError("revision_contract_incomplete")
+    return values
+
+
+def _compile_executable_revision_contracts(
+    contracts: list[Any],
+    *,
+    blocking_chapters: set[int],
+) -> list[dict[str, Any]]:
+    """Compile one executable, evidence-preserving contract per blocked chapter."""
+    grouped: dict[int, list[Mapping[str, Any]]] = {}
+    for raw in contracts:
+        if not isinstance(raw, Mapping):
+            raise ValueError("revision_contract_not_mapping")
+        try:
+            chapter = int(raw.get("chapter_id") or 0)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("revision_contract_identity_mismatch") from exc
+        if blocking_chapters and chapter not in blocking_chapters:
+            continue
+        supplied_scope = raw.get("rewrite_scope")
+        if supplied_scope is not None and supplied_scope not in {"scene", "chapter"}:
+            raise ValueError("revision_contract_scope_invalid")
+        if supplied_scope is None and not any(raw.get(field) for field in _PROPOSAL_SCALAR_FIELDS):
+            raise ValueError("revision_contract_scope_invalid")
+        if any(not raw.get(field) for field in _PROPOSAL_SCALAR_FIELDS):
+            raise ValueError("revision_contract_incomplete")
+        _deduplicated_strings([raw], "must_preserve")
+        _deduplicated_strings([raw], "must_change")
+        _deduplicated_strings([raw], "causal_requirements")
+        _deduplicated_strings([raw], "character_knowledge_before")
+        _deduplicated_strings([raw], "character_knowledge_after")
+        _deduplicated_strings([raw], "forbidden_regressions")
+        grouped.setdefault(chapter, []).append(raw)
+    if not grouped:
+        raise ValueError("missing_executable_scene_revision_contracts")
+
+    normalized: list[dict[str, Any]] = []
+    for chapter, chapter_contracts in grouped.items():
+        if len(chapter_contracts) == 1:
+            existing = dict(chapter_contracts[0])
+            if not _contract_issues(existing, chapter=chapter):
+                normalized.append(existing)
+                continue
+        compiled: dict[str, Any] = {
+            "schema_version": 1,
+            "chapter_id": chapter,
+            "target_scene": "；".join(
+                dict.fromkeys(
+                    str(contract["target_scene"]).strip()
+                    for contract in chapter_contracts
+                )
+            ),
+            "rewrite_scope": (
+                "chapter"
+                if any(contract.get("rewrite_scope") == "chapter" for contract in chapter_contracts)
+                else "scene"
+            ),
+            "problem_type": " + ".join(
+                dict.fromkeys(
+                    str(contract["problem_type"]).strip()
+                    for contract in chapter_contracts
+                )
+            ),
+            "evidence": "\n".join(
+                dict.fromkeys(
+                    str(contract["evidence"]).strip()
+                    for contract in chapter_contracts
+                )
+            ),
+            "must_preserve": _deduplicated_strings(
+                chapter_contracts,
+                "must_preserve",
+            ),
+            "must_change": _deduplicated_strings(chapter_contracts, "must_change"),
+            "allowed_freedom": "\n".join(
+                dict.fromkeys(
+                    str(contract["allowed_freedom"]).strip()
+                    for contract in chapter_contracts
+                )
+            ),
+            "causal_requirements": _deduplicated_strings(
+                chapter_contracts,
+                "causal_requirements",
+            ),
+            "character_knowledge_before": _deduplicated_strings(
+                chapter_contracts,
+                "character_knowledge_before",
+            ),
+            "character_knowledge_after": _deduplicated_strings(
+                chapter_contracts,
+                "character_knowledge_after",
+            ),
+            "decision_cost": "\n".join(
+                dict.fromkeys(
+                    str(contract["decision_cost"]).strip()
+                    for contract in chapter_contracts
+                )
+            ),
+            "new_information": "\n".join(
+                dict.fromkeys(
+                    str(contract["new_information"]).strip()
+                    for contract in chapter_contracts
+                )
+            ),
+            "forbidden_regressions": _deduplicated_strings(
+                chapter_contracts,
+                "forbidden_regressions",
+            ),
+        }
+        compiled["revision_contract_id"] = "rev-" + hashlib.sha256(
+            json.dumps(
+                compiled,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+        issues = _contract_issues(compiled, chapter=chapter)
+        if issues:
+            raise ValueError(issues[0])
+        normalized.append(compiled)
+    return normalized
+
+
 def _source_task_id(request: Mapping[str, Any], chapter: int) -> str:
     configured = request.get("source_task_ids")
     if isinstance(configured, Mapping) and configured.get(str(chapter)):
@@ -287,6 +465,24 @@ def _build_revision_row(
 ) -> dict[str, Any]:
     revision_run = root / "projects" / project / "runs" / revision_task_id
     revised_draft = revision_run / "fiction_draft.md"
+    legacy_request = revision_run / "narrative_v2_writer_request.yml"
+    revision_request = (
+        legacy_request
+        if legacy_request.is_file()
+        else revision_run / "revision_request.yml"
+    )
+    legacy_output_contract = revision_run / "writer_v2_output_contract.yml"
+    writer_output_contract = (
+        legacy_output_contract
+        if legacy_output_contract.is_file()
+        else revision_run / "writer_output_contract.yml"
+    )
+    legacy_session_receipt = revision_run / "narrative_v2_writer_session_receipt.yml"
+    writer_session_receipt = (
+        legacy_session_receipt
+        if legacy_session_receipt.is_file()
+        else revision_run / "writer_session_receipt.yml"
+    )
     row = {
         "chapter": chapter,
         "job_id": job_id,
@@ -299,17 +495,17 @@ def _build_revision_row(
         **_prefixed_ref(root, contract_path, "contract"),
         **_prefixed_ref(
             root,
-            revision_run / "narrative_v2_writer_request.yml",
+            revision_request,
             "revision_request",
         ),
         **_prefixed_ref(
             root,
-            revision_run / "writer_v2_output_contract.yml",
+            writer_output_contract,
             "writer_output_contract",
         ),
         **_prefixed_ref(
             root,
-            revision_run / "narrative_v2_writer_session_receipt.yml",
+            writer_session_receipt,
             "writer_session_receipt",
         ),
         **_prefixed_ref(root, triggering_audit, "triggering_audit"),
@@ -317,6 +513,345 @@ def _build_revision_row(
     row["path"] = row["draft_path"]
     row["sha256"] = row["draft_sha256"]
     return row
+
+
+def _execute_v3_targeted_revision(
+    *,
+    root: Path,
+    project: str,
+    chapter: int,
+    job_id: str,
+    candidate_set_id: str,
+    source_task_id: str,
+    source_run: Path,
+    source_request: Path,
+    source_candidate: Path,
+    contract_path: Path,
+    triggering_audit: Path,
+    revision_task_id: str,
+    revision_attempt_id: str,
+    revision_run: Path,
+    call_fence: Path,
+    capacity_route_override: str | None = None,
+    previous_short_revision: str = "",
+    allow_length_retry: bool = True,
+) -> str:
+    """Run one prose-only revision against a hash-bound V3 chapter packet."""
+    from agent_runtime.narrative.quality.prose_length import (
+        CJK_CHARACTER_UNIT,
+        HAN_CHARACTER_UNIT,
+        build_character_contract,
+    )
+    from agent_runtime.schemas import WorkflowPlan
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    # agent_runner is also a direct CLI entry module, so use its canonical import.
+    from agent_runner import run_agent_model
+
+    try:
+        source_plan = yaml.safe_load(
+            (source_run / "workflow_plan.yml").read_text(encoding="utf-8")
+        ) or {}
+        chapter_packet = yaml.safe_load(
+            (source_run / "chapter_packet.yml").read_text(encoding="utf-8")
+        ) or {}
+        bound_contract = yaml.safe_load(
+            contract_path.read_text(encoding="utf-8")
+        ) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise ValueError("background_revision_v3_source_invalid") from exc
+    if not all(
+        isinstance(value, dict)
+        for value in (source_plan, chapter_packet, bound_contract)
+    ):
+        raise ValueError("background_revision_v3_source_invalid")
+    hard_range = (chapter_packet.get("chapter_intent") or {}).get(
+        "hard_character_range"
+    )
+    length_policy_path = (
+        root
+        / "projects"
+        / project
+        / "production"
+        / "chapter_length_policy.yml"
+    )
+    length_unit = HAN_CHARACTER_UNIT
+    length_policy_ref: dict[str, str] | None = None
+    if length_policy_path.is_file():
+        if _has_symlink_component(root, length_policy_path):
+            raise ValueError("background_revision_v3_length_policy_invalid")
+        try:
+            length_policy = yaml.safe_load(
+                length_policy_path.read_text(encoding="utf-8")
+            ) or {}
+        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise ValueError(
+                "background_revision_v3_length_policy_invalid"
+            ) from exc
+        if not isinstance(length_policy, dict):
+            raise ValueError("background_revision_v3_length_policy_invalid")
+        length_unit = str(length_policy.get("unit") or "").strip()
+        length_policy_ref = _ref(root, length_policy_path)
+    length_contract = build_character_contract(hard_range, unit=length_unit)
+    if length_contract is None:
+        raise ValueError("background_revision_v3_length_contract_invalid")
+
+    source_delivery = source_run / "narrative_delivery_receipt.yml"
+    source_task_packet = source_run / "task_packet_writer.json"
+    source_output_contract = source_run / "writer_output_contract.yml"
+    for path in (source_delivery, source_task_packet, source_output_contract):
+        if not path.is_file() or _has_symlink_component(root, path):
+            raise ValueError("background_revision_v3_source_invalid")
+    delivery = yaml.safe_load(source_delivery.read_text(encoding="utf-8")) or {}
+    artifact_hashes = delivery.get("artifact_sha256") if isinstance(delivery, dict) else {}
+    if (
+        not isinstance(artifact_hashes, Mapping)
+        or artifact_hashes.get("fiction_draft.md") != _sha256(source_candidate)
+        or artifact_hashes.get("chapter_packet.yml")
+        != _sha256(source_run / "chapter_packet.yml")
+    ):
+        raise ValueError("background_revision_v3_source_binding_mismatch")
+
+    plan_data = dict(source_plan)
+    plan_data["task_id"] = revision_task_id
+    plan_data["run_dir"] = str(revision_run)
+    plan_data["user_request_path"] = str(revision_run / "revision_request.yml")
+    route = dict(plan_data.get("route") or {})
+    route["agents"] = ["Writer"]
+    route["skipped_agents"] = []
+    plan_data["route"] = route
+    writer_config = dict((plan_data.get("included_agents") or {}).get("Writer") or {})
+    writer_config["required_outputs"] = [
+        f"runs/{revision_task_id}/fiction_draft.md"
+    ]
+    plan_data["included_agents"] = {"Writer": writer_config}
+    writer_profile = dict((plan_data.get("model_profiles") or {}).get("Writer") or {})
+    plan_data["model_profiles"] = {"Writer": writer_profile}
+    plan_data["notes"] = [
+        *list(plan_data.get("notes") or []),
+        "Targeted V3 revision: one hash-bound prose candidate, candidate-only.",
+    ]
+    plan = WorkflowPlan.model_validate(plan_data)
+    _publish_yaml_exclusive(
+        root,
+        revision_run / "workflow_plan.yml",
+        plan.model_dump(mode="json"),
+    )
+    _publish_yaml_exclusive(
+        root,
+        revision_run / "chapter_packet.yml",
+        chapter_packet,
+    )
+    _publish_yaml_exclusive(
+        root,
+        revision_run / "mission_contract.yml",
+        {
+            "schema_version": 1,
+            "status": "active",
+            "project": project,
+            "task_id": revision_task_id,
+            "route_decision": "narrative_light_chapter",
+            "writer_contract_version": 2,
+            "candidate_only": True,
+            "production_modified": False,
+            "required_outputs": ["fiction_draft.md"],
+            "forbidden_outputs": [
+                "continuity_ledger.yml",
+                "state_transition_proposal.yml",
+                "narrative_delivery_receipt.yml",
+            ],
+        },
+    )
+    call_reserved = _publish_yaml_exclusive(
+        root,
+        call_fence,
+        {
+            "schema_version": 1,
+            "status": "provider_call_reserved",
+            "candidate_only": True,
+            "production_modified": False,
+            "project": project,
+            "job_id": job_id,
+            "chapter": chapter,
+            "revision_task_id": revision_task_id,
+            "source_candidate_sha256": _sha256(source_candidate),
+            "revision_contract_sha256": _sha256(contract_path),
+        },
+    )
+    if not call_reserved:
+        raise RuntimeError("background_revision_provider_result_unknown")
+    minimum = int(length_contract["minimum"])
+    maximum = int(length_contract["maximum"])
+    unit_label = (
+        "CJK characters using the project measurement"
+        if length_unit == CJK_CHARACTER_UNIT
+        else "Han characters excluding Markdown headings"
+    )
+    instructions = [
+        "Return exactly one complete fiction_draft.md edit block.",
+        "Rewrite only the contracted locations and preserve all other prose.",
+        (
+            "The complete revised chapter must contain between "
+            f"{minimum} and {maximum} {unit_label}; do not return a shortened "
+            "excerpt or patch fragment."
+        ),
+        "Do not emit audit language, explanations, ledgers, or receipts.",
+    ]
+    if previous_short_revision:
+        instructions.insert(
+            1,
+            (
+                "Continue from previous_short_revision_text, retain its contracted "
+                "corrections, and expand the complete chapter into the required "
+                "length range without padding or new facts."
+            ),
+        )
+    revision_request = {
+        "schema_version": 1,
+        "job_kind": "narrative_revision",
+        "run_mode": "targeted_rewrite",
+        "project": project,
+        "task_id": revision_task_id,
+        "chapter_id": chapter,
+        "candidate_only": True,
+        "production_modified": False,
+        "candidate_set_id": candidate_set_id,
+        "source_job_id": job_id,
+        "source_run_id": source_task_id,
+        "attempt_id": revision_attempt_id,
+        "source_writer_request": _ref(root, source_request),
+        "source_candidate": _ref(root, source_candidate),
+        "source_task_packet": _ref(root, source_task_packet),
+        "source_delivery_receipt": _ref(root, source_delivery),
+        "triggering_audit": _ref(root, triggering_audit),
+        "revision_contract": _ref(root, contract_path),
+        "attempt_receipt": _ref(root, call_fence),
+        "workflow_plan_sha256": _sha256(revision_run / "workflow_plan.yml"),
+        "instructions": instructions,
+        "prose_length_contract": length_contract,
+        "revision_contract_content": bound_contract,
+        "source_candidate_text": source_candidate.read_text(encoding="utf-8"),
+    }
+    if length_policy_ref is not None:
+        revision_request["chapter_length_policy"] = length_policy_ref
+    if previous_short_revision:
+        revision_request["previous_short_revision_text"] = previous_short_revision
+    _publish_yaml_exclusive(
+        root,
+        revision_run / "revision_request.yml",
+        revision_request,
+    )
+
+    result = run_agent_model(
+        root,
+        plan,
+        "Writer",
+        revision_run / "writer_role_session_capture.md",
+        capacity_route_override=capacity_route_override,
+        apply_patches=False,
+    )
+    usage = getattr(result, "raw_usage", None)
+    usage = usage if isinstance(usage, dict) else {}
+    call_id = str(
+        usage.get("provider_session_id")
+        or usage.get("session_id")
+        or usage.get("command_id")
+        or ""
+    )
+    delivery_result = materialize_writer_v2_content(
+        str(getattr(result, "content", "") or ""),
+        revision_run,
+        revision_task_id,
+        capture_name="writer_role_session_capture.md",
+        provider=str(getattr(result, "provider", "") or ""),
+        model=str(getattr(result, "model", "") or ""),
+        call_id=call_id,
+        prose_length_contract=length_contract,
+    )
+    if delivery_result.get("status") != "pass":
+        reason = str(getattr(result, "error", "") or "")
+        issues = [str(item) for item in delivery_result.get("issues") or []]
+        below_minimum = any(
+            item.startswith("fiction_draft_")
+            and "_characters_below_minimum:" in item
+            for item in issues
+        )
+        short_revision = str(
+            delivery_result.get("rejected_canonical_prose") or ""
+        )
+        if below_minimum and short_revision.strip() and allow_length_retry:
+            retry_task_id = f"{revision_task_id}-length-retry-2"
+            retry_run = revision_run.parent / retry_task_id
+            retry_fence = call_fence.with_name(
+                f"{call_fence.stem}-length-retry-2{call_fence.suffix}"
+            )
+            observed_route = str(
+                usage.get("capacity_route_id")
+                or usage.get("capacity_route")
+                or ""
+            ).strip()
+            return _execute_v3_targeted_revision(
+                root=root,
+                project=project,
+                chapter=chapter,
+                job_id=job_id,
+                candidate_set_id=candidate_set_id,
+                source_task_id=source_task_id,
+                source_run=source_run,
+                source_request=source_request,
+                source_candidate=source_candidate,
+                contract_path=contract_path,
+                triggering_audit=triggering_audit,
+                revision_task_id=retry_task_id,
+                revision_attempt_id=f"{revision_attempt_id}-length-retry-2",
+                revision_run=retry_run,
+                call_fence=retry_fence,
+                capacity_route_override=observed_route or None,
+                previous_short_revision=short_revision,
+                allow_length_retry=False,
+            )
+        raise RuntimeError(
+            "background_revision_writer_blocked:"
+            + (reason or ",".join(issues) or "materialization_failed")
+        )
+    _publish_yaml_exclusive(
+        root,
+        revision_run / "writer_output_contract.yml",
+        {
+            "schema_version": 1,
+            "status": "pass",
+            "task_id": revision_task_id,
+            "candidate_only": True,
+            "production_modified": False,
+            "prose_sha256": delivery_result["prose_sha256"],
+            "issues": [],
+            "prose_length_contract": delivery_result.get("prose_length_contract"),
+        },
+    )
+    _publish_yaml_exclusive(
+        root,
+        revision_run / "writer_session_receipt.yml",
+        {
+            "schema_version": 1,
+            "status": "pass",
+            "project": project,
+            "task_id": revision_task_id,
+            "chapter_id": chapter,
+            "candidate_only": True,
+            "production_modified": False,
+            "request_sha256": _sha256(revision_run / "revision_request.yml"),
+            "workflow_plan_sha256": _sha256(revision_run / "workflow_plan.yml"),
+            "source_candidate_sha256": _sha256(source_candidate),
+            "revision_contract_sha256": _sha256(contract_path),
+            "prose_sha256": delivery_result["prose_sha256"],
+            "observed_provider": str(getattr(result, "provider", "") or ""),
+            "observed_model": str(getattr(result, "model", "") or ""),
+            "observed_call_id": call_id,
+        },
+    )
+    return revision_task_id
 
 
 def _prefixed_ref(
@@ -362,9 +897,18 @@ def _execute_contract(
     chapter = int(contract.get("chapter_id") or 0)
     source_task_id = _source_task_id(request, chapter)
     source_run = root / "projects" / project / "runs" / source_task_id
-    source_request = source_run / "narrative_v2_writer_request.yml"
     source_candidate = source_run / "fiction_draft.md"
-    source_contract = source_run / "writer_v2_output_contract.yml"
+    legacy_source_request = source_run / "narrative_v2_writer_request.yml"
+    legacy_source_contract = source_run / "writer_v2_output_contract.yml"
+    v3_source_request = source_run / "live_generation_request.yml"
+    v3_source_contract = source_run / "writer_output_contract.yml"
+    legacy_source = legacy_source_request.is_file() and legacy_source_contract.is_file()
+    source_request = (
+        legacy_source_request if legacy_source else v3_source_request
+    )
+    source_contract = (
+        legacy_source_contract if legacy_source else v3_source_contract
+    )
     source_paths = (source_request, source_candidate, source_contract)
     if not all(
         path.is_file() and not _has_symlink_component(root, path)
@@ -373,10 +917,11 @@ def _execute_contract(
         raise ValueError(f"background_revision_source_invalid:{chapter}")
 
     job_id = _identifier(request.get("job_id"))
+    lineage_version = "" if legacy_source else ":v3-targeted-revision-4"
     lineage_id = hashlib.sha256(
         (
             f"{project}:{job_id}:{proposal_sha256}:{chapter}:{contract_index}:"
-            f"{contract.get('revision_contract_id')}"
+            f"{contract.get('revision_contract_id')}{lineage_version}"
         ).encode("utf-8")
     ).hexdigest()[:16]
     audit_id, triggering_audit = _write_triggering_audit(
@@ -424,7 +969,11 @@ def _execute_contract(
     revision_lease_token = f"lease-{lineage_id}"
     revision_run = root / "projects" / project / "runs" / revision_task_id
     materialized_path = candidate_root / f"materialized-{contract_index:02d}.yml"
-    call_fence = candidate_root / f"provider-call-{contract_index:02d}.yml"
+    call_fence = candidate_root / (
+        f"provider-call-{contract_index:02d}.yml"
+        if legacy_source
+        else f"provider-call-{contract_index:02d}-{lineage_id}.yml"
+    )
 
     # A controller retry receives a fresh lease, but the provider result is bound
     # to the proposal lineage rather than to that controller attempt. Recover a
@@ -436,11 +985,16 @@ def _execute_contract(
             validate_revision_draft_binding,
         )
 
+        existing_revision_task_id = _identifier(
+            existing_materialized.get("revision_task_id") or revision_task_id
+        )
+        if not existing_revision_task_id.startswith(revision_task_id):
+            raise RuntimeError("background_revision_materialized_binding_invalid")
         existing = validate_revision_draft_binding(
             root / "projects" / project,
             chapter=chapter,
             source_task_id=source_task_id,
-            revision_task_id=revision_task_id,
+            revision_task_id=existing_revision_task_id,
             expected_binding=existing_materialized,
         )
         if existing.get("status") != "pass":
@@ -453,7 +1007,7 @@ def _execute_contract(
             candidate_set_id=candidate_set_id,
             revision_attempt_id=revision_attempt_id,
             source_task_id=source_task_id,
-            revision_task_id=revision_task_id,
+            revision_task_id=existing_revision_task_id,
             proposal_path=proposal_path,
             proposal_sha256=proposal_sha256,
             contract_path=contract_path,
@@ -470,6 +1024,41 @@ def _execute_contract(
         or revision_run.exists()
     ):
         raise RuntimeError("background_revision_provider_result_unknown")
+
+    if not legacy_source:
+        materialized_revision_task_id = _execute_v3_targeted_revision(
+            root=root,
+            project=project,
+            chapter=chapter,
+            job_id=job_id,
+            candidate_set_id=candidate_set_id,
+            source_task_id=source_task_id,
+            source_run=source_run,
+            source_request=source_request,
+            source_candidate=source_candidate,
+            contract_path=contract_path,
+            triggering_audit=triggering_audit,
+            revision_task_id=revision_task_id,
+            revision_attempt_id=revision_attempt_id,
+            revision_run=revision_run,
+            call_fence=call_fence,
+        )
+        row = _build_revision_row(
+            root=root,
+            project=project,
+            chapter=chapter,
+            job_id=job_id,
+            candidate_set_id=candidate_set_id,
+            revision_attempt_id=revision_attempt_id,
+            source_task_id=source_task_id,
+            revision_task_id=materialized_revision_task_id,
+            proposal_path=proposal_path,
+            proposal_sha256=proposal_sha256,
+            contract_path=contract_path,
+            triggering_audit=triggering_audit,
+        )
+        _publish_yaml_exclusive(root, materialized_path, row)
+        return row
 
     from agent_runtime.narrative.production.revision_attempts import (
         revision_attempt_count,
@@ -628,20 +1217,22 @@ def run_background_revision(request: dict[str, Any]) -> dict[str, object]:
             (request.get("config") or {}).get("end_chapter")
             or request["batch"]["end"]
         )
+        blocking_chapters = _blocking_revision_chapters(heavy)
+        normalized = _compile_executable_revision_contracts(
+            contracts,
+            blocking_chapters=blocking_chapters,
+        )
         chapters: list[int] = []
-        for raw in contracts:
-            if not isinstance(raw, Mapping):
-                raise ValueError("revision_contract_not_mapping")
-            chapter = int(raw.get("chapter_id") or 0)
+        for contract in normalized:
+            chapter = int(contract.get("chapter_id") or 0)
             if chapter < start or chapter > end:
                 raise ValueError(f"revision_contract_chapter_out_of_range:{chapter}")
-            issues = _contract_issues(raw, chapter=chapter)
+            issues = _contract_issues(contract, chapter=chapter)
             if issues:
                 raise ValueError(issues[0])
             if chapter in chapters:
                 raise ValueError(f"multiple_revision_contracts_for_chapter:{chapter}")
             chapters.append(chapter)
-            normalized.append(dict(raw))
         for index, contract in enumerate(normalized, start=1):
             row = _execute_contract(
                 request,
@@ -662,6 +1253,8 @@ def run_background_revision(request: dict[str, Any]) -> dict[str, object]:
             "production_modified": False,
             "chapter_range": [start, end],
             "source_audit_task_id": heavy.get("task_id"),
+            "source_proposal_count": len(contracts),
+            "blocking_chapters": sorted(blocking_chapters),
             "revision_contract_count": len(normalized),
             "selected_revision_count": len(selected),
             "changed_chapters": sorted(changed_chapters),
@@ -679,6 +1272,7 @@ def run_background_revision(request: dict[str, Any]) -> dict[str, object]:
             "production_modified": False,
             "chapter_range": [request["batch"]["start"], request["batch"]["end"]],
             "source_audit_task_id": heavy.get("task_id"),
+            "source_proposal_count": len(contracts) if isinstance(contracts, list) else 0,
             "revision_contract_count": len(normalized),
             "selected_revision_count": len(selected),
             "changed_chapters": sorted(changed_chapters),

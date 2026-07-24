@@ -52,7 +52,7 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
 
     gates = boundary["selected_session_health_gates"]
     assert gates["run_crown_internal_writer_eval"]["required_issue_ids"] == [
-        "current_claude_writer_session_health"
+        "current_agy_writer_session_health"
     ]
     assert gates["run_crown_internal_media_smoke"]["required_issue_ids"] == [
         "current_grok_session_health"
@@ -95,7 +95,7 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
 
     writer = candidates["run_crown_internal_writer_eval"]
     assert writer["agentlab_execution_owner"] == "Writer"
-    assert (writer["assigned_worker"] == "claude_code") is boundary[
+    assert (writer["assigned_worker"] == "agy") is boundary[
         "writer_request_route_current"
     ]
     assert writer["candidate_only"] is True

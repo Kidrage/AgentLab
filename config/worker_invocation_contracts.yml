@@ -177,7 +177,9 @@ contracts:
       complete sealed AgentLab Writer packet on stdin as the only task context.
       Follow its messages in order and act as a pure Writer: produce high-quality
       final Chinese prose while preserving voice, POV, continuity, and length
-      constraints. Do not browse, read workspace files, edit source files, plan
+      constraints. Enforce fact_invention_policy literally: facts absent from
+      sealed evidence remain unknown, and only transient scene texture may be
+      invented. Do not browse, read workspace files, edit source files, plan
       other roles, or invoke subagents. Return only the required candidate output
       envelopes. AgentLab owns the model execution receipt and derives observed
       provider/model/session/usage fields from Claude's JSON envelope."
@@ -193,6 +195,39 @@ contracts:
       allow_unquoted_placeholders: true
     fallback:
       on_binary_missing: stop_and_report
+      on_quota_exhausted: capacity_manager
+
+  agy_writer:
+    worker_id: agy
+    display_name: Agy Gemini OAuth Writer
+    command: agy
+    invocation_style: sealed_packet_stdin
+    packet_delivery: stdin
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - outbound_context_manifest_writer.yml
+      - model_execution_chain_writer.yml
+      - model_execution_receipt_writer_<route>_<attempt>.yml
+      - narrative_delivery_receipt.yml
+    template: >-
+      agy --sandbox --model "{model_id}" -p "Treat the complete sealed
+      AgentLab Writer packet on stdin as the only task context. Follow its
+      messages in order and act only as the prose Writer. Produce high-quality
+      final Chinese candidate prose while preserving voice, POV, continuity,
+      and length constraints. Do not browse, scan the workspace, edit source
+      files, invoke tools, or delegate. Return only the required AGENTLAB_EDIT
+      candidate output envelopes."
+    required_placeholders: [model_id]
+    safe_probe: [agy, --help]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: capacity_manager
       on_quota_exhausted: capacity_manager
 
   claude_narrative_planner:
@@ -231,7 +266,7 @@ contracts:
 
   claude_narrative_audit:
     worker_id: claude_code
-    display_name: Claude Shell DeepSeek Sealed Narrative Reviewer
+    display_name: Claude Shell DeepSeek Sealed Narrative Audit Role
     command: claude
     invocation_style: sealed_packet_stdin
     packet_delivery: stdin
@@ -247,10 +282,18 @@ contracts:
       claude --model "{model_id}" --effort max --max-budget-usd 3.00
       --permission-mode bypassPermissions --output-format json --tools ""
       --json-schema '{narrative_audit_schema}' -p "Treat the complete sealed
-      AgentLab Reviewer packet on stdin as the only task context. Audit every
-      requested chapter against its exact evidence and continuity contracts.
+      AgentLab narrative-audit role packet on stdin as the only task context.
+      Perform only the role assigned by that packet. When assigned Reviewer,
+      audit every requested chapter against its exact evidence and continuity contracts.
+      Treat any persistent fact absent from sealed evidence as a blocking
+      continuity failure, including invented backstory, institutions, taxes,
+      laws, supernatural classifications, exact rule counts, debts, caches,
+      resources, relationships, or offscreen history. Enforce each
+      fact_invention_policy, forbidden_facts, character_intent_gate, hook
+      contract, POV boundary, dialogue quotation, paragraph rhythm, and target
+      length; do not reward plausible but unsupported lore.
       Do not browse, read workspace files, edit files, draft replacement prose,
-      plan other roles, or invoke subagents. Return exactly the structured JSON
+      perform another role, or invoke subagents. Return exactly the structured JSON
       required by the enforced schema. AgentLab alone serializes and validates
       the candidate-only audit files."
     required_placeholders: [model_id, narrative_audit_schema]
@@ -689,13 +732,13 @@ contracts:
     required_receipts:
       - frontdesk_session_receipt.yml
     template: >-
-      agy --sandbox --model "Gemini 3.5 Flash (High)" -p "Read the AgentLab frontdesk session packet at
+      agy --sandbox --model gemini-3.5-flash-high -p "Read the AgentLab frontdesk session packet at
       '{frontdesk_session_path}'; act only as the user-facing AgentLab frontdesk."
     required_placeholders:
       - frontdesk_session_path
     safe_probe: [agy, --help]
     expected_parse:
-      argv_prefix: [agy, --sandbox, --model, Gemini 3.5 Flash (High), -p]
+      argv_prefix: [agy, --sandbox, --model, gemini-3.5-flash-high, -p]
     validation:
       shlex_parse_required: true
       allow_unquoted_placeholders: true

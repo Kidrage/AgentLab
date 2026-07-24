@@ -109,10 +109,10 @@ modes:
           default: deepseek_v4_pro
         writer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_writer
-          default: deepseek_v4_pro
-          capacity_route: Writer
+          cli_agent: agy
+          invocation_contract: agy_writer
+          default: gemini_3_5_flash_high_agy_oauth
+          capacity_route: WriterAgy
         reviewer:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -202,10 +202,10 @@ modes:
           default: deepseek_v4_pro
         writer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_writer
-          default: deepseek_v4_pro
-          capacity_route: Writer
+          cli_agent: agy
+          invocation_contract: agy_writer
+          default: gemini_3_5_flash_high_agy_oauth
+          capacity_route: WriterAgy
         reviewer:
           executor_type: cli_agent
           cli_agent: claude_code

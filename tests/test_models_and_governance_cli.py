@@ -54,13 +54,13 @@ def _write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
-def test_models_show_lists_writer_claude_deepseek_default():
+def test_models_show_lists_writer_agy_gemini_default():
     result = runner.invoke(app, ["models", "show", "--role", "Writer"])
 
     assert result.exit_code == 0
     assert "writer" in result.output
-    assert "claude_code" in result.output
-    assert "deepseek_v4_pro" in result.output
+    assert "agy" in result.output
+    assert "gemini_3_5_flash_high_agy_oauth" in result.output
 
 
 def test_models_show_lists_observer_supervisor_and_grok_research_routes():
@@ -146,9 +146,9 @@ def test_model_proposal_rejects_forbidden_worker_and_contract_model_drift(tmp_pa
             "--role",
             "Writer",
             "--cli",
-            "agy",
+            "qwen",
             "--model",
-            "gemini_3_5_flash_high_agy_oauth",
+            "qwen3_7_max_dashscope",
         ],
     )
     assert forbidden.exit_code == 1
@@ -187,7 +187,7 @@ def test_model_apply_revalidates_proposal_binding_before_mutation(tmp_path):
     proposal_id = yaml.safe_load(proposed.output)["proposal_id"]
     path = _proposal_dir(root) / f"{proposal_id}.yml"
     proposal = yaml.safe_load(path.read_text(encoding="utf-8"))
-    proposal["cli_agent"] = "agy"
+    proposal["cli_agent"] = "qwen"
     _write_yaml(path, proposal)
     profiles_before = (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
 

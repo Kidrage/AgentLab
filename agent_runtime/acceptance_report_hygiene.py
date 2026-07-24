@@ -13,6 +13,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
 
 CANONICAL_REPORT_TYPES = {
     "current.yml": "agentlab_capability_acceptance",
+    "current_evidence_chain.yml": "agentlab_capability_current_evidence_chain",
     "objective_requirement_audit.yml": "agentlab_objective_requirement_audit",
     "goal_completion_audit.yml": "agentlab_goal_completion_audit",
     "internal_live_readiness.yml": "agentlab_internal_live_readiness",
@@ -316,6 +317,75 @@ def build_acceptance_report_hygiene(root: Path) -> dict[str, Any]:
     stale_marker_hits = _marker_hits(base)
     stale_private_selected_command_hits = _private_selected_command_hits(base)
     consistency_issues: list[dict[str, Any]] = []
+
+    try:
+        from agent_runtime.capability_evidence_chain import (
+            CHAIN_FILENAME,
+            is_historical_evidence_path,
+            verify_capability_current_evidence_chain,
+        )
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from capability_evidence_chain import (
+            CHAIN_FILENAME,
+            is_historical_evidence_path,
+            verify_capability_current_evidence_chain,
+        )
+
+    # Uniqueness + chain integrity live in verify; hygiene does not re-scan duplicates.
+    evidence_chain_verification = verify_capability_current_evidence_chain(root)
+    evidence_chain_issues = list(evidence_chain_verification.get("issues") or [])
+    if evidence_chain_issues:
+        consistency_issues.extend(
+            {
+                "area": "capability_current_evidence_chain",
+                **(issue if isinstance(issue, dict) else {"reason": str(issue)}),
+            }
+            for issue in evidence_chain_issues
+        )
+
+    # Fail closed: still-authoritative acceptance reports must not claim archive/
+    # run-history paths as current/active evidence (historical fields may retain them).
+    for name in CANONICAL_REPORT_TYPES:
+        path = base / name
+        if not path.exists():
+            continue
+        data = _read_yaml(path)
+        report_type = data.get("report_type")
+        if report_type == "agentlab_capability_acceptance":
+            for capability in data.get("capabilities") or []:
+                if not isinstance(capability, dict):
+                    continue
+                bad_paths = [
+                    str(item)
+                    for item in (capability.get("evidence") or [])
+                    if is_historical_evidence_path(str(item), root)
+                ]
+                if bad_paths:
+                    consistency_issues.append(
+                        {
+                            "area": "canonical_acceptance_current_evidence",
+                            "reason": "historical_path_in_active_evidence",
+                            "report": name,
+                            "capability_id": capability.get("id"),
+                            "paths": bad_paths,
+                        }
+                    )
+        elif report_type == "agentlab_capability_current_evidence_chain":
+            bad_paths = [
+                str(item.get("path") or "")
+                for item in (data.get("current_evidence") or [])
+                if isinstance(item, dict) and is_historical_evidence_path(str(item.get("path") or ""), root)
+            ]
+            if bad_paths:
+                consistency_issues.append(
+                    {
+                        "area": "canonical_acceptance_current_evidence",
+                        "reason": "historical_path_in_active_evidence",
+                        "report": name,
+                        "paths": bad_paths,
+                    }
+                )
+
     status = (
         "pass"
         if not canonical_issues
@@ -351,10 +421,17 @@ def build_acceptance_report_hygiene(root: Path) -> dict[str, Any]:
         ),
         "private_selected_command_scan_artifacts": _private_selected_command_scan_artifacts(),
         "stale_private_selected_command_hits": stale_private_selected_command_hits,
+        "capability_current_evidence_chain": {
+            "path": f"acceptance_runs/agentlab_capability_acceptance/{CHAIN_FILENAME}",
+            "verification_status": evidence_chain_verification.get("status"),
+            "issue_count": len(evidence_chain_issues),
+            "issues": evidence_chain_issues,
+        },
         "consistency_issues": consistency_issues,
         "notes": [
             "This audit does not delete historical evidence or execute live commands.",
             "Historical policy rejection files remain valid evidence; current-state snapshots must not contradict canonical reports.",
+            "Exactly one canonical current evidence chain is machine-verified; archive/run_history paths never count as current.",
         ],
     }
 

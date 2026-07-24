@@ -33,6 +33,39 @@ def _chapter_contract(chapter: int = 1, position: str = "series_open") -> dict:
             "counterfactual_action": "即使巡查没有发生，他也会完成测试并准备离谷",
             "desire_delta": "从忍耐转为主动调查",
         },
+        "character_intent_gate": {
+            "focal_character": "char_kain",
+            "knowledge_before": "只知道灰痕曾自行回应触碰，不知道它能否受控或需要付出什么",
+            "emotional_state_before": "恐惧被教会发现，仍把异常视为必须藏住的威胁",
+            "behavioral_tendency": "优先隐瞒、观察和维持生计，不主动追求力量",
+            "risk_tolerance": "low",
+            "intended_action": "先隔离灰样并观察它是否再次自行变化",
+            "action_trigger": "巡查名单提前出现他的名字，且熔炉故障会使他失去唯一收入",
+            "credible_transition": "外部生存压力迫使他从被动观察升级到一次最小、可中止的验证",
+            "forbidden_author_knowledge_shortcuts": [
+                "不得把未知灰痕当作可枚举技能",
+                "不得在没有新证据时系统测试能力边界",
+            ],
+        },
+        "must_not_repeat": [
+            "不得重复已经完成的灰痕首次响应场景",
+        ],
+        "forbidden_facts": [
+            "师父已经死亡",
+            "凯恩背负教会税债",
+        ],
+        "fact_invention_policy": {
+            "absent_fact_rule": "未在密封证据中出现的持久事实保持未知，不得补写为既成事实",
+            "allowed_scene_texture": [
+                "不产生后续约束的感官细节",
+                "不具名且不改变世界规则的临时物件",
+            ],
+            "forbidden_persistent_fact_classes": [
+                "新人物身世或既往事件",
+                "新制度、税制、法令或超凡分类",
+                "会跨章持续的债务、资源、关系或藏匿点",
+            ],
+        },
         "supporting_actor_states": [
             {
                 "actor_ref": "char_adrian",
@@ -103,6 +136,51 @@ def test_chapter_contract_requires_active_desire_and_autonomous_npc() -> None:
 
     assert "placeholder:protagonist_drive.counterfactual_action" in issues
     assert "missing:supporting_actor_states[0].current_plan" in issues
+
+
+def test_character_intent_gate_blocks_author_knowledge_and_unearned_experimentation() -> None:
+    contract = _chapter_contract()
+    assert validate_chapter_contract(contract) == []
+
+    gate = contract["character_intent_gate"]
+    gate["knowledge_before"] = ""
+    gate["risk_tolerance"] = "reckless"
+    gate["action_trigger"] = "what_happens_next"
+    gate["forbidden_author_knowledge_shortcuts"] = []
+
+    issues = validate_chapter_contract(contract)
+
+    assert "missing:character_intent_gate.knowledge_before" in issues
+    assert "invalid:character_intent_gate.risk_tolerance" in issues
+    assert "placeholder:character_intent_gate.action_trigger" in issues
+    assert (
+        "invalid:character_intent_gate.forbidden_author_knowledge_shortcuts"
+        in issues
+    )
+
+
+def test_v3_contract_requires_explicit_negative_story_constraints() -> None:
+    contract = _chapter_contract()
+    assert validate_chapter_contract(contract) == []
+
+    contract["must_not_repeat"] = []
+    contract["forbidden_facts"] = ["", 7]
+
+    issues = validate_chapter_contract(contract)
+
+    assert "invalid:must_not_repeat" in issues
+    assert "invalid:forbidden_facts" in issues
+
+
+def test_v3_contract_requires_explicit_fact_invention_boundary() -> None:
+    contract = _chapter_contract()
+    contract["fact_invention_policy"]["allowed_scene_texture"] = []
+    contract["fact_invention_policy"]["absent_fact_rule"] = ""
+
+    issues = validate_chapter_contract(contract)
+
+    assert "missing:fact_invention_policy.absent_fact_rule" in issues
+    assert "invalid:fact_invention_policy.allowed_scene_texture" in issues
 
 
 def test_regular_hook_accepts_relationship_tension_but_not_generic_question() -> None:
@@ -243,5 +321,17 @@ def test_v3_plan_uses_existing_delivery_and_brief_compiler_seams(tmp_path: Path)
     assert validation["status"] == "pass"
     assert brief["v1_source"] is False
     assert brief["chapter_position"] == "series_open"
+    assert brief["chapter_contract"]["character_intent_gate"]["risk_tolerance"] == "low"
+    assert brief["must_not_repeat"] == [
+        "不得重复已经完成的灰痕首次响应场景"
+    ]
+    assert brief["forbidden_facts"] == [
+        "师父已经死亡",
+        "凯恩背负教会税债",
+    ]
+    assert brief["fact_invention_policy"]["absent_fact_rule"].startswith(
+        "未在密封证据中出现"
+    )
+    assert brief["must_preserve"] == []
     assert "验证灰痕" in brief["opposing_wants"]
     assert brief["reader_question"] == "是谁在凯恩觉醒前就把他写进了名单？"

@@ -5,6 +5,8 @@ from pathlib import Path
 import yaml
 
 from agent_runtime.outbound_context import (
+    PRIVATE_CONTEXT_APPROVAL_PAYLOAD_SHA256_ENV_NAME,
+    PRIVATE_CONTEXT_APPROVAL_SCOPE_SHA256_ENV_NAME,
     PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME,
     build_outbound_context_manifest,
 )
@@ -186,3 +188,122 @@ def test_outbound_manifest_blocks_when_required_source_inventory_is_empty(
     assert report["status"] == "blocked"
     assert report["source_inventory"]["required"] is True
     assert "source_inventory_empty" in report["issues"]
+
+
+def test_hash_bound_approval_requires_the_exact_payload_sha256(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    payload = "safe exact private context"
+    initial = build_outbound_context_manifest(
+        tmp_path,
+        item_id="task_narrative_eval_ch01_test",
+        role="Writer",
+        provider_surface="cli_agent:claude_code",
+        payload_kind="sealed_cli_role_session_packet",
+        payload_text=payload,
+        private_context=True,
+        exact_payload=True,
+        sealed_context=True,
+        execution_workspace_isolated=True,
+        approval_required=True,
+        approval_granted=False,
+        approval_payload_sha256_required=True,
+    )
+    approved_sha256 = initial["payload"]["sha256"]
+    monkeypatch.setenv(
+        PRIVATE_CONTEXT_APPROVAL_PAYLOAD_SHA256_ENV_NAME,
+        approved_sha256,
+    )
+
+    report = build_outbound_context_manifest(
+        tmp_path,
+        item_id="task_narrative_eval_ch01_test",
+        role="Writer",
+        provider_surface="cli_agent:claude_code",
+        payload_kind="sealed_cli_role_session_packet",
+        payload_text=payload,
+        private_context=True,
+        exact_payload=True,
+        sealed_context=True,
+        execution_workspace_isolated=True,
+        approval_required=True,
+        approval_granted=True,
+        approval_payload_sha256_required=True,
+    )
+
+    assert report["status"] == "pass"
+    assert report["execution_allowed"] is True
+    assert report["authorization"]["payload_sha256_required"] is True
+    assert report["authorization"]["payload_sha256_matched"] is True
+
+
+def test_hash_bound_approval_blocks_missing_or_different_payload_sha256(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    kwargs = {
+        "item_id": "task_narrative_eval_ch01_test",
+        "role": "Writer",
+        "provider_surface": "cli_agent:claude_code",
+        "payload_kind": "sealed_cli_role_session_packet",
+        "payload_text": "safe exact private context",
+        "private_context": True,
+        "exact_payload": True,
+        "sealed_context": True,
+        "execution_workspace_isolated": True,
+        "approval_required": True,
+        "approval_granted": True,
+        "approval_payload_sha256_required": True,
+    }
+
+    missing = build_outbound_context_manifest(tmp_path, **kwargs)
+    monkeypatch.setenv(
+        PRIVATE_CONTEXT_APPROVAL_PAYLOAD_SHA256_ENV_NAME,
+        "0" * 64,
+    )
+    mismatched = build_outbound_context_manifest(tmp_path, **kwargs)
+
+    assert missing["execution_allowed"] is False
+    assert "explicit_private_context_payload_sha256_approval_missing" in missing[
+        "issues"
+    ]
+    assert mismatched["status"] == "blocked"
+    assert "approved_private_context_payload_sha256_mismatch" in mismatched["issues"]
+    assert mismatched["authorization"]["payload_sha256_matched"] is False
+
+
+def test_batch_scope_approval_requires_matching_scope_sha256(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    expected_scope_sha256 = "a" * 64
+    kwargs = {
+        "item_id": "task_narrative_eval_ch02_test",
+        "role": "Writer",
+        "provider_surface": "cli_agent:claude_code",
+        "payload_kind": "sealed_cli_role_session_packet",
+        "payload_text": "derived chapter payload",
+        "private_context": True,
+        "exact_payload": True,
+        "sealed_context": True,
+        "execution_workspace_isolated": True,
+        "approval_required": True,
+        "approval_granted": True,
+        "approval_scope_sha256_required": True,
+        "expected_scope_sha256": expected_scope_sha256,
+    }
+
+    missing = build_outbound_context_manifest(tmp_path, **kwargs)
+    monkeypatch.setenv(
+        PRIVATE_CONTEXT_APPROVAL_SCOPE_SHA256_ENV_NAME,
+        expected_scope_sha256,
+    )
+    approved = build_outbound_context_manifest(tmp_path, **kwargs)
+
+    assert missing["status"] == "pending_approval"
+    assert "explicit_private_context_scope_sha256_approval_missing" in missing[
+        "issues"
+    ]
+    assert approved["status"] == "pass"
+    assert approved["authorization"]["scope_sha256_matched"] is True

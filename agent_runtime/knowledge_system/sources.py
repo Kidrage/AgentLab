@@ -268,13 +268,26 @@ class SourceCollector:
                 domain=domain,
             )
         artifact_index = project_root / "project_artifact_index.yml"
+        sole_blueprint_active = False
         if artifact_index.is_file() and not artifact_index.is_symlink():
             sources[artifact_index] = (
                 AuthorityLevel.CANONICAL,
                 KnowledgeLifecycle.ACTIVE,
                 "artifact_index",
             )
-            for selected_root in _current_artifact_roots(project_root, artifact_index):
+            selected_roots = _current_artifact_roots(project_root, artifact_index)
+            blueprint_authority = (
+                project_root / "production" / "blueprint_authority.yml"
+            )
+            if (
+                blueprint_authority.is_file()
+                and blueprint_authority not in selected_roots
+            ):
+                return []
+            sole_blueprint_active = (
+                blueprint_authority
+            ) in selected_roots
+            for selected_root in selected_roots:
                 selected_paths = (
                     (selected_root,)
                     if selected_root.is_file()
@@ -285,6 +298,24 @@ class SourceCollector:
                         AuthorityLevel.ACCEPTED,
                         KnowledgeLifecycle.ACTIVE,
                         "formal_release",
+                    )
+        if sole_blueprint_active:
+            for relative in (
+                "project_brain/blueprint_validation_receipt.yml",
+                "project_brain/project_fact_snapshot.yml",
+                "project_brain/narrative_state_events.jsonl",
+                "project_brain/narrative_state_snapshot.yml",
+            ):
+                path = project_root / relative
+                if (
+                    not _has_symlink_component(path, project_root)
+                    and path.is_file()
+                    and not path.is_symlink()
+                ):
+                    sources[path] = (
+                        AuthorityLevel.CANONICAL,
+                        KnowledgeLifecycle.ACTIVE,
+                        "sealed_blueprint_memory",
                     )
         # Runtime v2 exposes one curated metadata surface. Raw ledgers, attempts,
         # failed drafts, and task artifact bytes remain deliberately unindexed.
@@ -302,6 +333,12 @@ class SourceCollector:
         allowed = {AuthorityLevel.CANONICAL, AuthorityLevel.ACCEPTED}
         for authority, lifecycle, kind, relatives in PROJECT_SOURCE_GROUPS:
             if not include_ineligible and authority not in allowed:
+                continue
+            if (
+                sole_blueprint_active
+                and authority == AuthorityLevel.CANONICAL
+                and kind == "project_fact"
+            ):
                 continue
             for relative in relatives:
                 directory = project_root / relative
@@ -576,8 +613,91 @@ def _current_artifact_roots(project_root: Path, artifact_index: Path) -> tuple[P
             continue
         if actual_sha256 != expected_sha256:
             continue
-        roots.append(selected)
+        if selected == project_root / "production" / "blueprint_authority.yml":
+            components = _verified_blueprint_components(project_root, selected)
+            if not components:
+                continue
+            roots.append(selected)
+            roots.extend(components)
+        else:
+            roots.append(selected)
     return tuple(dict.fromkeys(roots))
+
+
+def _verified_blueprint_components(
+    project_root: Path,
+    authority_path: Path,
+) -> tuple[Path, ...]:
+    """Resolve a hash-bound sole blueprint entrypoint without trusting raw roots."""
+    try:
+        authority = yaml.safe_load(authority_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return ()
+    if (
+        not isinstance(authority, dict)
+        or authority.get("schema_version") != "crown-blueprint-authority/v1"
+        or authority.get("project") != project_root.name
+        or authority.get("status") != "active"
+        or authority.get("sole_writer_entrypoint") is not True
+        or authority.get("conflict_action")
+        != "fail_closed_before_context_compilation"
+    ):
+        return ()
+    raw_components = authority.get("components")
+    if not isinstance(raw_components, list):
+        return ()
+    expected_component_paths = {
+        "production/series_scale_decision.yml",
+        "production/chapter_length_policy.yml",
+        "production/canonical",
+        "production/chapter_cards",
+    }
+    declared_component_paths = {
+        str(item.get("path") or "")
+        for item in raw_components
+        if isinstance(item, dict)
+    }
+    if declared_component_paths != expected_component_paths:
+        return ()
+    components: list[Path] = []
+    for item in raw_components:
+        if not isinstance(item, dict):
+            return ()
+        raw_path = str(item.get("path") or "")
+        relative = Path(raw_path)
+        if (
+            not raw_path
+            or relative.is_absolute()
+            or not relative.parts
+            or relative.parts[0] != "production"
+            or ".." in relative.parts
+        ):
+            return ()
+        raw_component = project_root / relative
+        if _has_symlink_component(raw_component, project_root):
+            return ()
+        try:
+            component = assert_path_allowed(
+                raw_component,
+                project_root / "production",
+            )
+        except ValueError:
+            return ()
+        if component.is_symlink() or not (
+            component.is_file() or component.is_dir()
+        ):
+            return ()
+        expected_sha256 = str(item.get("sha256") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+            return ()
+        try:
+            actual_sha256 = artifact_sha256(component)
+        except (OSError, ValueError):
+            return ()
+        if actual_sha256 != expected_sha256:
+            return ()
+        components.append(component)
+    return tuple(components)
 
 
 def _has_symlink_component(path: Path, root: Path) -> bool:

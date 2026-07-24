@@ -140,6 +140,8 @@ workers:
       - multimodal_observation
       - evidence_quality_review
       - long_context
+      - write_text_artifact
+      - state_ledger
 
   grok:
     supported_capabilities:

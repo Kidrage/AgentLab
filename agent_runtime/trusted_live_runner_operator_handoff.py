@@ -222,7 +222,7 @@ def build_trusted_live_runner_operator_handoff(
         if isinstance(issue, dict) and issue.get("id")
     }
     selected_session_requirements = {
-        "run_crown_internal_writer_eval": ["current_claude_writer_session_health"],
+        "run_crown_internal_writer_eval": ["current_agy_writer_session_health"],
         "run_crown_internal_media_smoke": ["current_grok_session_health"],
     }
 
@@ -317,8 +317,8 @@ def build_trusted_live_runner_operator_handoff(
         {},
     )
     writer_request_route_current = (
-        writer_request_item.get("assigned_worker") == "claude_code"
-        and "--writer-worker claude_code"
+        writer_request_item.get("assigned_worker") == "agy"
+        and "--writer-worker agy"
         in str(writer_request_item.get("command") or "")
         and "--writer-worker agy" not in str(writer_request_item.get("command") or "")
     )
@@ -428,7 +428,7 @@ def build_trusted_live_runner_operator_handoff(
                 "runtime_outbound_context_manifest_required": True,
                 "blocked_until_session_health_clean": not readiness_clean,
                 "required_session_health_issue_ids": [
-                    "current_claude_writer_session_health",
+                    "current_agy_writer_session_health",
                     "current_grok_session_health",
                 ],
                 "blocking_session_health_issue_ids": sorted(session_health_issue_ids),

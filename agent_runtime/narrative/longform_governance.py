@@ -52,6 +52,17 @@ _DRIVE_FIELDS = (
     "counterfactual_action",
     "desire_delta",
 )
+_CHARACTER_INTENT_FIELDS = (
+    "focal_character",
+    "knowledge_before",
+    "emotional_state_before",
+    "behavioral_tendency",
+    "risk_tolerance",
+    "intended_action",
+    "action_trigger",
+    "credible_transition",
+)
+_RISK_TOLERANCES = {"low", "guarded", "moderate", "high"}
 _ACTOR_FIELDS = (
     "actor_ref",
     "private_goal",
@@ -77,6 +88,11 @@ _FORESHADOW_FIELDS = (
     "evidence_target",
 )
 _WORLD_FIELDS = ("axis", "before", "after", "cause", "evidence_target")
+_FACT_INVENTION_TEXT_FIELDS = ("absent_fact_rule",)
+_FACT_INVENTION_LIST_FIELDS = (
+    "allowed_scene_texture",
+    "forbidden_persistent_fact_classes",
+)
 
 
 def _text(value: Any) -> str:
@@ -132,6 +148,30 @@ def validate_chapter_contract(contract: Mapping[str, Any]) -> list[str]:
             issues.append(f"missing:{field}")
         elif _placeholder(value):
             issues.append(f"placeholder:{field}")
+    for field in ("must_not_repeat", "forbidden_facts"):
+        value = contract.get(field)
+        if not (
+            isinstance(value, list)
+            and value
+            and all(isinstance(item, str) and item.strip() for item in value)
+        ):
+            issues.append(f"invalid:{field}")
+    fact_policy = contract.get("fact_invention_policy")
+    _require_text_fields(
+        fact_policy,
+        _FACT_INVENTION_TEXT_FIELDS,
+        "fact_invention_policy",
+        issues,
+    )
+    if isinstance(fact_policy, Mapping):
+        for field in _FACT_INVENTION_LIST_FIELDS:
+            value = fact_policy.get(field)
+            if not (
+                isinstance(value, list)
+                and value
+                and all(isinstance(item, str) and item.strip() for item in value)
+            ):
+                issues.append(f"invalid:fact_invention_policy.{field}")
 
     _require_text_fields(
         contract.get("protagonist_drive"),
@@ -139,6 +179,25 @@ def validate_chapter_contract(contract: Mapping[str, Any]) -> list[str]:
         "protagonist_drive",
         issues,
     )
+    intent_gate = contract.get("character_intent_gate")
+    _require_text_fields(
+        intent_gate,
+        _CHARACTER_INTENT_FIELDS,
+        "character_intent_gate",
+        issues,
+    )
+    if isinstance(intent_gate, Mapping):
+        if _text(intent_gate.get("risk_tolerance")) not in _RISK_TOLERANCES:
+            issues.append("invalid:character_intent_gate.risk_tolerance")
+        forbidden_shortcuts = intent_gate.get("forbidden_author_knowledge_shortcuts")
+        if not (
+            isinstance(forbidden_shortcuts, list)
+            and forbidden_shortcuts
+            and all(isinstance(item, str) and item.strip() for item in forbidden_shortcuts)
+        ):
+            issues.append(
+                "invalid:character_intent_gate.forbidden_author_knowledge_shortcuts"
+            )
 
     actors = contract.get("supporting_actor_states")
     if not isinstance(actors, list):

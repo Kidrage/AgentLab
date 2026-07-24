@@ -874,6 +874,214 @@ def test_background_revision_reads_node_local_verifier_proposal(tmp_path) -> Non
     assert result["revision_contract_count"] == 0
 
 
+def test_background_revision_compiles_one_contract_per_blocked_chapter() -> None:
+    from agent_runtime.narrative.quality.background import (
+        _compile_executable_revision_contracts,
+    )
+
+    def proposal(chapter: int, target: str, change: str) -> dict[str, object]:
+        return {
+            "chapter_id": chapter,
+            "target_scene": target,
+            "problem_type": "fact_invention_policy",
+            "evidence": f"chapter {chapter}: unsupported detail",
+            "must_preserve": ["the scene goal"],
+            "must_change": [change],
+            "allowed_freedom": "local wording only",
+            "causal_requirements": ["preserve the causal chain"],
+            "character_knowledge_before": ["the viewpoint knows only sealed facts"],
+            "character_knowledge_after": ["no new fact is learned"],
+            "decision_cost": "wording-only revision",
+            "new_information": "none",
+            "forbidden_regressions": ["do not invent a replacement detail"],
+        }
+
+    compiled = _compile_executable_revision_contracts(
+        [
+            proposal(4, "classification sentence", "remove the exact count"),
+            proposal(4, "seal description", "remove the exact ring count"),
+            proposal(3, "gate observation", "remove an unknown proper name"),
+        ],
+        blocking_chapters={4},
+    )
+
+    assert len(compiled) == 1
+    contract = compiled[0]
+    assert contract["chapter_id"] == 4
+    assert contract["rewrite_scope"] == "scene"
+    assert contract["target_scene"] == "classification sentence；seal description"
+    assert contract["must_change"] == [
+        "remove the exact count",
+        "remove the exact ring count",
+    ]
+    assert str(contract["revision_contract_id"]).startswith("rev-")
+
+
+def test_v3_targeted_revision_binds_generic_writer_artifacts(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import yaml
+
+    from agent_runtime.cli_executor import LLMCallResult
+    from agent_runtime.narrative.quality.background import (
+        _execute_v3_targeted_revision,
+    )
+    from agent_runtime.narrative_heavy_audit import (
+        validate_revision_draft_binding,
+    )
+    from agent_runtime.schemas import AgentRoute, WorkflowPlan
+
+    project = "Crown_of_Ash"
+    source_task = "task-source-ch04"
+    revision_task = "task-revision-ch004"
+    project_root = tmp_path / "projects" / project
+    source_run = project_root / "runs" / source_task
+    revision_run = project_root / "runs" / revision_task
+    candidates = project_root / "candidates"
+    audit_run = project_root / "runs" / "audit-ch004"
+    production = project_root / "production"
+    for path in (source_run, candidates, audit_run, production):
+        path.mkdir(parents=True, exist_ok=True)
+    (production / "chapter_length_policy.yml").write_text(
+        "schema_version: 1\nunit: cjk_characters\n",
+        encoding="utf-8",
+    )
+
+    source_candidate = source_run / "fiction_draft.md"
+    source_candidate.write_text("# 第四章\n\n原文。\n", encoding="utf-8")
+    source_request = source_run / "live_generation_request.yml"
+    source_request.write_text("schema_version: 1\n", encoding="utf-8")
+    (source_run / "writer_output_contract.yml").write_text(
+        "schema_version: 1\nstatus: pass\n",
+        encoding="utf-8",
+    )
+    chapter_packet = source_run / "chapter_packet.yml"
+    chapter_packet.write_text(
+        "schema_version: 1\nchapter_intent:\n"
+        "  hard_character_range: [8, 100]\n",
+        encoding="utf-8",
+    )
+    (source_run / "task_packet_writer.json").write_text(
+        '{"schema_version": 1}',
+        encoding="utf-8",
+    )
+    source_plan = WorkflowPlan(
+        project=project,
+        task_id=source_task,
+        agentlab_root=str(tmp_path),
+        project_root=str(project_root),
+        repo_path=str(project_root / "repo"),
+        run_dir=str(source_run),
+        user_request_path=str(source_run / "user_request.md"),
+        included_agents={"Writer": {"required_outputs": ["fiction_draft.md"]}},
+        route=AgentRoute(
+            task_size="small",
+            route_key="narrative_light_chapter",
+            agents=["Writer"],
+        ),
+        model_profiles={"Writer": {}},
+    )
+    (source_run / "workflow_plan.yml").write_text(
+        yaml.safe_dump(source_plan.model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
+    )
+    (source_run / "narrative_delivery_receipt.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "artifact_sha256": {
+                    "fiction_draft.md": hashlib.sha256(
+                        source_candidate.read_bytes()
+                    ).hexdigest(),
+                    "chapter_packet.yml": hashlib.sha256(
+                        chapter_packet.read_bytes()
+                    ).hexdigest(),
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    contract_path = candidates / "contract.yml"
+    contract_path.write_text(
+        "schema_version: 1\nchapter_id: 4\nrewrite_scope: scene\n",
+        encoding="utf-8",
+    )
+    triggering_audit = audit_run / "deterministic_candidate_audit_v2.yml"
+    triggering_audit.write_text("schema_version: 1\n", encoding="utf-8")
+
+    writer_calls: list[str] = []
+
+    def fake_writer(*args, **_kwargs):
+        task_id = args[1].task_id
+        writer_calls.append(task_id)
+        prose = "“短稿，完成。”"
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="fake-writer",
+            content=(
+                f"<!-- AGENTLAB_EDIT: runs/{task_id}/fiction_draft.md -->\n"
+                f"# 第四章\n\n{prose}\n"
+                "<!-- END AGENTLAB_EDIT -->"
+            ),
+            raw_usage={"command_id": f"call-v3-revision-{len(writer_calls)}"},
+        )
+
+    monkeypatch.syspath_prepend(
+        str(Path(__file__).resolve().parents[1] / "agent_runtime")
+    )
+    monkeypatch.setattr("agent_runner.run_agent_model", fake_writer)
+    call_fence = candidates / "call-fence.yml"
+    materialized_task_id = _execute_v3_targeted_revision(
+        root=tmp_path,
+        project=project,
+        chapter=4,
+        job_id="job-v3-revision",
+        candidate_set_id="candidate-v3-revision",
+        source_task_id=source_task,
+        source_run=source_run,
+        source_request=source_request,
+        source_candidate=source_candidate,
+        contract_path=contract_path,
+        triggering_audit=triggering_audit,
+        revision_task_id=revision_task,
+        revision_attempt_id="attempt-v3-revision",
+        revision_run=revision_run,
+        call_fence=call_fence,
+    )
+
+    validation = validate_revision_draft_binding(
+        project_root,
+        chapter=4,
+        source_task_id=source_task,
+        revision_task_id=materialized_task_id,
+    )
+    assert validation["status"] == "pass", validation
+    materialized_run = project_root / "runs" / materialized_task_id
+    assert (materialized_run / "fiction_draft.md").read_text(
+        encoding="utf-8"
+    ).endswith(
+        "“短稿，完成。”\n"
+    )
+    request = yaml.safe_load(
+        (revision_run / "revision_request.yml").read_text(encoding="utf-8")
+    )
+    assert request["prose_length_contract"] == {
+        "unit": "cjk_characters",
+        "minimum": 8,
+        "maximum": 100,
+    }
+    assert any("8" in item and "100" in item for item in request["instructions"])
+    assert writer_calls == [revision_task]
+    assert "lease_token" not in request
+    from agent_runtime.outbound_context import _secret_pattern_names
+
+    assert _secret_pattern_names(
+        (revision_run / "revision_request.yml").read_text(encoding="utf-8")
+    ) == []
+
+
 def test_background_revision_never_follows_attempt_directory_symlink(tmp_path) -> None:
     from agent_runtime.narrative.quality.background import run_background_revision
 

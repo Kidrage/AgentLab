@@ -28,8 +28,8 @@ inconsistent_pass_items: []
 pending_items:
 - id: run_crown_internal_writer_eval
   expected_type: narrative_live_smoke
-  pending_reason: claude_writer_session_health_blocked_before_private_writer_smoke
-  next_action: rerun_claude_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
+  pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
+  next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
   missing:
   - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
   - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
@@ -53,18 +53,21 @@ pending_items:
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
 acceptance_summary:
-  capability_overall_status: candidate
+  capability_overall_status: fail
   capability_status_counts:
-    pass: 20
-    candidate: 8
-  objective_status: partial
+    pass: 16
+    fail: 3
+    candidate: 9
+  objective_status: fail
   objective_status_counts:
-    pass: 10
-    candidate: 1
-  goal_status: partial
+    pass: 8
+    candidate: 2
+    fail: 1
+  goal_status: fail
   goal_status_counts:
-    pass: 7
-    candidate: 1
+    pass: 5
+    candidate: 2
+    fail: 1
   acceptance_report_hygiene_status: pass
   acceptance_report_hygiene_canonical_text_artifact_count: 2
   acceptance_report_hygiene_canonical_text_issue_count: 0
@@ -96,8 +99,8 @@ selected_item_summaries:
     selected_item_required_files_exist: false
     selected_item_returned_candidate_artifacts_accepted: false
     selected_item_acceptance_blocker: missing_required_files
-    selected_item_pending_reason: claude_writer_session_health_blocked_before_private_writer_smoke
-    selected_item_next_action: rerun_claude_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
+    selected_item_pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
+    selected_item_next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
     selected_item_missing:
     - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
     - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
@@ -107,9 +110,9 @@ selected_item_summaries:
     - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
     - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
     selected_item_session_health_gate:
-      id: current_claude_writer_session_health
+      id: current_agy_writer_session_health
       status: missing
-      reason: claude_writer_session_probe_missing
+      reason: agy_writer_session_probe_missing
   run_crown_internal_media_smoke:
     selected_item_id: run_crown_internal_media_smoke
     selected_item_collect_status: pending_selected_item

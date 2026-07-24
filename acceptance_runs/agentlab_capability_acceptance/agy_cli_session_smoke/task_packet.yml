@@ -1,0 +1,9 @@
+schema_version: 1
+packet_type: agentlab_non_private_cli_smoke
+project: AgentLab
+task_id: agy_cli_session_smoke
+role: Observer
+prompt_scope: non_private_observer_session_reachability_smoke
+private_project_context_loaded: false
+instructions: 'Reply exactly: AGENTLAB_AGY_CLI_SMOKE_OK. Do not read project files,
+  do not edit files, and do not execute additional commands.'

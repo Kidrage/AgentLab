@@ -29,11 +29,12 @@ ledger:
     - failure_class
 
 failure_classes:
-  pool_scoped: [rate_limited, quota_exhausted, auth_missing]
+  pool_scoped: [rate_limited, quota_exhausted, auth_missing, network_required]
   route_scoped: [model_unavailable]
   non_capacity: [unknown]
 
 canary_lease_seconds: 300
+transient_network_backoff_seconds: 900
 
 probe_policy:
   allowlist_shapes:
@@ -316,6 +317,15 @@ routes:
     pool: dashscope_metered_api
     approved_fallbacks: []
     fallback_on: []
+
+  WriterAgy:
+    role: writer
+    worker: agy
+    invocation_contract: agy_writer
+    model_key: gemini_3_5_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    approved_fallbacks: [Writer]
+    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable]
 
   Writer:
     role: writer

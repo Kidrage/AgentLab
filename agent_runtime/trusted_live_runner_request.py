@@ -72,12 +72,12 @@ def _current_handoff_item(item: dict[str, Any]) -> dict[str, Any]:
     if item.get("id") != "run_crown_internal_writer_eval":
         return item
     current = dict(item)
-    current["assigned_worker"] = "claude_code"
+    current["assigned_worker"] = "agy"
     for key in ("agentlab_command", "agentlab_command_after_approval"):
         if current.get(key):
             current[key] = str(current[key]).replace(
-                "--writer-worker agy",
                 "--writer-worker claude_code",
+                "--writer-worker agy",
             )
     return current
 
@@ -175,7 +175,7 @@ def _approved_role_session_script_command(script_path: Path, *args: str) -> str:
 
 def _session_health_probe_commands() -> list[str]:
     return [
-        "./agentlab.sh worker-invocation-probe --worker claude_writer > acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml",
+        "./agentlab.sh worker-invocation-probe --worker agy > acceptance_runs/agentlab_capability_acceptance/agy_writer_session_probe.yml",
         "./agentlab.sh grok-cli-smoke --live --out acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml",
         "./agentlab.sh internal-live-readiness --out acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml",
     ]
@@ -196,7 +196,7 @@ def _local_runner_package(
         "collect_report_path": str(collect_path),
         "preflight_commands": [
             "test -x ./agentlab.sh",
-            "command -v claude",
+            "command -v agy",
             "command -v hermes",
         ],
         "preflight_only_command": f"{shlex.quote(str(script_path))} --preflight-only",
@@ -311,7 +311,7 @@ def _script_text(request: dict[str, Any], request_path: Path, status_path: Path)
         "}",
         "",
         "require_runtime_commands() {",
-        "  require_command claude",
+        "  require_command agy",
         "  require_command hermes",
         "}",
         "",
@@ -395,7 +395,7 @@ def _script_text(request: dict[str, Any], request_path: Path, status_path: Path)
         "path = Path(sys.argv[1])",
         "item_id = sys.argv[2]",
         "required_by_item = {",
-        "    \"run_crown_internal_writer_eval\": {\"current_claude_writer_session_health\"},",
+        "    \"run_crown_internal_writer_eval\": {\"current_agy_writer_session_health\"},",
         "    \"run_crown_internal_media_smoke\": {\"current_grok_session_health\"},",
         "}",
         "required = required_by_item.get(item_id)",
@@ -470,7 +470,7 @@ def _script_text(request: dict[str, Any], request_path: Path, status_path: Path)
         "  if [ \"$RUN_ONLY\" = \"run_crown_internal_writer_eval\" ] && [[ \"$command_text\" == *\"grok-cli-smoke\"* ]]; then",
         "    return 1",
         "  fi",
-        "  if [ \"$RUN_ONLY\" = \"run_crown_internal_media_smoke\" ] && [[ \"$command_text\" == *\"worker-invocation-probe --worker claude_writer\"* ]]; then",
+        "  if [ \"$RUN_ONLY\" = \"run_crown_internal_media_smoke\" ] && [[ \"$command_text\" == *\"worker-invocation-probe --worker agy\"* ]]; then",
         "    return 1",
         "  fi",
         "  return 0",
@@ -700,7 +700,7 @@ def build_trusted_live_runner_request(root: Path, request_id: str | None = None)
             "required_for_clean_live_run": True,
             "loads_private_project_context": False,
             "executes_private_live_generation": False,
-            "purpose": "Confirm the trusted terminal/session can run the Claude Writer contract and Grok non-private prompt contract before sending Crown private project context.",
+            "purpose": "Confirm the trusted terminal/session can run the AGY Writer contract and Grok non-private prompt contract before sending Crown private project context.",
             "commands": _session_health_probe_commands(),
             "pass_condition": "the internal live readiness report has no session_health_issues before role-session acceptance commands are run",
         },

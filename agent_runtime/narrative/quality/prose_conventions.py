@@ -31,6 +31,12 @@ DEFAULT_POLICY: dict[str, Any] = {
         "warning_density_per_1000": 4.0,
         "revision_density_per_1000": 6.0,
     },
+    "document": {
+        "block_meta_sections": True,
+        "long_chapter_han_threshold": 3000,
+        "minimum_long_chapter_paragraphs": 12,
+        "maximum_paragraph_han": 800,
+    },
 }
 
 _HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
@@ -55,6 +61,11 @@ _RHETORICAL_FAMILIES: dict[str, re.Pattern[str]] = {
     "rather_than": re.compile(r"与其.{0,36}?不如"),
 }
 _QUOTE_CHARACTERS = frozenset("\"'“”‘’")
+_META_SECTION = re.compile(
+    r"(?im)^\s*(?:#{1,6}\s*|\*\*)?"
+    r"(?:读者疑问|作者注|作者说明|创作说明|写作说明|章节总结|审稿说明)"
+    r"(?:\*\*)?\s*[：:]?"
+)
 
 
 def _merged_policy(policy: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -65,10 +76,11 @@ def _merged_policy(policy: Mapping[str, Any] | None) -> dict[str, Any]:
             key: dict(value) if isinstance(value, Mapping) else value
             for key, value in DEFAULT_POLICY["rhetoric"].items()
         },
+        "document": dict(DEFAULT_POLICY["document"]),
     }
     if not isinstance(policy, Mapping):
         return merged
-    for section in ("dialogue", "rhetoric"):
+    for section in ("dialogue", "rhetoric", "document"):
         incoming = policy.get(section)
         if not isinstance(incoming, Mapping):
             continue
@@ -106,6 +118,87 @@ def _merged_policy(policy: Mapping[str, Any] | None) -> dict[str, Any]:
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid prose rhetoric policy: {key}") from exc
     return merged
+
+
+def _document_issues(
+    text: str,
+    policy: Mapping[str, Any],
+    chapter_context: Mapping[str, Any] | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    if policy.get("block_meta_sections", True):
+        for match in _META_SECTION.finditer(text):
+            issues.append(
+                {
+                    "id": "non_prose_meta_section",
+                    "severity": "blocked",
+                    "scope": "local",
+                    "locator": _line_locator(text, match.start()),
+                    "message": "fiction draft contains an editorial or reader-question section",
+                }
+            )
+
+    body = _MARKDOWN_HEADING.sub("", _CODE_FENCE.sub("", text))
+    paragraphs = [
+        paragraph.strip()
+        for paragraph in re.split(r"\n\s*\n", body)
+        if _HAN.search(paragraph)
+    ]
+    paragraph_han = [len(_HAN.findall(paragraph)) for paragraph in paragraphs]
+    han_count = sum(paragraph_han)
+    max_paragraph_han = max(paragraph_han, default=0)
+    context = chapter_context if isinstance(chapter_context, Mapping) else {}
+    if context.get("enforce_paragraph_structure") is True:
+        maximum = int(policy.get("maximum_paragraph_han", 800))
+        for index, count in enumerate(paragraph_han, start=1):
+            if count > maximum:
+                issues.append(
+                    {
+                        "id": "mega_paragraph",
+                        "severity": "blocked",
+                        "scope": "local",
+                        "locator": f"paragraph:{index}",
+                        "han_characters": count,
+                        "message": "paragraph exceeds the deterministic readability ceiling",
+                    }
+                )
+        long_threshold = int(policy.get("long_chapter_han_threshold", 3000))
+        minimum_paragraphs = int(
+            policy.get("minimum_long_chapter_paragraphs", 12)
+        )
+        if han_count >= long_threshold and len(paragraphs) < minimum_paragraphs:
+            issues.append(
+                {
+                    "id": "insufficient_paragraph_breaks",
+                    "severity": "blocked",
+                    "scope": "chapter",
+                    "paragraph_count": len(paragraphs),
+                    "message": "long-form chapter has too few prose paragraphs",
+                }
+            )
+
+    forbidden = context.get("forbidden_facts") or []
+    if isinstance(forbidden, list):
+        for marker in forbidden:
+            marker = str(marker or "").strip()
+            if marker and marker in text:
+                issues.append(
+                    {
+                        "id": "forbidden_story_fact",
+                        "severity": "blocked",
+                        "scope": "chapter",
+                        "marker": marker,
+                        "locator": _line_locator(text, text.index(marker)),
+                        "message": "candidate introduces a chapter-contract forbidden fact",
+                    }
+                )
+    return issues, {
+        "paragraph_count": len(paragraphs),
+        "max_paragraph_han": max_paragraph_han,
+        "average_paragraph_han": (
+            round(han_count / len(paragraphs), 3) if paragraphs else 0.0
+        ),
+    }
 
 
 def _excluded_mask(prose: str) -> str:
@@ -301,8 +394,14 @@ def evaluate_prose_conventions(
     rhetoric_issues, family_counts = _rhetorical_issues(
         _without_dialogue(prose_only), active_policy["rhetoric"]
     )
-    issues = [*dialogue_issues, *rhetoric_issues]
-    mechanical_status = "blocked" if dialogue_issues else "pass"
+    document_issues, document_metrics = _document_issues(
+        text,
+        active_policy["document"],
+        chapter_context,
+    )
+    issues = [*dialogue_issues, *document_issues, *rhetoric_issues]
+    mechanical_issues = [*dialogue_issues, *document_issues]
+    mechanical_status = "blocked" if mechanical_issues else "pass"
     if mechanical_status == "blocked":
         status = "blocked"
     elif any(item["severity"] == "revision_required" for item in rhetoric_issues):
@@ -332,6 +431,7 @@ def evaluate_prose_conventions(
             "han_character_count": len(_HAN.findall(prose_only)),
             "dialogue_quote_errors": len(dialogue_issues),
             "rhetorical_family_counts": family_counts,
+            **document_metrics,
         },
     }
 

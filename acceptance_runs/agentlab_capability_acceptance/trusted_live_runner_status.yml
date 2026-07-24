@@ -30,15 +30,15 @@ items:
   command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707
     --mode live --chapters 1 --timestamp trusted_live_20260718_pruned_writer --writer-worker
     claude_code
-  pending_reason: claude_writer_session_health_blocked_before_private_writer_smoke
+  pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
   evidence_interpretation: The trusted runner has not returned Writer artifacts because
-    the pre-run non-private Claude Writer contract probe is missing or blocked; the
-    generated runner will not send private Crown context until this passes.
-  next_action: rerun_claude_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
+    the pre-run non-private AGY Writer contract probe is missing or blocked; the generated
+    runner will not send private Crown context until this passes.
+  next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
   session_health_gate:
-    id: current_claude_writer_session_health
+    id: current_agy_writer_session_health
     status: missing
-    reason: claude_writer_session_probe_missing
+    reason: agy_writer_session_probe_missing
 - id: run_crown_internal_media_smoke
   expected_type: media_live_smoke
   status: pending

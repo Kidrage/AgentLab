@@ -407,7 +407,7 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
     )
     session_health_clean = readiness_status == "ready_for_internal_live_smoke" and session_health.get("issue_count") == 0
     session_issue_ids = {str(issue.get("id")) for issue in session_health.get("issues", []) if isinstance(issue, dict)}
-    claude_writer_session_blocked = "current_claude_writer_session_health" in session_issue_ids
+    agy_writer_session_blocked = "current_agy_writer_session_health" in session_issue_ids
     grok_session_blocked = "current_grok_session_health" in session_issue_ids
     grok_session_reason = next(
         (
@@ -422,18 +422,18 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
     if session_health_clean:
         if writer_acceptance_complete:
             crown_live_conclusion = (
-                "Local Crown governance, batch/scaled ledgers, one live candidate chapter, and accepted trusted-runner Writer artifacts prove the internal Claude Code shell + DeepSeek V4 Pro Writer role-session path. "
+                "Local Crown governance, batch/scaled ledgers, one live candidate chapter, and accepted trusted-runner Writer artifacts prove the AGY Writer route with governed Claude Code + DeepSeek V4 Pro fallback. "
                 f"{frontdesk_boundary_sentence}"
             )
             crown_live_gap = None
         else:
             crown_live_conclusion = (
-                "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through the internal Claude Code shell + DeepSeek V4 Pro Writer role-session. "
-                "The current non-private Claude Writer contract probe passes; returned prose artifacts are still pending until the trusted Writer command is rerun and returns required files. "
+                "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through AGY with governed Claude Code + DeepSeek V4 Pro fallback. "
+                "The current non-private AGY Writer contract probe passes; returned prose artifacts are still pending until the trusted Writer command is rerun and returns required files. "
                 f"{frontdesk_boundary_sentence}"
             )
             crown_live_gap = (
-                "Needs a rerun of the internal Writer live smoke from the current healthy Claude Writer route, followed by returned candidate artifacts and local delivery/QC evidence."
+                "Needs a rerun of the internal Writer live smoke from the current healthy AGY Writer route, followed by returned candidate artifacts and local delivery/QC evidence."
             )
         readiness_conclusion = (
             "Current route readiness is ready_for_internal_live_smoke with no session-health blockers; old frontdesk/sandbox errors are retained only as stale execution evidence. "
@@ -445,14 +445,14 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
             )
         )
     else:
-        claude_writer_status_text = (
-            "current non-private Claude Writer session health is not clean"
-            if claude_writer_session_blocked
-            else "current non-private Claude Writer contract probe is clean; the active session-health issue is not the Writer gate"
+        agy_writer_status_text = (
+            "current non-private AGY Writer session health is not clean"
+            if agy_writer_session_blocked
+            else "current non-private AGY Writer contract probe is clean; the active session-health issue is not the Writer gate"
         )
         crown_live_conclusion = (
-            "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through the internal Claude Code shell + DeepSeek V4 Pro Writer role-session. "
-            f"{claude_writer_status_text}; returned prose artifacts are still pending until the trusted Writer command is rerun. "
+            "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through AGY with governed Claude Code + DeepSeek V4 Pro fallback. "
+            f"{agy_writer_status_text}; returned prose artifacts are still pending until the trusted Writer command is rerun. "
             f"{frontdesk_boundary_sentence}"
         )
         crown_live_gap = (

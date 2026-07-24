@@ -102,7 +102,7 @@ frontdesk_agents:
   agy:
     display_name: Antigravity CLI Frontdesk
     command: agy
-    launch_hint: agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "$(./agentlab.sh frontdesk-session --agent agy)"
+    launch_hint: agy --sandbox --model gemini-3.5-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
   openclaw:
     display_name: OpenClaw Frontdesk
     command: openclaw

@@ -10,10 +10,12 @@ import subprocess
 import pytest
 import yaml
 
+from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.narrative.blueprint_validation import (
     materialize_crown_blueprint,
     seal_crown_blueprint,
     validate_crown_blueprint,
+    validate_blueprint_seal,
 )
 
 
@@ -100,7 +102,55 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
         {
             "schema_version": 1,
             "project": "Crown_of_Ash",
-            "facts": [{"id": "fact.origin"}],
+            "facts": [
+                {"id": "fact.origin"},
+                {
+                    "id": "fact_character_isabella",
+                    "kind": "character",
+                    "value": {
+                        "appearance": {
+                            "build": "full_figured_mature",
+                            "retired_build": "pathologically_slender",
+                        }
+                    },
+                    "source_hashes": [
+                        "4c678740622dc7128eeec46b2bb8f614198f2da828cffaee663b20eb272ae543"
+                    ],
+                    "conflict_status": "resolved",
+                    "conflict_conclusion": (
+                        "user_locked_full_figured_mature_profile_supersedes_"
+                        "pathologically_slender_ch03_profile"
+                    ),
+                },
+                {
+                    "id": "fact_relationship_execution_policy",
+                    "kind": "relationship",
+                    "value": {
+                        "contextual_consent": {
+                            "automatic_invalidation": False,
+                            "applicable_contexts": [
+                                "power",
+                                "debt",
+                                "captivity",
+                                "rescue",
+                                "medical",
+                                "magic",
+                            ],
+                            "adult_required": True,
+                            "clear_minded_at_the_time_required": True,
+                            "intimacy_not_exchanged_for_power_or_control": True,
+                        }
+                    },
+                    "source_hashes": [
+                        "4c678740622dc7128eeec46b2bb8f614198f2da828cffaee663b20eb272ae543"
+                    ],
+                    "conflict_status": "resolved",
+                    "conflict_conclusion": (
+                        "user_locked_contextual_consent_is_valid_when_adult_"
+                        "clear_minded_and_not_exchanged_for_power_or_control"
+                    ),
+                },
+            ],
             "source_hashes": {"fact.origin": ["a" * 64]},
             "conflicts": [],
         },
@@ -141,18 +191,167 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
         {"id": "worldline.primary", "kind": "worldline"},
         {"id": "foreshadowing.broken_bell", "kind": "foreshadowing", "refs": ["event.opening"]},
         {"id": "arc.part_1", "kind": "part_arc", "refs": ["foreshadowing.broken_bell"]},
+        {"id": "char_lia", "kind": "character", "age": 18, "current_state": {"alive": True}},
     ]
     for record in records:
         record["source_hashes"] = ["a" * 64]
     fragment = project / "production" / "canonical" / "core.yml"
     _write_yaml(fragment, {"schema_version": 1, "records": records})
     fragment_hash = hashlib.sha256(fragment.read_bytes()).hexdigest()
+    disposition_source_paths = (
+        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/mature_sensual_beastfolk_overlay_v1.yml",
+        "runs/task_crown_female_age_rebalance_20260722/outputs/female_age_rebalance_patch_v1.yml",
+        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/uncanny_manifestations_worldtexture_patch_v1.yml",
+        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/writing_memory_absorption_contract_v1.yml",
+        "runs/task_crown_character_policy_user_override_20260724/outputs/user_policy_override_v1.yml",
+        "production/outlines/03_感情戏执行准则.md",
+    )
+    for relative in disposition_source_paths:
+        source = project / relative
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(f"source: {relative}\n", encoding="utf-8")
+    policy = project / "production" / "canonical" / "character_content_policy.yml"
+    _write_yaml(
+        policy,
+        {
+            "schema_version": 1,
+            "policy_revision": 2,
+            "records": [
+                {
+                    "id": "policy_adult_dark_intimacy",
+                    "kind": "creative_policy",
+                    "source_hashes": ["a" * 64],
+                    "rating": "mature_sensual_non_graphic",
+                    "allowed": ["adult consensual non-graphic tension"],
+                    "disallowed": ["minors, coercion, explicit anatomy"],
+                    "consent_contract": {
+                        "minimum_age": 18,
+                        "mutuality_required": True,
+                        "silence_is_not_consent": True,
+                        "contextual_consent": {
+                            "automatic_invalidation": False,
+                            "applicable_contexts": [
+                                "权力",
+                                "债务",
+                                "囚禁",
+                                "救命",
+                                "医疗",
+                                "魔法",
+                            ],
+                            "adult_required": True,
+                            "clear_minded_at_the_time_required": True,
+                            "intimacy_not_exchanged_for_power_or_control": True,
+                        },
+                    },
+                    "scene_controls": {
+                        "prohibit_repeated_body_inventory": True,
+                        "chapter_card_must_declare_level_above_1": True,
+                    },
+                },
+                {
+                    "id": "policy_women_agency_and_appearance",
+                    "kind": "creative_policy",
+                    "source_hashes": ["a" * 64],
+                    "agency_contract": {
+                        "independent_goal_required": True,
+                        "independent_resources_required": True,
+                        "independent_judgment_required": True,
+                        "meaningful_exit_required": True,
+                        "body_never_reward_or_container": True,
+                    },
+                    "appearance_contract": {
+                        "must_serve_profession_class_choice_cost_or_action": True,
+                        "attraction_requires_mutual_viewpoint_decision_and_risk": True,
+                        "clothing_or_body_detail_never_implies_consent": True,
+                        "physical_contact_never_replaces_conflict_resolution": True,
+                    },
+                    "principles": ["agency", "goal", "choice", "exit", "action"],
+                    "prohibited_templates": [
+                        "conquest",
+                        "coercion",
+                        "container",
+                        "competition",
+                        "infantilization",
+                    ],
+                },
+                {
+                    "id": "profile_isabella_visual",
+                    "kind": "character_profile",
+                    "source_hashes": ["a" * 64],
+                    "character_ref": "character.isabella",
+                    "evidence_grade": "user_locked_20260724",
+                    "visual_contract": {
+                        "active_build_id": "full_figured_mature",
+                        "retired_build_ids": ["pathologically_slender"],
+                        "authority_source_path": (
+                            "runs/task_crown_character_policy_user_override_20260724/"
+                            "outputs/user_policy_override_v1.yml"
+                        ),
+                    },
+                    "stable_identity": {
+                        "height_cm": 165,
+                        "build": "丰满成熟；不得回退为病态纤细型",
+                    },
+                    "use_rules": ["identity detail must serve action"],
+                },
+                {
+                    "id": "profile_lia_adult_depiction",
+                    "kind": "character_profile",
+                    "source_hashes": ["a" * 64],
+                    "character_ref": "char_lia",
+                    "current_age": 18,
+                    "historical_continuous_selfhood_age": 16,
+                    "adult_identity": {"height_cm": 151},
+                    "relationship_boundary": ["no retroactive sexualization"],
+                },
+                {
+                    "id": "profile_existing_women_motifs",
+                    "kind": "character_profile",
+                    "source_hashes": ["a" * 64],
+                    "motif_contract": {
+                        "char_alicia": {
+                            "motifs": ["glove", "mail", "scar"],
+                            "meaning": "agency",
+                            "gate": "authority ended",
+                        },
+                        "char_elena": {
+                            "motifs": ["seal", "chain", "dress"],
+                            "meaning": "ownership",
+                            "gate": "free choice",
+                        },
+                        "char_cecilia": {
+                            "motifs": ["watch", "cloak", "boots"],
+                            "meaning": "equality",
+                            "gate": "command ended",
+                        },
+                        "char_lilian": {
+                            "motifs": ["ink", "ribbon", "boots"],
+                            "meaning": "recovery",
+                            "gate": "independent safety",
+                        },
+                    },
+                },
+            ],
+            "candidate_evidence_dispositions": [
+                {
+                    "source_path": path,
+                    "sha256": hashlib.sha256((project / path).read_bytes()).hexdigest(),
+                    "disposition": "provenance_only",
+                }
+                for path in disposition_source_paths
+            ],
+        },
+    )
     _write_yaml(
         project / "production" / "canonical" / "index.yml",
         {
             "schema_version": 1,
             "fragments": [
-                {"path": "production/canonical/core.yml", "sha256": fragment_hash}
+                {"path": "production/canonical/core.yml", "sha256": fragment_hash},
+                {
+                    "path": "production/canonical/character_content_policy.yml",
+                    "sha256": hashlib.sha256(policy.read_bytes()).hexdigest(),
+                },
             ],
         },
     )
@@ -212,6 +411,77 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                 },
             },
         )
+    components = [
+        "production/series_scale_decision.yml",
+        "production/chapter_length_policy.yml",
+        "production/canonical",
+        "production/chapter_cards",
+    ]
+    _write_yaml(
+        project / "production" / "blueprint_authority.yml",
+        {
+            "schema_version": "crown-blueprint-authority/v1",
+            "project": "Crown_of_Ash",
+            "status": "active",
+            "sole_writer_entrypoint": True,
+            "conflict_action": "fail_closed_before_context_compilation",
+            "scope": {
+                "planned_total_chapters": 1920,
+                "detailed_chapter_contract_range": [1, 20],
+            },
+            "components": [
+                {
+                    "path": relative,
+                    "sha256": artifact_sha256(project / relative),
+                }
+                for relative in components
+            ],
+            "policy_refs": {
+                "character_content_authority":
+                "production/canonical/character_content_policy.yml",
+            },
+        },
+    )
+    authority = project / "production" / "blueprint_authority.yml"
+    distillation_path = project / "project_brain" / "fact_distillation.yml"
+    distillation = yaml.safe_load(
+        distillation_path.read_text(encoding="utf-8")
+    )
+    distillation["sources"].extend(
+        [
+            {
+                "path": "production/blueprint_authority.yml",
+                "sha256": hashlib.sha256(authority.read_bytes()).hexdigest(),
+                "status": "sole_blueprint_entrypoint",
+            },
+            {
+                "path": (
+                    "production/canonical/character_content_policy.yml"
+                ),
+                "sha256": hashlib.sha256(policy.read_bytes()).hexdigest(),
+                "status": "active_character_content_authority",
+            },
+        ]
+    )
+    distillation["conflicts"] = [
+        {
+            "id": "conflict_isabella_appearance",
+            "kind": "character",
+            "status": "resolved",
+            "resolution": {
+                "authority_path": (
+                    "production/canonical/character_content_policy.yml"
+                ),
+                "authority_source_hash": (
+                    "4c678740622dc7128eeec46b2bb8f614198f2da828cffaee663b20eb272ae543"
+                ),
+                "selected_claim": "full_figured_mature_type",
+                "retired_claim": "pathologically_slender",
+            },
+            "handling": "direct user override controls",
+        }
+    ]
+    _write_yaml(distillation_path, distillation)
     return fragment, records
 
 
@@ -227,8 +497,8 @@ def test_validates_agentlab_decisions_canon_invariants_and_twenty_chapter_cards(
         "status": "pass",
         "project": "Crown_of_Ash",
         "chapter_range": [1, 20],
-        "record_count": 12,
-        "fragment_count": 1,
+        "record_count": 18,
+        "fragment_count": 2,
         "chapter_card_count": 20,
         "issues": [],
     }
@@ -251,6 +521,9 @@ def _bundle_from_valid_blueprint(root: Path, task_id: str = "task_parent") -> Pa
         "project": "Crown_of_Ash",
         "status": "approved",
         "candidate_only": True,
+        "blueprint_authority": yaml.safe_load(
+            (project / "production" / "blueprint_authority.yml").read_text()
+        ),
         "series_scale_decision": yaml.safe_load(
             (project / "production" / "series_scale_decision.yml").read_text()
         ),
@@ -277,7 +550,13 @@ def _bundle_from_valid_blueprint(root: Path, task_id: str = "task_parent") -> Pa
     }
     bundle_path = project / "runs" / task_id / "artifacts" / "blueprint_bundle.yml"
     _write_yaml(bundle_path, bundle)
+    relationship_guide = (
+        project / "production" / "outlines" / "03_感情戏执行准则.md"
+    )
+    relationship_guide_bytes = relationship_guide.read_bytes()
     shutil.rmtree(project / "production")
+    relationship_guide.parent.mkdir(parents=True)
+    relationship_guide.write_bytes(relationship_guide_bytes)
     return bundle_path
 
 
@@ -304,7 +583,14 @@ def test_materializer_rejects_unsafe_fragment_without_writing_production(
     with pytest.raises(ValueError, match="unsafe canonical fragment"):
         materialize_crown_blueprint(tmp_path, bundle_path=bundle)
 
-    assert not (tmp_path / "projects" / "Crown_of_Ash" / "production").exists()
+    production = tmp_path / "projects" / "Crown_of_Ash" / "production"
+    assert {
+        path.relative_to(production).as_posix()
+        for path in production.rglob("*")
+    } == {
+        "outlines",
+        "outlines/03_感情戏执行准则.md",
+    }
 
 
 def test_blocks_duplicate_ids_dangling_refs_and_underage_intimacy(tmp_path: Path) -> None:
@@ -333,6 +619,193 @@ def test_blocks_duplicate_ids_dangling_refs_and_underage_intimacy(tmp_path: Path
     assert "canonical:dangling_ref:faction.ash_court:character.missing" in result["issues"]
     assert (
         "canonical:adult_boundary:relationship.kane_isabella:character.isabella"
+        in result["issues"]
+    )
+
+
+def test_character_content_policy_blocks_deleted_disposition_source(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    source = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "runs"
+        / "task_crown_mature_sensual_beastfolk_overlay_20260722"
+        / "outputs"
+        / "mature_sensual_beastfolk_overlay_v1.yml"
+    )
+    source.unlink()
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert (
+        "character_content_policy:invalid_evidence_disposition:"
+        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/"
+        "mature_sensual_beastfolk_overlay_v1.yml"
+    ) in result["issues"]
+
+
+def test_blueprint_operations_block_symlinked_projects_root(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external"
+    _valid_blueprint(external)
+    root = tmp_path / "workspace"
+    root.mkdir()
+    (root / "projects").symlink_to(
+        external / "projects",
+        target_is_directory=True,
+    )
+
+    validation = validate_crown_blueprint(root)
+
+    assert validation["status"] == "blocked"
+    assert validation["issues"] == ["unsafe_project_path_symlink"]
+    with pytest.raises(ValueError, match="project path must not contain symlinks"):
+        seal_crown_blueprint(root)
+
+
+def test_seal_rejects_semantically_empty_character_content_policy(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy = project / "production" / "canonical" / "character_content_policy.yml"
+    payload = yaml.safe_load(policy.read_text(encoding="utf-8"))
+    payload["records"] = []
+    payload["candidate_evidence_dispositions"] = []
+    _write_yaml(policy, payload)
+
+    with pytest.raises(
+        ValueError,
+        match="character_content_policy:missing_record:policy_adult_dark_intimacy",
+    ):
+        seal_crown_blueprint(tmp_path)
+
+
+def test_character_policy_rejects_old_context_invalidation_and_slender_isabella(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    records = {item["id"]: item for item in policy["records"]}
+    records["policy_adult_dark_intimacy"]["consent_contract"][
+        "contextual_consent"
+    ]["automatic_invalidation"] = True
+    records["profile_isabella_visual"]["evidence_grade"] = (
+        "canonical_ch03_consolidated"
+    )
+    records["profile_isabella_visual"]["stable_identity"]["build"] = (
+        "pathologically slender"
+    )
+    _write_yaml(policy_path, policy)
+    index_path = project / "production" / "canonical" / "index.yml"
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    for entry in index["fragments"]:
+        if entry["path"] == (
+            "production/canonical/character_content_policy.yml"
+        ):
+            entry["sha256"] = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    _write_yaml(index_path, index)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert (
+        "character_content_policy:adult_contract_incomplete"
+        in result["issues"]
+    )
+    assert (
+        "character_content_policy:isabella_profile_incomplete"
+        in result["issues"]
+    )
+
+
+def test_blueprint_rejects_stale_policy_hash_and_old_isabella_resolution(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    distillation_path = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "project_brain"
+        / "fact_distillation.yml"
+    )
+    distillation = yaml.safe_load(
+        distillation_path.read_text(encoding="utf-8")
+    )
+    for source in distillation["sources"]:
+        if source["path"] == (
+            "production/canonical/character_content_policy.yml"
+        ):
+            source["sha256"] = "b" * 64
+    conflict = next(
+        item
+        for item in distillation["conflicts"]
+        if item["id"] == "conflict_isabella_appearance"
+    )
+    conflict["resolution"]["selected_claim"] = "pathologically_slender"
+    conflict["resolution"]["retired_claim"] = "full_figured_mature_type"
+    _write_yaml(distillation_path, distillation)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert (
+        "fact_distillation:current_authority_source_mismatch:"
+        "production/canonical/character_content_policy.yml"
+    ) in result["issues"]
+    assert (
+        "fact_distillation:isabella_appearance_resolution_mismatch"
+        in result["issues"]
+    )
+
+
+def test_blueprint_rejects_old_user_policy_snapshot_projection(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    snapshot_path = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "project_brain"
+        / "project_fact_snapshot.yml"
+    )
+    snapshot = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+    facts = {item["id"]: item for item in snapshot["facts"]}
+    facts["fact_character_isabella"]["value"]["appearance"] = {
+        "build": "pathologically_slender",
+        "retired_build": "full_figured_mature",
+    }
+    facts["fact_character_isabella"]["conflict_conclusion"] = (
+        "stable_role_and_arc_retained_appearance_dispute_deferred"
+    )
+    facts["fact_relationship_execution_policy"]["value"][
+        "contextual_consent"
+    ]["automatic_invalidation"] = True
+    facts["fact_relationship_execution_policy"]["conflict_conclusion"] = (
+        "consent_agency_and_story_consequence_are_mandatory"
+    )
+    _write_yaml(snapshot_path, snapshot)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert (
+        "project_fact_snapshot:isabella_visual_projection_mismatch"
+        in result["issues"]
+    )
+    assert (
+        "project_fact_snapshot:contextual_consent_projection_mismatch"
         in result["issues"]
     )
 
@@ -442,10 +915,7 @@ def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_r
     )
     paths = {item["production_path"] for item in artifact_index["artifacts"]}
     assert paths == {
-        "production/series_scale_decision.yml",
-        "production/chapter_length_policy.yml",
-        "production/canonical",
-        "production/chapter_cards",
+        "production/blueprint_authority.yml",
     }
     receipt = yaml.safe_load(
         (project / "project_brain" / "blueprint_validation_receipt.yml").read_text(
@@ -456,6 +926,68 @@ def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_r
     assert receipt["validation"]["status"] == "pass"
     assert all(item["status"] == "current" for item in artifact_index["artifacts"])
     assert validate_crown_blueprint(tmp_path)["status"] == "pass"
+
+
+def test_blueprint_seal_accepts_a_generation_window_inside_the_sealed_range(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    seal_crown_blueprint(tmp_path)
+
+    result = validate_blueprint_seal(
+        tmp_path,
+        chapter_start=1,
+        chapter_end=10,
+    )
+
+    assert result["status"] == "pass"
+
+
+def test_blueprint_seal_blocks_symlinked_fixed_memory_directory(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    seal_crown_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    brain = project / "project_brain"
+    outside_brain = tmp_path / "outside_brain"
+    shutil.copytree(brain, outside_brain)
+    shutil.rmtree(brain)
+    brain.symlink_to(outside_brain, target_is_directory=True)
+
+    result = validate_blueprint_seal(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert result["issues"] == ["unsafe_blueprint_artifact_symlink"]
+
+
+def test_registered_blueprint_drift_requires_explicit_reseal_authorization(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    seal_crown_blueprint(tmp_path)
+    authority = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "production"
+        / "blueprint_authority.yml"
+    )
+    authority.write_text(
+        authority.read_text(encoding="utf-8") + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="current project artifact hash mismatch"):
+        seal_crown_blueprint(tmp_path)
+
+    result = seal_crown_blueprint(
+        tmp_path,
+        allow_registered_blueprint_drift=True,
+    )
+
+    assert result["status"] == "sealed"
+    assert validate_blueprint_seal(tmp_path)["status"] == "pass"
 
 
 def test_seal_blueprint_preserves_all_hash_valid_current_artifacts(

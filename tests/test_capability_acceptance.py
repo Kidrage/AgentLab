@@ -315,10 +315,10 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     writer_route = by_id["crown_formal_live_narrative_eval"]["details"][
         "internal_writer_route"
     ]
-    assert writer_route["worker"] == "claude_code"
-    assert writer_route["invocation_contract"] == "claude_writer"
-    assert writer_route["model_key"] == "deepseek_v4_pro"
-    assert writer_route["model_provider"] == "deepseek_official"
+    assert writer_route["worker"] == "agy"
+    assert writer_route["invocation_contract"] == "agy_writer"
+    assert writer_route["model_key"] == "gemini_3_5_flash_high_agy_oauth"
+    assert writer_route["model_provider"] == "agy_gemini_oauth"
     assert by_id["crown_heavy_audit_scale"]["status"] == "pass"
     assert "governance-scale audit passes" in by_id["crown_heavy_audit_scale"]["summary"]
     assert by_id["media_series_scaffold"]["status"] == "pass"

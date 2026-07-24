@@ -18,6 +18,7 @@ from agent_runtime.narrative_eval import (  # noqa: E402
     _audit_fact_sources,
     _audit_history,
     _clear_chapter_attempt_outputs,
+    _write_writer_authorization_scope,
     _write_writer_contract_retry_feedback,
     _write_live_chapter_outputs,
     run_narrative_eval,
@@ -60,6 +61,68 @@ def test_clear_chapter_attempt_outputs_archives_blocked_evidence(
     assert not (run_dir / "live_generation_error.yml").exists()
 
 
+def test_writer_batch_authorization_scope_is_deterministic_and_bounded(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "projects" / "Crown_of_Ash"
+    _write_yaml(
+        project_root / "project_brain" / "project_fact_snapshot.yml",
+        {"project": "Crown_of_Ash", "facts": ["sealed"]},
+    )
+    _write_yaml(
+        project_root / "project_brain" / "knowledge_index_snapshot.yml",
+        {"snapshot_id": "idx_test"},
+    )
+    _write_yaml(
+        project_root / "runs" / "shared" / "chapter_state_plan.yml",
+        {"schema_version": 3, "chapters": list(range(1, 11))},
+    )
+    eval_dir = (
+        tmp_path
+        / "acceptance_runs"
+        / "narrative_eval"
+        / "Crown_of_Ash"
+        / "suite"
+        / "eval"
+    )
+
+    first = _write_writer_authorization_scope(
+        tmp_path,
+        "Crown_of_Ash",
+        "suite",
+        "eval",
+        eval_dir,
+        list(range(1, 11)),
+        writer_worker="claude_code",
+        writer_capacity_route="Writer",
+        writer_model_key="deepseek_v4_pro",
+        writer_budget_mode="max_quality",
+        chapter_state_plan="runs/shared/chapter_state_plan.yml",
+    )
+    first_bytes = (eval_dir / "writer_authorization_scope.yml").read_bytes()
+    second = _write_writer_authorization_scope(
+        tmp_path,
+        "Crown_of_Ash",
+        "suite",
+        "eval",
+        eval_dir,
+        list(range(1, 11)),
+        writer_worker="claude_code",
+        writer_capacity_route="Writer",
+        writer_model_key="deepseek_v4_pro",
+        writer_budget_mode="max_quality",
+        chapter_state_plan="runs/shared/chapter_state_plan.yml",
+    )
+
+    assert first == second
+    assert first["chapters"] == list(range(1, 11))
+    assert first["first_chapter"] == 1
+    assert (eval_dir / "writer_authorization_scope.yml").read_bytes() == first_bytes
+    contract = yaml.safe_load(first_bytes)
+    assert contract["execution"]["capacity_fallback_allowed"] is False
+    assert contract["heavy_audit_authorized"] is False
+
+
 def test_writer_contract_retry_feedback_includes_character_ranges(
     tmp_path: Path,
 ) -> None:
@@ -97,10 +160,10 @@ def test_writer_contract_retry_feedback_includes_character_ranges(
         "target_character_range": [4500, 5500],
         "hard_character_range": [3000, 8000],
         "observed_characters": 2750,
-        "minimum_characters_to_add": 250,
+        "minimum_characters_to_add": 1750,
     }
     assert feedback["draft_character_contract"]["observed_characters"] == 2750
-    assert feedback["draft_character_contract"]["minimum_characters_to_add"] == 250
+    assert feedback["draft_character_contract"]["minimum_characters_to_add"] == 1750
     assert feedback["retry_source"]["fiction_draft"].startswith("# Draft")
     assert "保留并扩写" in feedback["retry_source"]["fiction_draft"]
 
@@ -224,7 +287,8 @@ def test_narrative_eval_reset_mock_generates_candidate_chapters_without_producti
     )
 
     eval_dir = root / result["acceptance_run_dir"]
-    assert result["status"] == "warn"
+    assert result["status"] == "fail"
+    assert result["layers"]["L3_series_scale_simulation"]["status"] == "blocked"
     assert result["baseline"]["old_chapters_used_as_continuity_source"] is False
     assert (eval_dir / "longform_eval_report.yml").exists()
     assert (eval_dir / "chapter_quality_matrix.yml").exists()
@@ -401,7 +465,7 @@ def test_narrative_eval_blocks_generation_when_fact_snapshot_missing(tmp_path: P
     assert generated_runs == []
 
 
-def test_rag_generation_l0_uses_sealed_blueprint_instead_of_legacy_bible_dirs(
+def test_rag_generation_l0_rejects_incomplete_blueprint_authority(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "projects" / "Crown_of_Ash"
@@ -419,13 +483,15 @@ def test_rag_generation_l0_uses_sealed_blueprint_instead_of_legacy_bible_dirs(
             "index_snapshot": "snapshot-1",
         },
     )
-    for relative in (
-        "production/series_scale_decision.yml",
-        "production/chapter_length_policy.yml",
-        "production/canonical/index.yml",
-        "production/chapter_cards/index.yml",
-    ):
-        _write_yaml(project / relative, {"schema_version": 1})
+    _write_yaml(
+        project / "production" / "blueprint_authority.yml",
+        {
+            "schema_version": "crown-blueprint-authority/v1",
+            "project": "Crown_of_Ash",
+            "status": "active",
+            "sole_writer_entrypoint": True,
+        },
+    )
 
     result = _audit_fact_sources(
         project,
@@ -433,8 +499,9 @@ def test_rag_generation_l0_uses_sealed_blueprint_instead_of_legacy_bible_dirs(
         require_knowledge_contract=True,
     )
 
-    assert result["status"] == "pass"
+    assert result["status"] == "fail"
     checks = {item["check"] for item in result["issues"]}
+    assert "sealed_blueprint_validation" in checks
     assert "bible_present" not in checks
     assert "outline_present" not in checks
 
@@ -731,7 +798,9 @@ def test_history_audit_classifies_live_generation_error_separately(tmp_path: Pat
     assert any(item["task_id"] == "task_live_guard_blocked" for item in audit["blocked_live_generation_runs"])
 
 
-def test_narrative_eval_scale_simulation_has_1500_chapter_ledgers(tmp_path: Path) -> None:
+def test_unsealed_legacy_narrative_eval_scale_is_blocked_without_1500_fallback(
+    tmp_path: Path,
+) -> None:
     root = _copy_config_root(tmp_path)
     _make_crown_project(root)
 
@@ -739,19 +808,67 @@ def test_narrative_eval_scale_simulation_has_1500_chapter_ledgers(tmp_path: Path
     eval_dir = root / result["acceptance_run_dir"]
     simulation = yaml.safe_load((eval_dir / "series_scale_simulation.yml").read_text(encoding="utf-8"))
 
-    assert simulation["chapter_count"] == 1500
-    assert simulation["target_total_chapters"] == 1500
+    assert result["status"] == "fail"
+    assert simulation["status"] == "blocked"
     assert simulation["simulation_scope"] == "governance_ledger_only"
     assert simulation["text_generation"]["draft_chapters_generated"] == 0
     assert simulation["text_generation"]["draft_text_generated"] is False
-    assert simulation["timeline_monotonic"] is True
-    assert simulation["foreshadowing_statuses_valid"] is True
-    assert simulation["character_arcs_have_phase_changes"] is True
-    assert simulation["governance_cadence"]["continuity_batch_audit"] == "every 3 chapters"
-    assert "project_fact_snapshot.yml" in simulation["memory_contract"]["required_inputs"]
-    assert "narrative-eval or narrative_heavy_audit pass" in simulation["promotion_gates"]
-    for filename in simulation["ledgers"].values():
-        assert (eval_dir / filename).exists()
+    assert "blueprint scale seal is not valid" in simulation["reason"]
+
+
+def test_sealed_crown_scale_simulation_uses_1980_and_approved_part_ranges(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project = _make_crown_project(root)
+    _write_yaml(
+        project / "production" / "blueprint_authority.yml",
+        {
+            "schema_version": "crown-blueprint-authority/v1",
+            "project": "Crown_of_Ash",
+            "status": "active",
+            "sole_writer_entrypoint": True,
+            "conflict_action": "fail_closed_before_context_compilation",
+            "scope": {
+                "planned_total_chapters": 1980,
+                "parts": [
+                    {"part": 1, "chapter_range": [1, 650]},
+                    {"part": 2, "chapter_range": [651, 1310]},
+                    {"part": 3, "chapter_range": [1311, 1980]},
+                ],
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "agent_runtime.narrative_eval.validate_blueprint_seal",
+        lambda *args, **kwargs: {"status": "pass", "issues": []},
+    )
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="audit-only",
+        timestamp="20260724T020000Z",
+    )
+    eval_dir = root / result["acceptance_run_dir"]
+    simulation = yaml.safe_load(
+        (eval_dir / "series_scale_simulation.yml").read_text(encoding="utf-8")
+    )
+    series_arc = yaml.safe_load(
+        (eval_dir / "series_arc_ledger.yml").read_text(encoding="utf-8")
+    )
+    timeline = yaml.safe_load(
+        (eval_dir / "timeline_worldline_ledger.yml").read_text(encoding="utf-8")
+    )
+
+    assert simulation["target_total_chapters"] == 1980
+    assert [part["chapters"] for part in series_arc["parts"]] == [
+        [1, 650],
+        [651, 1310],
+        [1311, 1980],
+    ]
+    assert timeline["worldline_phase_changes"] == [1, 650, 1310, 1980]
 
 
 def test_narrative_eval_cli_run_on_temp_root(tmp_path: Path) -> None:
@@ -771,6 +888,7 @@ def test_narrative_eval_cli_run_on_temp_root(tmp_path: Path) -> None:
             "crown_reset_acceptance_v1",
             "--mode",
             "mock",
+            "--legacy-context",
             "--chapters",
             "1-3",
             "--timestamp",
@@ -778,8 +896,9 @@ def test_narrative_eval_cli_run_on_temp_root(tmp_path: Path) -> None:
         ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     data = yaml.safe_load(result.output)
+    assert data["status"] == "fail"
     assert data["acceptance_run_dir"] == "acceptance_runs/narrative_eval/Crown_of_Ash/crown_reset_acceptance_v1/20260705T030000Z"
     assert data["allow_writer_cli_fallback"] is False
 
@@ -1010,6 +1129,7 @@ def test_live_narrative_eval_delegates_capacity_failure_without_local_retry(
         "agent_name": "Writer",
         "kwargs": {
             "allow_cli_api_fallback": False,
+            "allow_capacity_fallback": False,
         },
     }]
     assert not (run_dir / "writer_retry_ledger.yml").exists()
@@ -1035,6 +1155,7 @@ def test_live_narrative_eval_retries_two_full_contract_redos(
     run_dir.mkdir()
     (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
     calls: list[str] = []
+    capacity_overrides: list[str | None] = []
     complete = _writer_candidate_blocks("正文段落。" * 900)
     incomplete = complete.split(
         "<!-- AGENTLAB_EDIT: narrative_delivery_receipt.yml -->",
@@ -1043,6 +1164,7 @@ def test_live_narrative_eval_retries_two_full_contract_redos(
 
     def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
+        capacity_overrides.append(kwargs.get("capacity_route_override"))
         if len(calls) > 1:
             feedback = yaml.safe_load(
                 (run_dir / "writer_contract_retry_feedback.yml").read_text(
@@ -1065,7 +1187,10 @@ def test_live_narrative_eval_retries_two_full_contract_redos(
             error=None,
             provider="agentlab-cli-executor",
             model="deepseek-v4-pro",
-            raw_usage={"command_id": f"cmd_{len(calls):04d}"},
+            raw_usage={
+                "command_id": f"cmd_{len(calls):04d}",
+                "capacity_route_id": "Writer",
+            },
         )
 
     monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
@@ -1075,9 +1200,18 @@ def test_live_narrative_eval_retries_two_full_contract_redos(
         types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
     )
 
-    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
+    _write_live_chapter_outputs(
+        tmp_path,
+        run_dir,
+        "Crown_of_Ash",
+        "task_live",
+        1,
+        [],
+        initial_capacity_route="Writer",
+    )
 
     assert calls == ["Writer", "Writer", "Writer"]
+    assert capacity_overrides == ["Writer", "Writer", "Writer"]
     assert (run_dir / "fiction_draft.md").exists()
     retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
     assert retry["status"] == "recovered"

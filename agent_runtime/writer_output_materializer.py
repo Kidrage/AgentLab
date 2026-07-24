@@ -121,6 +121,41 @@ def _normalize_candidate_event_scopes(
     return normalizations
 
 
+def _normalize_candidate_chinese_quotes(
+    materialized: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Repair balanced ASCII double-quote pairs in Chinese fiction only."""
+    name = "fiction_draft.md"
+    prose = materialized.get(name)
+    if not prose or '"' not in prose:
+        return []
+    converted = 0
+    output_lines: list[str] = []
+    for line in prose.splitlines():
+        quote_count = line.count('"')
+        if (
+            quote_count == 0
+            or quote_count % 2
+            or not re.search(r"[\u3400-\u4dbf\u4e00-\u9fff]", line)
+        ):
+            output_lines.append(line)
+            continue
+        opening = True
+        converted_line: list[str] = []
+        for char in line:
+            if char != '"':
+                converted_line.append(char)
+                continue
+            converted_line.append("“" if opening else "”")
+            opening = not opening
+            converted += 1
+        output_lines.append("".join(converted_line))
+    if not converted:
+        return []
+    materialized[name] = "\n".join(output_lines)
+    return [{"id": "ascii_chinese_quote_pair_to_curly", "count": converted}]
+
+
 def _write_contract(run_dir: Path, data: dict[str, Any]) -> None:
     path = run_dir / "writer_output_contract.yml"
     path.write_text(
@@ -203,6 +238,35 @@ def _governed_chapter_issues(materialized: dict[str, str], run_dir: Path) -> lis
         or not hard_range[0] <= len(draft) <= hard_range[1]
     ):
         issues.append("draft_character_count_out_of_range")
+    if intent.get("source_kind") == "candidate_chapter_contract_v3":
+        from agent_runtime.narrative.quality.prose_conventions import (
+            evaluate_prose_conventions,
+        )
+
+        beat_plan = (
+            intent.get("beat_plan")
+            if isinstance(intent.get("beat_plan"), dict)
+            else {}
+        )
+        prose_report = evaluate_prose_conventions(
+            draft,
+            chapter_context={
+                "chapter": chapter,
+                "chapter_position": intent.get("phase"),
+                "enforce_paragraph_structure": True,
+                "must_not_repeat": list(beat_plan.get("must_not_repeat") or []),
+                "forbidden_facts": list(beat_plan.get("forbidden_facts") or []),
+                "fact_invention_policy": dict(
+                    beat_plan.get("fact_invention_policy") or {}
+                ),
+            },
+        )
+        issues.extend(
+            "prose_conventions:"
+            f"{item['id']}:{item.get('locator', 'chapter')}"
+            for item in prose_report["issues"]
+            if item.get("severity") == "blocked"
+        )
 
     first_heading = next((line.strip() for line in draft.splitlines() if line.strip()), "")
     if not first_heading.startswith("#") or ("章" not in first_heading and "chapter" not in first_heading.lower()):
@@ -295,6 +359,7 @@ def materialize_writer_candidate_content(
     missing = [name for name in REQUIRED_WRITER_OUTPUTS if name not in materialized]
     issues.extend(f"missing_writer_output:{name}" for name in missing)
     if not missing:
+        normalizations.extend(_normalize_candidate_chinese_quotes(materialized))
         normalizations.extend(_normalize_candidate_event_scopes(materialized))
         schema_issues = _writer_output_schema_issues(materialized)
         issues.extend(schema_issues)
@@ -366,6 +431,7 @@ def materialize_writer_v2_content(
     model: str = "",
     call_id: str = "",
     prose_length_contract: Mapping[str, Any] | None = None,
+    chapter_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Thin v2 adapter: materialize prose-only Writer output.
 
@@ -433,6 +499,7 @@ def materialize_writer_v2_content(
         model=model,
         call_id=call_id,
         prose_length_contract=prose_length_contract,
+        chapter_context=chapter_context,
     )
 
     if validation["status"] == "pass" and validation["prose_sha256"]:

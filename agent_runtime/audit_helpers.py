@@ -56,11 +56,9 @@ def trusted_writer_request_route_current(report: dict[str, Any]) -> bool:
         preflight_commands = []
     command = str(writer.get("command") or "")
     return (
-        writer.get("assigned_worker") == "claude_code"
-        and "--writer-worker claude_code" in command
-        and "--writer-worker agy" not in command
-        and "command -v claude" in preflight_commands
-        and "command -v agy" not in preflight_commands
+        writer.get("assigned_worker") == "agy"
+        and "--writer-worker agy" in command
+        and "command -v agy" in preflight_commands
     )
 
 
@@ -426,10 +424,10 @@ def active_acceptance_blockers(
     not_current_blockers = [
         {
             "id": "writer_claude_session_health",
-            "active": "current_claude_writer_session_health" in session_issue_by_id,
+            "active": "current_agy_writer_session_health" in session_issue_by_id,
             "status": (
                 "blocking"
-                if "current_claude_writer_session_health" in session_issue_by_id
+                if "current_agy_writer_session_health" in session_issue_by_id
                 else "not_blocking"
             ),
         },
@@ -466,7 +464,7 @@ def active_acceptance_blockers(
             "writer_selected_in_scope": "writer" in required_scopes,
             "media_selected_in_scope": "media" in required_scopes,
             "writer_selected_can_run": (
-                "current_claude_writer_session_health" not in session_issue_by_id
+                "current_agy_writer_session_health" not in session_issue_by_id
             ),
             "media_selected_can_run": "current_grok_session_health" not in session_issue_by_id,
         },

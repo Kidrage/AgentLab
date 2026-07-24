@@ -17,16 +17,16 @@ ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
 
 
-def test_claude_writer_probe_output_is_normalized_to_session_health() -> None:
+def test_agy_writer_probe_output_is_normalized_to_session_health() -> None:
     check = _session_health_check(
         {
-            "worker_id": "claude_writer",
+            "worker_id": "agy",
             "installed": True,
             "exit_code": 0,
             "timeout": False,
             "error_class": "none",
         },
-        check_id="current_claude_writer_session_health",
+        check_id="current_agy_writer_session_health",
         healthy_message="healthy",
         blocked_message="blocked",
         next_action="rerun",
@@ -35,7 +35,7 @@ def test_claude_writer_probe_output_is_normalized_to_session_health() -> None:
     assert check["status"] == "pass"
     assert check["session_smoke_status"] == "pass"
     assert check["command_available"] is True
-    assert check["worker_id"] == "claude_writer"
+    assert check["worker_id"] == "agy"
     assert "reason" not in check
     assert "next_action" not in check
 
@@ -60,14 +60,14 @@ def test_external_acceptance_readiness_names_internal_live_smoke_actions(
     assert by_id["frontdesk_live_handoff_ready"]["status"] == "pass"
     assert by_id["historical_policy_rejections_do_not_override_internal_routes"]["status"] == "pass"
     session_by_id = {item["id"]: item for item in report["session_health_checks"]}
-    assert "current_agy_session_health" not in session_by_id
-    assert "claude_writer_session_probe" in report["source_reports"]
+    assert "current_claude_writer_session_health" not in session_by_id
+    assert "agy_writer_session_probe" in report["source_reports"]
     assert "agy_cli_session_smoke" not in report["source_reports"]
     if report["status"] == "ready_for_internal_live_smoke":
-        assert session_by_id["current_claude_writer_session_health"]["status"] == "pass"
-        assert session_by_id["current_claude_writer_session_health"]["worker_id"] == "claude_writer"
-        assert "reason" not in session_by_id["current_claude_writer_session_health"]
-        assert "next_action" not in session_by_id["current_claude_writer_session_health"]
+        assert session_by_id["current_agy_writer_session_health"]["status"] == "pass"
+        assert session_by_id["current_agy_writer_session_health"]["worker_id"] == "agy"
+        assert "reason" not in session_by_id["current_agy_writer_session_health"]
+        assert "next_action" not in session_by_id["current_agy_writer_session_health"]
         assert session_by_id["current_grok_session_health"]["status"] == "pass"
         assert "reason" not in session_by_id["current_grok_session_health"]
         assert "next_action" not in session_by_id["current_grok_session_health"]
@@ -101,8 +101,7 @@ def test_external_acceptance_readiness_names_internal_live_smoke_actions(
         "run_crown_internal_media_smoke",
     }
     writer_item = next(item for item in report["ready_items"] if item["id"] == "run_crown_internal_writer_eval")
-    assert "--writer-worker claude_code" in writer_item["agentlab_command"]
-    assert "--writer-worker agy" not in writer_item["agentlab_command"]
+    assert "--writer-worker agy" in writer_item["agentlab_command"]
     rendered = yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
     assert "sk-" not in rendered
     assert "test-key" not in rendered

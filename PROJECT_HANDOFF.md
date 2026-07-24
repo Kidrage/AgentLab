@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-23T08:41:14.491663+00:00`
+- Generated at: `2026-07-23T08:46:30.476983+00:00`
 
 ## Current State
 
-- Branch: `codex/preserve-crown-handoff-notes-20260723`
-- HEAD: `e3f70f6`
-- Indexed paths: 1998
+- Branch: `feature/task-runtime-v2`
+- HEAD: `90358ec`
+- Indexed paths: 2041
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,15 +43,15 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 592 |
-| `tests` | 456 |
-| `acceptance_runs` | 349 |
-| `docs` | 341 |
+| `agent_runtime` | 584 |
+| `tests` | 450 |
+| `acceptance_runs` | 406 |
+| `docs` | 340 |
 | `docs/archive` | 222 |
 | `config` | 124 |
+| `acceptance_runs/narrative_eval` | 116 |
 | `tests/fixtures` | 110 |
-| `acceptance_runs/narrative_eval` | 59 |
-| `agent_runtime/narrative` | 54 |
+| `agent_runtime/narrative` | 50 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
@@ -63,11 +63,11 @@
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
-| `agent_runtime/executors` | 19 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
-| `agent_runtime/cli` | 17 |
-| `.` | 16 |
+| `agent_runtime/executors` | 18 |
+| `.` | 17 |
 | `acceptance_runs/m2_operator_demo` | 16 |
+| `agent_runtime/cli` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
@@ -88,19 +88,19 @@
 
 ### Categories
 
-- code: 988 files, 8975393 bytes
-- literature: 415 files, 2357479 bytes
+- code: 975 files, 8618882 bytes
+- literature: 414 files, 2352810 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 583 files, 3218856 bytes
+- structured_data: 640 files, 3277825 bytes
 
 ### Common Extensions
 
-- `.py`: 975
-- `.yml`: 551
-- `.md`: 376
+- `.py`: 961
+- `.yml`: 608
+- `.md`: 375
 - `.txt`: 39
 - `.json`: 27
-- `.sh`: 8
+- `.sh`: 9
 - `[no extension]`: 5
 - `.js`: 5
 - `.csv`: 3
@@ -174,7 +174,6 @@
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
-- `agent_runtime/narrative/knowledge_contract.py`
 - `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
 - `agent_runtime/operator_os/action_contract.py`
@@ -194,6 +193,7 @@
 - `agent_templates/interface_mapper.md`
 - `agentlab_tui/models.py`
 - `config/agent_model_profiles.yml`
+- `config/capability_schema.yml`
 
 ## Key Entrypoints and Guides
 
@@ -230,31 +230,35 @@
 
 ## Change History
 
-- `e3f70f6 2026-07-23 Merge completed AgentLab worktrees into main`
-- `0489b60 2026-07-23 docs: refresh integrated AgentLab handoff`
-- `2ca3d56 2026-07-23 merge: integrate policy-scoped automatic approvals`
-- `84915ea 2026-07-23 merge: integrate completed Crown RAG reset work`
-- `8a8ea3c 2026-07-23 docs: refresh project handoff`
-- `f8c169d 2026-07-23 fix: enforce automatic approval boundaries`
-- `8c3aff6 2026-07-23 feat: add policy-scoped automatic approvals`
-- `f83e7b6 2026-07-22 fix(narrative): compile sealed reviewer contract`
 - `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
-- `e6b498f 2026-07-22 fix(narrative): preserve audit route for no-rewrite boundary`
 - `53640cd 2026-07-22 feat: add governed task runtime v2`
-- `2a98f1e 2026-07-22 fix(narrative): route heavy reviewer through authenticated cli`
-- `22fe954 2026-07-22 fix(narrative): accept canonical timeline identifiers`
 - `5b8738a 2026-07-22 feat: route Seedance through Hermes Ark skills`
-- `6fa10c2 2026-07-22 fix(background-jobs): reset retries after action recovery`
-- `1796d62 2026-07-22 fix(narrative): bind writer receipts to chapter artifacts`
-- `22c8068 2026-07-22 fix(narrative): allow writer length correction to converge`
-- `f535248 2026-07-22 fix(narrative): expand rejected draft on writer retry`
-- `9c9b6c5 2026-07-22 fix(narrative): preserve valid chapters across retries`
-- `7d0b9f3 2026-07-22 docs(cli): refresh writer invocation matrix`
+- `c179aed 2026-07-22 docs: refresh model route handoff`
+- `6c35230 2026-07-22 fix: deliver Agy planner YAML`
+- `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
+- `c990809 2026-07-22 fix: align default routes with native Codex`
+- `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
+- `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
+- `479ebcf 2026-07-21 fix(narrative): enforce Gate 1 prose length`
+- `668d4b7 2026-07-21 fix(narrative): deliver sealed Writer packet on stdin`
+- `bf1c056 2026-07-21 fix(narrative): seal Gate 1 operator plans`
+- `a6ed77b 2026-07-21 fix(narrative): align writer operator materialization`
+- `2452bf9 2026-07-21 feat(narrative): seal live writer packet path`
+- `c8ac0a1 2026-07-21 fix(narrative): bind literary memory evidence`
+- `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
+- `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
+- `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
+- `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
+- `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
 
 ## Current Changes
 
-- `## codex/preserve-crown-handoff-notes-20260723...origin/main`
+- `## feature/task-runtime-v2`
 - ` M PROJECT_HANDOFF.md`
+- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
+- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
+- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
+- `?? run_crown_ep1.sh`
 
 ## Related Repositories
 
@@ -662,10 +666,7 @@ Ch25 has not passed literary review or anonymous A/B selection, and Ch26/27 have
 not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
 User-positive calibration is still missing and ten human blind pairs at 70% new
 system preference remain required before Gate 2 scaling or Phase 5.
-- 2026-07-22: `task_crown_blueprint_rebuild_20260722` produced a contract-validated, candidate-only world/character rebuild in `projects/Crown_of_Ash/runs/.../outputs/crown_blueprint_rebuild_v1.yml`; it was mirrored to the Codex TrueNAS export. No production artifact or prose was promoted. The parent job is paused and its recorded PIDs were absent at cleanup time.
-- 2026-07-22: `task_crown_mature_sensual_beastfolk_overlay_20260722` produced a SHA-bound candidate overlay for mature non-graphic sensual motifs, three adult beastfolk characters, scene-card injection fields, and promotion audits. ArtifactTask validation returned zero issues. No production artifact, project brain, chapter card, or prose was changed; promotion still requires independent audit and explicit user acceptance.
-- 2026-07-22: `task_crown_female_age_rebalance_20260722` added a second hash-bound candidate patch that lowers the ten adult women to a 19–25 range (mean 28.1 → 22.4) and supplies role-continuity rationales. Lia remains 16 and fully non-sexualized. ArtifactTask, input-hash, age-band, and production-isolation checks all pass; formal assets remain unchanged pending user acceptance and promotion audits.
-- 2026-07-22: `task_crown_uncanny_manifestations_worldtexture_20260722` supersedes the candidate-only literal beastfolk taxonomy with three magical-realist manifestations (door-shadow, missing-moon and embodied desire), adds class/labor/street/ecology scene rules and a governed writing-guidance absorption contract. A later user clarification supersedes Lia's prior candidate age: her current effective age is 18 with a naturally short, slight and slender stable adult body; age 16 is retained only as the historical start of continuous selfhood. ArtifactTask and all three input hashes pass; production and prose remain unchanged.
+- 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to `/Users/saintpeter/AgentLab_Archive/task_cleanup_20260722_non_crown/`: 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

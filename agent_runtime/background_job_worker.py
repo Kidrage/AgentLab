@@ -155,6 +155,32 @@ def _capacity_from_generation(report: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def _transient_from_generation(report: dict[str, Any]) -> str | None:
+    l2 = (report.get("layers") or {}).get("L2_real_chapter_sample") or {}
+    for chapter in reversed(l2.get("chapters") or []):
+        error = chapter.get("live_generation_error") or {}
+        reason = " ".join(
+            str(error.get(key) or "")
+            for key in (
+                "failure_class",
+                "capacity_failure_class",
+                "error",
+                "message",
+            )
+        ).lower()
+        transient = next(
+            (
+                failure_class
+                for failure_class in sorted(_TRANSIENT_FAILURE_CLASSES)
+                if failure_class in reason
+            ),
+            None,
+        )
+        if transient:
+            return transient
+    return None
+
+
 def _generate_batch(request: dict[str, Any]) -> dict[str, Any]:
     from agent_runtime.narrative_eval import run_narrative_eval
 
@@ -179,10 +205,17 @@ def _generate_batch(request: dict[str, Any]) -> dict[str, Any]:
         writer_worker=str(config["writer_worker"]),
         resume_valid=True,
         stop_on_block=True,
-        allow_writer_cli_fallback=False,
+        allow_writer_cli_fallback=bool(
+            config.get("allow_writer_cli_fallback", False)
+        ),
         chapter_state_plan=str(config["chapter_state_plan"]),
         writer_budget_mode=str(config["writer_budget"]),
         require_knowledge_contract=bool(config.get("knowledge_contract_required")),
+        writer_batch_authorization_required=bool(
+            config.get("writer_batch_authorization_required")
+        ),
+        writer_capacity_route=str(config.get("writer_capacity_route") or "Writer"),
+        writer_model_key=str(config.get("writer_model_key") or "deepseek_v4_pro"),
     )
     l2 = (report.get("layers") or {}).get("L2_real_chapter_sample") or {}
     result = {
@@ -202,6 +235,15 @@ def _generate_batch(request: dict[str, Any]) -> dict[str, Any]:
         return {
             "outcome": "capacity_wait",
             "capacity_reset_at": capacity["capacity_reset_at"],
+            "result": result,
+        }
+    transient = _transient_from_generation(report)
+    if transient:
+        retry_seconds = int(config.get("transient_retry_seconds") or 900)
+        result["reason"] = transient
+        return {
+            "outcome": "retry_wait",
+            "retry_at": _retry_timestamp(retry_seconds),
             "result": result,
         }
     result["reason"] = l2.get("reason") or "chapter_generation_blocked"

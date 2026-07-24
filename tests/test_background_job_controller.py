@@ -43,6 +43,25 @@ def test_create_job_rejects_ids_longer_than_revision_contract_limit(tmp_path: Pa
         )
 
 
+def test_create_job_records_explicit_writer_fallback_policy(tmp_path: Path) -> None:
+    (tmp_path / "projects" / "Crown_of_Ash").mkdir(parents=True)
+
+    state = create_crown_delivery_job(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="job-with-writer-fallback",
+        eval_id="eval",
+        start_chapter=1,
+        end_chapter=10,
+        writer_worker="agy",
+        chapter_state_plan="plan.yml",
+        allow_writer_cli_fallback=True,
+    )
+
+    assert state["config"]["writer_worker"] == "agy"
+    assert state["config"]["allow_writer_cli_fallback"] is True
+
+
 def _passing_quality_scorecard(start: int = 1, end: int = 10) -> dict:
     return {
         "status": "pass",
@@ -121,6 +140,7 @@ def _create_job(
     *,
     end_chapter: int = 20,
     heavy_audit_cadence: int = 10,
+    max_retries_per_action: int = 3,
 ) -> dict:
     (root / "projects" / "Crown_of_Ash").mkdir(parents=True)
     return create_crown_delivery_job(
@@ -134,6 +154,7 @@ def _create_job(
         heavy_audit_cadence=heavy_audit_cadence,
         writer_worker="claude_writer",
         chapter_state_plan="runs/shared/chapter_state_plan.yml",
+        max_retries_per_action=max_retries_per_action,
         now=NOW,
     )
 
@@ -418,7 +439,7 @@ def test_capacity_wait_resumes_once_after_observed_reset(tmp_path: Path) -> None
     assert state["capacity_reset_at"] is None
 
 
-def test_transient_retry_wait_resumes_without_spending_failure_retry(tmp_path: Path) -> None:
+def test_transient_retry_wait_resumes_with_bounded_retry_count(tmp_path: Path) -> None:
     _create_job(tmp_path)
     _pass_preflight(tmp_path)
     first = schedule_next_attempt(
@@ -432,7 +453,7 @@ def test_transient_retry_wait_resumes_without_spending_failure_retry(tmp_path: P
     )
 
     assert state["status"] == "retry_wait"
-    assert state["retry_counts"].get("generate_batch") is None
+    assert state["retry_counts"]["generate_batch"] == 1
     assert schedule_next_attempt(
         tmp_path,
         project="Crown_of_Ash",
@@ -451,6 +472,40 @@ def test_transient_retry_wait_resumes_without_spending_failure_retry(tmp_path: P
     state = load_job_state(tmp_path, "Crown_of_Ash", "crown-200-v3")
     assert state["retry_resume_count"] == 1
     assert state["retry_at"] is None
+
+
+def test_transient_retry_wait_blocks_after_configured_limit(tmp_path: Path) -> None:
+    _create_job(tmp_path, max_retries_per_action=1)
+    _pass_preflight(tmp_path)
+    schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    first = _complete_active(
+        tmp_path,
+        outcome="retry_wait",
+        result={"status": "blocked", "reason": "network_required"},
+        retry_at="2026-07-17T15:15:00+00:00",
+    )
+    assert first["status"] == "retry_wait"
+
+    resumed = schedule_next_attempt(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="crown-200-v3",
+        now="2026-07-17T15:15:01+00:00",
+    )
+    assert resumed["action"] == "generate_batch"
+    blocked = _complete_active(
+        tmp_path,
+        outcome="retry_wait",
+        result={"status": "blocked", "reason": "network_required"},
+        retry_at="2026-07-17T15:30:00+00:00",
+    )
+
+    assert blocked["status"] == "blocked"
+    assert blocked["retry_counts"]["generate_batch"] == 2
+    assert blocked["retry_at"] is None
+    assert "transient retry limit exhausted" in blocked["last_error"]
 
 
 def test_successful_action_clears_its_consumed_failure_retries(tmp_path: Path) -> None:

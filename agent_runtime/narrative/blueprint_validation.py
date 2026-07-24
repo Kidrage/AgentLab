@@ -36,15 +36,36 @@ REQUIRED_CANONICAL_KINDS = frozenset(
         "part_arc",
     }
 )
-BLUEPRINT_ARTIFACT_PATHS = (
+REQUIRED_CHARACTER_CONTENT_POLICY_IDS = frozenset(
+    {
+        "policy_adult_dark_intimacy",
+        "policy_women_agency_and_appearance",
+        "profile_isabella_visual",
+        "profile_lia_adult_depiction",
+        "profile_existing_women_motifs",
+    }
+)
+BLUEPRINT_AUTHORITY_PATH = "production/blueprint_authority.yml"
+BLUEPRINT_COMPONENT_PATHS = (
     "production/series_scale_decision.yml",
     "production/chapter_length_policy.yml",
     "production/canonical",
     "production/chapter_cards",
 )
+BLUEPRINT_ARTIFACT_PATHS = (BLUEPRINT_AUTHORITY_PATH,)
 BLUEPRINT_MEMORY_PATHS = (
     "project_brain/fact_distillation.yml",
     "project_brain/project_fact_snapshot.yml",
+)
+REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS = frozenset(
+    {
+        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/mature_sensual_beastfolk_overlay_v1.yml",
+        "runs/task_crown_female_age_rebalance_20260722/outputs/female_age_rebalance_patch_v1.yml",
+        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/uncanny_manifestations_worldtexture_patch_v1.yml",
+        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/writing_memory_absorption_contract_v1.yml",
+        "runs/task_crown_character_policy_user_override_20260724/outputs/user_policy_override_v1.yml",
+        "production/outlines/03_感情戏执行准则.md",
+    }
 )
 BLUEPRINT_BUNDLE_FIELDS = frozenset(
     {
@@ -52,6 +73,7 @@ BLUEPRINT_BUNDLE_FIELDS = frozenset(
         "project",
         "status",
         "candidate_only",
+        "blueprint_authority",
         "series_scale_decision",
         "chapter_length_policy",
         "canonical_fragments",
@@ -80,6 +102,21 @@ def _mapping(path: Path, issues: list[str], label: str) -> dict[str, Any]:
     return value
 
 
+def _has_symlink_component(path: Path, root: Path) -> bool:
+    if root.absolute().is_symlink():
+        return True
+    try:
+        relative = path.absolute().relative_to(root.absolute())
+    except ValueError:
+        return True
+    cursor = root.absolute()
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
 def _relative_file(project_root: Path, relative: str, prefix: str) -> Path | None:
     pure = PurePosixPath(str(relative))
     if (
@@ -88,7 +125,10 @@ def _relative_file(project_root: Path, relative: str, prefix: str) -> Path | Non
         or not pure.as_posix().startswith(prefix)
     ):
         return None
-    path = (project_root / Path(*pure.parts)).resolve()
+    raw_path = project_root / Path(*pure.parts)
+    if _has_symlink_component(raw_path, project_root):
+        return None
+    path = raw_path.resolve()
     if project_root not in path.parents or not path.is_file():
         return None
     return path
@@ -186,6 +226,14 @@ def _write_blueprint_bundle_tree(project_root: Path, bundle: dict[str, Any]) -> 
             project_root / "production" / "chapter_cards" / f"ch{chapter:03d}.yml",
             card,
         )
+    authority = bundle.get("blueprint_authority")
+    if not isinstance(authority, dict):
+        raise ValueError("blueprint bundle requires blueprint_authority")
+    atomic_write_yaml(project_root / BLUEPRINT_AUTHORITY_PATH, authority)
+    _seal_blueprint_authority(
+        project_root,
+        project=str(bundle.get("project") or ""),
+    )
 
 
 def materialize_crown_blueprint(
@@ -209,14 +257,39 @@ def materialize_crown_blueprint(
         or raw.get("project") != project
         or raw.get("status") != "approved"
         or raw.get("candidate_only") is not True
+        or not isinstance(raw.get("blueprint_authority"), dict)
         or not isinstance(raw.get("series_scale_decision"), dict)
         or not isinstance(raw.get("chapter_length_policy"), dict)
     ):
         raise ValueError("blueprint bundle has invalid identity or decision payload")
 
     production = project_root / "production"
-    if production.exists() and (not production.is_dir() or any(production.iterdir())):
-        raise ValueError("production blueprint root must be absent or empty")
+    retained_guide = production / "outlines" / "03_感情戏执行准则.md"
+    if production.exists():
+        allowed_existing = (
+            production.is_dir()
+            and not production.is_symlink()
+            and (
+                not any(production.iterdir())
+                or (
+                    retained_guide.is_file()
+                    and not retained_guide.is_symlink()
+                    and {
+                        path.relative_to(production).as_posix()
+                        for path in production.rglob("*")
+                    }
+                    == {
+                        "outlines",
+                        "outlines/03_感情戏执行准则.md",
+                    }
+                )
+            )
+        )
+        if not allowed_existing:
+            raise ValueError(
+                "production blueprint root must be absent, empty, or contain only "
+                "the bound relationship-guide evidence"
+            )
 
     with tempfile.TemporaryDirectory(prefix=".blueprint-stage-", dir=project_root) as raw_stage:
         stage_root = Path(raw_stage) / "agentlab"
@@ -225,6 +298,19 @@ def materialize_crown_blueprint(
             source = project_root / relative
             if not source.is_file():
                 raise ValueError(f"blueprint memory input is missing: {relative}")
+            destination = stage_project / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+        for relative in sorted(REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS):
+            source = project_root / relative
+            if (
+                _has_symlink_component(source, project_root)
+                or not source.is_file()
+                or source.is_symlink()
+            ):
+                raise ValueError(
+                    f"character content evidence input is missing or unsafe: {relative}"
+                )
             destination = stage_project / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(source.read_bytes())
@@ -237,6 +323,9 @@ def materialize_crown_blueprint(
             )
         staged_production = stage_project / "production"
         if production.exists():
+            if retained_guide.exists():
+                retained_guide.unlink()
+                retained_guide.parent.rmdir()
             production.rmdir()
         staged_production.replace(production)
 
@@ -280,12 +369,51 @@ def _as_int(value: Any, issues: list[str], label: str) -> int:
 
 def _blueprint_artifact_hashes(project_root: Path) -> dict[str, str]:
     hashes: dict[str, str] = {}
-    for relative in (*BLUEPRINT_ARTIFACT_PATHS, *BLUEPRINT_MEMORY_PATHS):
+    for relative in (
+        *BLUEPRINT_ARTIFACT_PATHS,
+        *BLUEPRINT_COMPONENT_PATHS,
+        *BLUEPRINT_MEMORY_PATHS,
+    ):
         path = project_root / relative
+        if _has_symlink_component(path, project_root):
+            raise ValueError(f"blueprint artifact path contains a symlink: {relative}")
         if not (path.is_file() or path.is_dir()):
             raise ValueError(f"blueprint artifact is missing: {relative}")
         hashes[relative] = artifact_sha256(path)
     return hashes
+
+
+def _seal_blueprint_authority(project_root: Path, *, project: str) -> dict[str, Any]:
+    authority_path = project_root / BLUEPRINT_AUTHORITY_PATH
+    try:
+        authority = yaml.safe_load(authority_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot seal blueprint authority: {exc}") from exc
+    if (
+        not isinstance(authority, dict)
+        or authority.get("schema_version") != "crown-blueprint-authority/v1"
+        or authority.get("project") != project
+        or authority.get("status") != "active"
+        or authority.get("sole_writer_entrypoint") is not True
+        or authority.get("conflict_action")
+        != "fail_closed_before_context_compilation"
+    ):
+        raise ValueError("blueprint authority identity or fail-closed policy is invalid")
+    sealed_components: list[dict[str, str]] = []
+    for relative in BLUEPRINT_COMPONENT_PATHS:
+        path = project_root / relative
+        if _has_symlink_component(path, project_root):
+            raise ValueError(
+                f"blueprint authority component contains a symlink: {relative}"
+            )
+        if not (path.is_file() or path.is_dir()):
+            raise ValueError(f"blueprint authority component is missing: {relative}")
+        sealed_components.append(
+            {"path": relative, "sha256": artifact_sha256(path)}
+        )
+    authority = {**authority, "components": sealed_components}
+    atomic_write_yaml(authority_path, authority)
+    return authority
 
 
 def seal_crown_blueprint(
@@ -294,10 +422,14 @@ def seal_crown_blueprint(
     project: str = "Crown_of_Ash",
     source_task: str | None = None,
     source_run_artifact: str | None = None,
+    allow_registered_blueprint_drift: bool = False,
 ) -> dict[str, Any]:
     """Hash AgentLab-authored blueprint files without changing their decisions."""
     root = Path(agentlab_root).resolve()
-    project_root = (root / "projects" / project).resolve()
+    raw_project_root = root / "projects" / project
+    if _has_symlink_component(raw_project_root, root / "projects"):
+        raise ValueError("project path must not contain symlinks")
+    project_root = raw_project_root.resolve()
     artifact_index_path = project_root / "project_artifact_index.yml"
     try:
         existing_artifact_index = (
@@ -341,12 +473,25 @@ def seal_crown_blueprint(
             or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
         ):
             raise ValueError("current project artifact index has an invalid current entry")
-        target = (project_root / Path(*relative.parts)).resolve()
+        raw_target = project_root / Path(*relative.parts)
+        if _has_symlink_component(raw_target, project_root):
+            raise ValueError(
+                f"current project artifact path contains a symlink: {relative}"
+            )
+        target = raw_target.resolve()
         if project_root not in target.parents or not (
             target.is_file() or target.is_dir()
         ):
             raise ValueError(f"current project artifact is missing: {relative}")
-        if artifact_sha256(target) != expected_sha256:
+        is_blueprint_record = (
+            artifact_id.startswith("crown_blueprint_")
+            or relative.as_posix() == BLUEPRINT_AUTHORITY_PATH
+            or relative.as_posix() in BLUEPRINT_COMPONENT_PATHS
+        )
+        if (
+            artifact_sha256(target) != expected_sha256
+            and not (is_blueprint_record and allow_registered_blueprint_drift)
+        ):
             raise ValueError(f"current project artifact hash mismatch: {relative}")
         current_records[artifact_id] = dict(raw)
     expected_current = {
@@ -420,8 +565,33 @@ def seal_crown_blueprint(
             raise ValueError(f"unsafe or missing canonical fragment: {relative}")
         sealed_fragments.append({**raw, "sha256": _sha256(path)})
     atomic_write_yaml(index_path, {**index, "fragments": sealed_fragments})
+    _seal_blueprint_authority(project_root, project=project)
 
-    validation = validate_crown_blueprint(root, project=project)
+    card_index_path = project_root / "production" / "chapter_cards" / "index.yml"
+    try:
+        card_index = yaml.safe_load(card_index_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot seal chapter card index: {exc}") from exc
+    card_entries = (
+        card_index.get("chapter_state_plan")
+        if isinstance(card_index, dict)
+        else None
+    )
+    card_chapters = [
+        entry.get("chapter")
+        for entry in (card_entries or [])
+        if isinstance(entry, dict)
+        and isinstance(entry.get("chapter"), int)
+        and not isinstance(entry.get("chapter"), bool)
+    ]
+    if not card_chapters:
+        raise ValueError("cannot seal blueprint without chapter card entries")
+    validation = validate_crown_blueprint(
+        root,
+        project=project,
+        chapter_start=min(card_chapters),
+        chapter_end=max(card_chapters),
+    )
     if validation.get("status") != "pass":
         raise ValueError(
             "blueprint validation blocked: "
@@ -450,14 +620,11 @@ def seal_crown_blueprint(
     atomic_write_yaml(validation_receipt_path, validation_receipt)
 
     artifacts: list[dict[str, Any]] = list(historical_records)
-    blueprint_ids = {
-        f"crown_blueprint_{number:02d}"
-        for number in range(1, len(BLUEPRINT_ARTIFACT_PATHS) + 1)
-    }
     preserved_current = [
         record
         for artifact_id, record in current_records.items()
-        if artifact_id not in blueprint_ids
+        if not artifact_id.startswith("crown_blueprint_")
+        and record.get("production_path") not in BLUEPRINT_COMPONENT_PATHS
         and record.get("production_path") != "production/fact_authority.yml"
     ]
     for number, relative in enumerate(BLUEPRINT_ARTIFACT_PATHS, start=1):
@@ -510,17 +677,66 @@ def validate_blueprint_seal(
 ) -> dict[str, Any]:
     """Verify the current blueprint still matches its passed seal receipt."""
     root = Path(agentlab_root).resolve()
-    project_root = (root / "projects" / project).resolve()
+    raw_project_root = root / "projects" / project
+    if _has_symlink_component(raw_project_root, root / "projects"):
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "project": project,
+            "validation_receipt": (
+                Path("projects")
+                / project
+                / "project_brain"
+                / "blueprint_validation_receipt.yml"
+            ).as_posix(),
+            "issues": ["unsafe_project_path_symlink"],
+        }
+    project_root = raw_project_root.resolve()
     receipt_path = project_root / "project_brain" / "blueprint_validation_receipt.yml"
+    if _has_symlink_component(receipt_path, project_root):
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "project": project,
+            "validation_receipt": receipt_path.relative_to(root).as_posix(),
+            "issues": ["unsafe_blueprint_artifact_symlink"],
+        }
     issues: list[str] = []
     receipt = _mapping(receipt_path, issues, "blueprint_validation_receipt")
     if receipt.get("status") != "pass" or receipt.get("project") != project:
         issues.append("receipt_not_passed")
+    receipt_validation = receipt.get("validation")
+    sealed_range = (
+        receipt_validation.get("chapter_range")
+        if isinstance(receipt_validation, dict)
+        else None
+    )
+    valid_sealed_range = bool(
+        isinstance(sealed_range, list)
+        and len(sealed_range) == 2
+        and all(
+            isinstance(item, int) and not isinstance(item, bool)
+            for item in sealed_range
+        )
+        and int(sealed_range[0]) >= 1
+        and int(sealed_range[1]) >= int(sealed_range[0])
+    )
+    if valid_sealed_range:
+        sealed_start, sealed_end = int(sealed_range[0]), int(sealed_range[1])
+        if (
+            chapter_start < sealed_start
+            or chapter_end > sealed_end
+            or chapter_end < chapter_start
+        ):
+            issues.append("requested_window_outside_sealed_range")
+    else:
+        sealed_start, sealed_end = chapter_start, chapter_end
+        issues.append("validation_receipt_range_invalid")
     validation = validate_crown_blueprint(
         root,
         project=project,
-        chapter_start=chapter_start,
-        chapter_end=chapter_end,
+        chapter_start=sealed_start,
+        chapter_end=sealed_end,
     )
     if validation.get("status") != "pass":
         issues.append("current_blueprint_invalid")
@@ -561,8 +777,44 @@ def validate_crown_blueprint(
 ) -> dict[str, Any]:
     """Validate structure and invariants without choosing creative parameters."""
     root = Path(agentlab_root).resolve()
-    project_root = (root / "projects" / project).resolve()
+    raw_project_root = root / "projects" / project
+    if _has_symlink_component(raw_project_root, root / "projects"):
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "project": project,
+            "chapter_range": [chapter_start, chapter_end],
+            "issues": ["unsafe_project_path_symlink"],
+            "counts": {},
+        }
+    project_root = raw_project_root.resolve()
     issues: list[str] = []
+    unsafe_fixed_paths = [
+        relative
+        for relative in (
+            *BLUEPRINT_ARTIFACT_PATHS,
+            *BLUEPRINT_COMPONENT_PATHS,
+            *BLUEPRINT_MEMORY_PATHS,
+        )
+        if _has_symlink_component(project_root / relative, project_root)
+    ]
+    if unsafe_fixed_paths:
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "project": project,
+            "chapter_range": [chapter_start, chapter_end],
+            "issues": [
+                f"unsafe_blueprint_artifact_symlink:{relative}"
+                for relative in unsafe_fixed_paths
+            ],
+            "counts": {},
+        }
+    blueprint_authority = _mapping(
+        project_root / BLUEPRINT_AUTHORITY_PATH,
+        issues,
+        "blueprint_authority",
+    )
     scale = _mapping(
         project_root / "production" / "series_scale_decision.yml",
         issues,
@@ -578,11 +830,97 @@ def validate_crown_blueprint(
         issues,
         "fact_distillation",
     )
+    project_fact_snapshot = _mapping(
+        project_root / "project_brain" / "project_fact_snapshot.yml",
+        issues,
+        "project_fact_snapshot",
+    )
     distilled_source_hashes = {
         str(source.get("sha256") or "")
         for source in distillation.get("sources") or []
         if isinstance(source, dict) and source.get("sha256")
     }
+    distilled_sources = [
+        source
+        for source in distillation.get("sources") or []
+        if isinstance(source, dict)
+    ]
+    for relative, expected_status in (
+        (BLUEPRINT_AUTHORITY_PATH, "sole_blueprint_entrypoint"),
+        (
+            "production/canonical/character_content_policy.yml",
+            "active_character_content_authority",
+        ),
+    ):
+        matching_sources = [
+            source
+            for source in distilled_sources
+            if source.get("path") == relative
+        ]
+        current_path = project_root / relative
+        if (
+            len(matching_sources) != 1
+            or matching_sources[0].get("status") != expected_status
+            or not current_path.is_file()
+            or _has_symlink_component(current_path, project_root)
+            or matching_sources[0].get("sha256") != _sha256(current_path)
+        ):
+            issues.append(
+                f"fact_distillation:current_authority_source_mismatch:{relative}"
+            )
+    isabella_conflicts = [
+        conflict
+        for conflict in distillation.get("conflicts") or []
+        if isinstance(conflict, dict)
+        and conflict.get("id") == "conflict_isabella_appearance"
+    ]
+    expected_isabella_resolution = {
+        "authority_path": (
+            "production/canonical/character_content_policy.yml"
+        ),
+        "authority_source_hash": (
+            "4c678740622dc7128eeec46b2bb8f614198f2da828cffaee663b20eb272ae543"
+        ),
+        "selected_claim": "full_figured_mature_type",
+        "retired_claim": "pathologically_slender",
+    }
+    if (
+        len(isabella_conflicts) != 1
+        or isabella_conflicts[0].get("status") != "resolved"
+        or isabella_conflicts[0].get("resolution")
+        != expected_isabella_resolution
+    ):
+        issues.append(
+            "fact_distillation:isabella_appearance_resolution_mismatch"
+        )
+
+    if (
+        blueprint_authority.get("schema_version")
+        != "crown-blueprint-authority/v1"
+        or blueprint_authority.get("project") != project
+        or blueprint_authority.get("status") != "active"
+        or blueprint_authority.get("sole_writer_entrypoint") is not True
+    ):
+        issues.append("blueprint_authority:not_active_sole_entrypoint")
+    if (
+        blueprint_authority.get("conflict_action")
+        != "fail_closed_before_context_compilation"
+    ):
+        issues.append("blueprint_authority:not_fail_closed")
+    component_entries = blueprint_authority.get("components")
+    component_by_path = {
+        str(item.get("path") or ""): str(item.get("sha256") or "")
+        for item in (component_entries or [])
+        if isinstance(item, dict)
+    }
+    if set(component_by_path) != set(BLUEPRINT_COMPONENT_PATHS):
+        issues.append("blueprint_authority:component_set_mismatch")
+    for relative in BLUEPRINT_COMPONENT_PATHS:
+        path = project_root / relative
+        if not (path.is_file() or path.is_dir()):
+            issues.append(f"blueprint_authority:missing_component:{relative}")
+        elif component_by_path.get(relative) != artifact_sha256(path):
+            issues.append(f"blueprint_authority:component_hash_mismatch:{relative}")
 
     for label, decision in (("series_scale", scale), ("chapter_length", length)):
         if decision.get("status") != "approved" or not str(
@@ -621,6 +959,20 @@ def validate_crown_blueprint(
     constraints = scale.get("constraints") or {}
     if constraints.get("three_parts") is not True or constraints.get("anti_padding") is not True:
         issues.append("series_scale:upper_constraints_missing")
+    authority_scope = blueprint_authority.get("scope") or {}
+    if authority_scope.get("planned_total_chapters") != total:
+        issues.append("blueprint_authority:scale_mismatch")
+    if authority_scope.get("detailed_chapter_contract_range") != [
+        chapter_start,
+        chapter_end,
+    ]:
+        issues.append("blueprint_authority:detailed_range_mismatch")
+    policy_refs = blueprint_authority.get("policy_refs") or {}
+    if (
+        policy_refs.get("character_content_authority")
+        != "production/canonical/character_content_policy.yml"
+    ):
+        issues.append("blueprint_authority:character_content_policy_missing")
 
     length_values = [
         _as_int(length.get(key), issues, f"chapter_length.{key}")
@@ -650,6 +1002,8 @@ def validate_crown_blueprint(
     records: dict[str, dict[str, Any]] = {}
     fragment_paths: set[str] = set()
     kinds: set[str] = set()
+    character_content_policy: dict[str, Any] = {}
+    character_content_policy_record_ids: set[str] = set()
     for entry in fragment_entries:
         if not isinstance(entry, dict):
             issues.append("canonical:invalid_fragment_entry")
@@ -663,7 +1017,16 @@ def validate_crown_blueprint(
         if str(entry.get("sha256") or "") != _sha256(path):
             issues.append(f"canonical:fragment_hash_mismatch:{relative}")
         fragment = _mapping(path, issues, relative)
-        for record in fragment.get("records") or []:
+        if relative == "production/canonical/character_content_policy.yml":
+            character_content_policy = fragment
+        fragment_records = fragment.get("records") or []
+        if relative == "production/canonical/character_content_policy.yml":
+            character_content_policy_record_ids = {
+                str(record.get("id") or "")
+                for record in fragment_records
+                if isinstance(record, dict) and record.get("id")
+            }
+        for record in fragment_records:
             if not isinstance(record, dict) or not record.get("id") or not record.get("kind"):
                 issues.append(f"canonical:invalid_record:{relative}")
                 continue
@@ -680,6 +1043,238 @@ def validate_crown_blueprint(
                 issues.append(f"canonical:unbound_source_hash:{record_id}")
     for missing_kind in sorted(REQUIRED_CANONICAL_KINDS - kinds):
         issues.append(f"canonical:missing_kind:{missing_kind}")
+    missing_policy_ids = (
+        REQUIRED_CHARACTER_CONTENT_POLICY_IDS
+        - character_content_policy_record_ids
+    )
+    if character_content_policy.get("policy_revision") != 2:
+        issues.append("character_content_policy:revision_mismatch")
+    for policy_id in sorted(missing_policy_ids):
+        issues.append(f"character_content_policy:missing_record:{policy_id}")
+    adult_policy = records.get("policy_adult_dark_intimacy") or {}
+    consent = adult_policy.get("consent_contract") or {}
+    contextual_consent = consent.get("contextual_consent") or {}
+    scene_controls = adult_policy.get("scene_controls") or {}
+    if (
+        adult_policy.get("rating") != "mature_sensual_non_graphic"
+        or consent.get("minimum_age") != 18
+        or consent.get("mutuality_required") is not True
+        or consent.get("silence_is_not_consent") is not True
+        or contextual_consent.get("automatic_invalidation") is not False
+        or set(contextual_consent.get("applicable_contexts") or [])
+        != {"权力", "债务", "囚禁", "救命", "医疗", "魔法"}
+        or contextual_consent.get("adult_required") is not True
+        or contextual_consent.get("clear_minded_at_the_time_required") is not True
+        or contextual_consent.get(
+            "intimacy_not_exchanged_for_power_or_control"
+        )
+        is not True
+        or not adult_policy.get("allowed")
+        or not adult_policy.get("disallowed")
+        or scene_controls.get("prohibit_repeated_body_inventory") is not True
+        or scene_controls.get("chapter_card_must_declare_level_above_1") is not True
+    ):
+        issues.append("character_content_policy:adult_contract_incomplete")
+    women_policy = records.get("policy_women_agency_and_appearance") or {}
+    agency_contract = women_policy.get("agency_contract") or {}
+    appearance_contract = women_policy.get("appearance_contract") or {}
+    women_principles = women_policy.get("principles") or []
+    prohibited_templates = women_policy.get("prohibited_templates") or []
+    if (
+        len(women_principles) < 5
+        or any(not str(item).strip() for item in women_principles)
+        or len(prohibited_templates) < 5
+        or any(not str(item).strip() for item in prohibited_templates)
+        or any(
+            agency_contract.get(key) is not True
+            for key in (
+                "independent_goal_required",
+                "independent_resources_required",
+                "independent_judgment_required",
+                "meaningful_exit_required",
+                "body_never_reward_or_container",
+            )
+        )
+        or any(
+            appearance_contract.get(key) is not True
+            for key in (
+                "must_serve_profession_class_choice_cost_or_action",
+                "attraction_requires_mutual_viewpoint_decision_and_risk",
+                "clothing_or_body_detail_never_implies_consent",
+                "physical_contact_never_replaces_conflict_resolution",
+            )
+        )
+    ):
+        issues.append("character_content_policy:women_agency_contract_incomplete")
+    isabella_profile = records.get("profile_isabella_visual") or {}
+    isabella_identity = isabella_profile.get("stable_identity") or {}
+    isabella_visual_contract = isabella_profile.get("visual_contract") or {}
+    isabella_ref = str(isabella_profile.get("character_ref") or "")
+    if (
+        (records.get(isabella_ref) or {}).get("kind") != "character"
+        or not str(isabella_profile.get("evidence_grade") or "").startswith(
+            "user_locked"
+        )
+        or isabella_visual_contract.get("active_build_id")
+        != "full_figured_mature"
+        or isabella_visual_contract.get("retired_build_ids")
+        != ["pathologically_slender"]
+        or isabella_visual_contract.get("authority_source_path")
+        != (
+            "runs/task_crown_character_policy_user_override_20260724/"
+            "outputs/user_policy_override_v1.yml"
+        )
+        or isabella_identity.get("height_cm") != 165
+        or not str(isabella_identity.get("build") or "").strip()
+        or not isabella_profile.get("use_rules")
+    ):
+        issues.append("character_content_policy:isabella_profile_incomplete")
+    snapshot_facts = {
+        str(item.get("id") or ""): item
+        for item in project_fact_snapshot.get("facts") or []
+        if isinstance(item, dict) and item.get("id")
+    }
+    snapshot_isabella = snapshot_facts.get("fact_character_isabella") or {}
+    snapshot_isabella_value = snapshot_isabella.get("value") or {}
+    snapshot_isabella_appearance = (
+        snapshot_isabella_value.get("appearance") or {}
+    )
+    direct_override_sha256 = (
+        expected_isabella_resolution["authority_source_hash"]
+    )
+    if (
+        snapshot_isabella_appearance.get("build")
+        != isabella_visual_contract.get("active_build_id")
+        or snapshot_isabella_appearance.get("retired_build")
+        != (isabella_visual_contract.get("retired_build_ids") or [None])[0]
+        or direct_override_sha256
+        not in (snapshot_isabella.get("source_hashes") or [])
+        or snapshot_isabella.get("conflict_status") != "resolved"
+        or snapshot_isabella.get("conflict_conclusion")
+        != (
+            "user_locked_full_figured_mature_profile_supersedes_"
+            "pathologically_slender_ch03_profile"
+        )
+    ):
+        issues.append(
+            "project_fact_snapshot:isabella_visual_projection_mismatch"
+        )
+    snapshot_relationship = (
+        snapshot_facts.get("fact_relationship_execution_policy") or {}
+    )
+    snapshot_relationship_value = snapshot_relationship.get("value") or {}
+    snapshot_contextual_consent = (
+        snapshot_relationship_value.get("contextual_consent") or {}
+    )
+    expected_context_ids = {
+        "权力": "power",
+        "债务": "debt",
+        "囚禁": "captivity",
+        "救命": "rescue",
+        "医疗": "medical",
+        "魔法": "magic",
+    }
+    if (
+        snapshot_contextual_consent.get("automatic_invalidation")
+        is not contextual_consent.get("automatic_invalidation")
+        or set(snapshot_contextual_consent.get("applicable_contexts") or [])
+        != {
+            expected_context_ids[item]
+            for item in contextual_consent.get("applicable_contexts") or []
+            if item in expected_context_ids
+        }
+        or snapshot_contextual_consent.get("adult_required")
+        is not contextual_consent.get("adult_required")
+        or snapshot_contextual_consent.get(
+            "clear_minded_at_the_time_required"
+        )
+        is not contextual_consent.get("clear_minded_at_the_time_required")
+        or snapshot_contextual_consent.get(
+            "intimacy_not_exchanged_for_power_or_control"
+        )
+        is not contextual_consent.get(
+            "intimacy_not_exchanged_for_power_or_control"
+        )
+        or direct_override_sha256
+        not in (snapshot_relationship.get("source_hashes") or [])
+        or snapshot_relationship.get("conflict_status") != "resolved"
+        or snapshot_relationship.get("conflict_conclusion")
+        != (
+            "user_locked_contextual_consent_is_valid_when_adult_clear_"
+            "minded_and_not_exchanged_for_power_or_control"
+        )
+    ):
+        issues.append(
+            "project_fact_snapshot:contextual_consent_projection_mismatch"
+        )
+    lia_profile = records.get("profile_lia_adult_depiction") or {}
+    lia_identity = lia_profile.get("adult_identity") or {}
+    lia_ref = str(lia_profile.get("character_ref") or "")
+    if (
+        (records.get(lia_ref) or {}).get("kind") != "character"
+        or lia_profile.get("current_age") != 18
+        or lia_profile.get("historical_continuous_selfhood_age") != 16
+        or lia_identity.get("height_cm") != 151
+        or not lia_profile.get("relationship_boundary")
+    ):
+        issues.append("character_content_policy:lia_adult_boundary_incomplete")
+    motif_profile = records.get("profile_existing_women_motifs") or {}
+    motif_contract = motif_profile.get("motif_contract") or {}
+    required_motif_characters = {
+        "char_alicia",
+        "char_elena",
+        "char_cecilia",
+        "char_lilian",
+    }
+    if (
+        set(motif_contract) != required_motif_characters
+        or any(
+            not isinstance(motif_contract.get(character), dict)
+            or len(motif_contract[character].get("motifs") or []) < 3
+            or not str(motif_contract[character].get("meaning") or "").strip()
+            or not str(motif_contract[character].get("gate") or "").strip()
+            for character in required_motif_characters
+        )
+    ):
+        issues.append("character_content_policy:motif_contract_incomplete")
+    dispositions = character_content_policy.get("candidate_evidence_dispositions")
+    disposition_by_path = {
+        str(item.get("source_path") or ""): item
+        for item in (dispositions or [])
+        if isinstance(item, dict)
+    }
+    required_disposition_paths = REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS
+    if not required_disposition_paths.issubset(disposition_by_path):
+        issues.append("character_content_policy:evidence_dispositions_incomplete")
+    for relative in sorted(required_disposition_paths):
+        disposition = disposition_by_path.get(relative) or {}
+        pure = PurePosixPath(relative)
+        source_path = project_root / Path(*pure.parts)
+        if (
+            pure.is_absolute()
+            or any(part in {"", ".", ".."} for part in pure.parts)
+            or _has_symlink_component(source_path, project_root)
+            or not source_path.is_file()
+            or not str(disposition.get("disposition") or "").strip()
+            or not re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(disposition.get("sha256") or ""),
+            )
+            or (
+                source_path.is_file()
+                and (
+                    source_path.is_symlink()
+                    or _has_symlink_component(source_path, project_root)
+                )
+            )
+            or (
+                source_path.is_file()
+                and str(disposition.get("sha256") or "") != _sha256(source_path)
+            )
+        ):
+            issues.append(
+                f"character_content_policy:invalid_evidence_disposition:{relative}"
+            )
     for record_id, record in records.items():
         for ref in sorted(_record_refs(record)):
             if ref not in records:

@@ -132,6 +132,7 @@ def test_final_acceptance_builds_candidate_package_not_production(tmp_path: Path
 def test_generation_forwards_writer_budget_to_narrative_runtime(tmp_path: Path) -> None:
     _project(tmp_path)
     request = _request(tmp_path, "generate_batch")
+    request["config"]["allow_writer_cli_fallback"] = True
     observed: dict = {}
 
     def fake_run(root, project, **kwargs):
@@ -155,7 +156,45 @@ def test_generation_forwards_writer_budget_to_narrative_runtime(tmp_path: Path) 
 
     assert result["outcome"] == "success"
     assert observed["writer_budget_mode"] == "frugal"
-    assert observed["allow_writer_cli_fallback"] is False
+    assert observed["allow_writer_cli_fallback"] is True
+
+
+def test_generation_network_failure_returns_durable_retry_wait(tmp_path: Path) -> None:
+    _project(tmp_path)
+    request = _request(tmp_path, "generate_batch")
+    request["config"]["transient_retry_seconds"] = 60
+
+    report = {
+        "status": "fail",
+        "layers": {
+            "L2_real_chapter_sample": {
+                "status": "blocked",
+                "completed_chapter_count": 0,
+                "selected_chapter_count": 2,
+                "chapters": [
+                    {
+                        "chapter": 1,
+                        "live_generation_error": {
+                            "failure_class": "network_required",
+                            "error": "FailedToOpenSocket",
+                        },
+                    }
+                ],
+            }
+        },
+    }
+    with patch(
+        "agent_runtime.narrative_eval.run_narrative_eval",
+        return_value=report,
+    ), patch(
+        "agent_runtime.background_job_worker._utc_now",
+        return_value="2026-07-23T07:00:00+00:00",
+    ):
+        result = execute_action(request)
+
+    assert result["outcome"] == "retry_wait"
+    assert result["retry_at"] == "2026-07-23T07:01:00+00:00"
+    assert result["result"]["reason"] == "network_required"
 
 
 def test_heavy_audit_network_failure_returns_durable_retry_wait(tmp_path: Path) -> None:

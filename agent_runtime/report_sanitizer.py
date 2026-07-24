@@ -40,5 +40,10 @@ def dump_report_yaml(report: dict[str, Any], root: Path) -> str:
 
 
 def write_report_yaml(path: Path, report: dict[str, Any], root: Path) -> None:
+    try:
+        from agent_runtime.atomic_io import atomic_write_text
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from atomic_io import atomic_write_text
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dump_report_yaml(report, root), encoding="utf-8")
+    atomic_write_text(path, dump_report_yaml(report, root), encoding="utf-8")

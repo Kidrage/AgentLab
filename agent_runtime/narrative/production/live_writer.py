@@ -582,6 +582,7 @@ def prepare_live_writer_session(
     if issues:
         return _blocked_live_writer_preflight(run_dir, task_id, issues)
     source_paths = _dedupe_paths([request_path, context_manifest, *source_paths])
+    chapter_context = _chapter_context_from_brief(brief.to_dict())
     receipt = {
         "schema_version": 1,
         "status": "pass",
@@ -605,6 +606,7 @@ def prepare_live_writer_session(
         "context_manifest_sha256": preview.context_manifest_sha256,
         "literary_memory_sha256": memory_sha256,
         "prose_length_contract": prose_length_contract,
+        **({"chapter_context": chapter_context} if chapter_context else {}),
         "source_inventory": [
             {
                 "path": path.relative_to(root).as_posix(),
@@ -728,6 +730,7 @@ def _materialize_live_writer_result_locked(
                 or ""
             ),
             prose_length_contract=session_receipt.get("prose_length_contract"),
+            chapter_context=session_receipt.get("chapter_context"),
         )
     _persist_live_writer_output_contract(run_dir, task_id, validation)
     return validation
@@ -843,6 +846,7 @@ def _persist_live_writer_output_contract(
         ),
         "han_character_count": validation.get("han_character_count"),
         "prose_length_contract": validation.get("prose_length_contract"),
+        "prose_conventions": validation.get("prose_conventions"),
     }
     atomic_write_yaml(
         run_dir / LIVE_WRITER_OUTPUT_CONTRACT_NAME,
@@ -1040,6 +1044,16 @@ def _validate_delivery_session(
         return ["live_writer_session_prose_length_contract_invalid"], {}
     receipt = dict(receipt)
     receipt["prose_length_contract"] = prose_length_contract
+    chapter_context, context_issue = _bound_prose_chapter_context(
+        run_dir,
+        request,
+    )
+    if context_issue:
+        return [context_issue], {}
+    if chapter_context:
+        if receipt.get("chapter_context") != chapter_context:
+            return ["live_writer_session_chapter_context_mismatch"], {}
+        receipt["chapter_context"] = chapter_context
     return [], receipt
 
 
@@ -1154,6 +1168,78 @@ def _bound_prose_length_contract(
     if issues or contract is None:
         return None, "live_writer_session_creative_brief_invalid"
     return contract, ""
+
+
+def _bound_prose_chapter_context(
+    run_dir: Path,
+    request: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    """Re-derive negative prose constraints from the request's hash-bound brief."""
+    project = str(request.get("project") or "")
+    try:
+        resolved_run = run_dir.resolve(strict=True)
+        project_root = resolved_run.parent.parent
+        root = project_root.parent.parent
+    except (OSError, RuntimeError):
+        return {}, "live_writer_session_run_dir_invalid"
+    normalized = _normalized_ref(request.get("creative_brief_source"))
+    if normalized is None or not normalized[0] or not _SHA256_RE.fullmatch(
+        normalized[1]
+    ):
+        return {}, "live_writer_session_creative_brief_reference_invalid"
+    brief_path = root / normalized[0]
+    if brief_path.is_symlink() or _has_symlink_component(root, brief_path):
+        return {}, "live_writer_session_creative_brief_reference_invalid"
+    try:
+        brief_path = brief_path.resolve(strict=True)
+        brief_path.relative_to(root)
+        brief_raw = brief_path.read_bytes()
+    except (OSError, ValueError):
+        return {}, "live_writer_session_creative_brief_reference_invalid"
+    if hashlib.sha256(brief_raw).hexdigest() != normalized[1]:
+        return {}, "live_writer_session_creative_brief_hash_mismatch"
+    issues: list[str] = []
+    brief_data = _decode_mapping(
+        brief_raw,
+        "live_writer_session_creative_brief",
+        issues,
+    )
+    try:
+        brief = BriefCompiler.from_v1_state_plan(
+            brief_data,
+            chapter_id=int(request.get("chapter_id") or 0),
+            source_paths=[str(brief_path)],
+        )
+    except (OSError, TypeError, ValueError):
+        return {}, "live_writer_session_creative_brief_invalid"
+    if issues:
+        return {}, "live_writer_session_creative_brief_invalid"
+    return _chapter_context_from_brief(brief.to_dict()), ""
+
+
+def _chapter_context_from_brief(brief: dict[str, Any]) -> dict[str, Any]:
+    forbidden = [
+        str(item).strip()
+        for item in (brief.get("forbidden_facts") or [])
+        if str(item).strip()
+    ]
+    must_not_repeat = [
+        str(item).strip()
+        for item in (brief.get("must_not_repeat") or [])
+        if str(item).strip()
+    ]
+    if not forbidden and not must_not_repeat:
+        return {}
+    return {
+        "chapter": int(brief.get("chapter_id") or 0),
+        "chapter_position": str(brief.get("chapter_position") or ""),
+        "enforce_paragraph_structure": True,
+        "must_not_repeat": must_not_repeat,
+        "forbidden_facts": forbidden,
+        "fact_invention_policy": dict(
+            brief.get("fact_invention_policy") or {}
+        ),
+    }
 
 
 def _remove_delivery_success_outputs(run_dir: Path) -> None:
@@ -1555,9 +1641,20 @@ def _live_messages(
     else:
         messages[0]["content"] = (
             "Act only as the prose Writer for this chapter. Preserve the sealed "
-            "CreativeBrief, canon, state, and literary memory. Return exactly one "
+            "CreativeBrief, canon, state, and literary memory. Facts absent from "
+            "the sealed evidence remain unknown and must not be invented. Apply "
+            "fact_invention_policy literally: creative freedom covers only "
+            "transient scene texture, never new persistent backstory, institutions, "
+            "rules, classifications, debts, resources, or relationships. Treat "
+            "must_not_repeat and forbidden_facts as hard prohibitions, never as "
+            "material to preserve or dramatize. Supporting-actor state is causal "
+            "guidance, not permission to enter another character's mind; preserve "
+            "the declared POV and show hidden motives only through observable "
+            "evidence. Return exactly one "
             f"full-file AGENTLAB_EDIT block targeting {target}. The block body must "
-            "contain only the complete chapter prose. Do not emit any other file, "
+            "contain only one chapter title and the complete fiction prose, with "
+            "readable paragraph breaks. Do not append a reader question, author "
+            "note, separator-plus-commentary footer, or emit any other file, "
             "report, audit, state ledger, receipt, promotion decision, or commentary. "
             f"For Chinese prose, the hard length contract is {minimum:,}–{maximum:,} "
             "Han characters after excluding Markdown headings; do not exceed it."

@@ -74,7 +74,7 @@ endpoints:
       hermes: "hermes -z \"You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers.\""
       claude_code: "claude -p \"{prompt}\""
       bl: "bl chat -p \"{prompt}\""
-      agy: "agy --sandbox --model 'Gemini 3.5 Flash (High)' -p \"{prompt}\""
+      agy: "agy --sandbox --model gemini-3.5-flash-high -p \"{prompt}\""
       openclaw: "openclaw run --prompt \"{prompt}\""
       codex: "codex --task \"{prompt}\""
       qwen: "qwen --bare --approval-mode default --output-format json \"{prompt}\""
@@ -244,22 +244,26 @@ agents:
   agy:
     display_name: Antigravity / Agy OAuth
     class: frontdesk_perception_and_planning_cli
-    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, multimodal_observation, independent_visual_review, performance_narrative_planning, scientific_evidence, suggestions]
+    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, multimodal_observation, independent_visual_review, performance_narrative_planning, candidate_prose_writing, scientific_evidence, suggestions]
     invocation:
       command: agy
       frontdesk_session: >-
-        agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "$(./agentlab.sh frontdesk-session --agent agy)"
+        agy --sandbox --model gemini-3.5-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
       visual_reviewer_session: >-
-        agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "Read the bounded
+        agy --sandbox --model gemini-3.5-flash-high -p "Read the bounded
         visual Reviewer packet at {task_packet_path}; inspect only staged assets
         and return four-dimension YAML evidence."
       narrative_planner_session: >-
-        agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "Read the sealed
+        agy --sandbox --model gemini-3.5-flash-high -p "Read the sealed
         NarrativePlanner packet at {task_packet_path}; return planning and
         revision guidance only, never final prose."
-    default_model: Gemini 3.5 Flash (High)
+      writer_session: >-
+        agy --sandbox --model gemini-3.5-flash-high -p "Treat the complete
+        sealed AgentLab Writer packet on stdin as the only task context; return
+        only the required candidate prose envelopes."
+    default_model: gemini-3.5-flash-high
     observer_models:
-      primary: Gemini 3.5 Flash (High)
+      primary: gemini-3.5-flash-high
       fallback: Claude Sonnet 4.6 (Thinking)
       capacity_source: config/model_capacity.yml
       remaining: null
@@ -269,7 +273,7 @@ agents:
     region_requirement: VPN/proxy to a Gemini-supported region when local region is blocked.
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
-    may_execute_agentlab_roles_directly: [Observer, Reviewer, NarrativePlanner]
+    may_execute_agentlab_roles_directly: [Observer, Reviewer, NarrativePlanner, Writer]
     high_risk: true
   grok:
     display_name: Hermes Grok OAuth Research and Media Worker

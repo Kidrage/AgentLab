@@ -171,6 +171,73 @@ def _story_authority_context_files(project_root: Path, run_dir: Path) -> list[Pa
     return files
 
 
+_COMPACT_WRITER_CONTEXT_PROFILE = "chapter_relevance_v1"
+
+
+def _chapter_packet(run_dir: Path) -> dict:
+    path = run_dir / "chapter_packet.yml"
+    if not path.is_file():
+        return {}
+    try:
+        packet = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+    return packet if isinstance(packet, dict) else {}
+
+
+def _writer_context_profile(run_dir: Path) -> str:
+    return str(_chapter_packet(run_dir).get("writer_context_profile") or "").strip()
+
+
+def _compact_writer_story_context_files(
+    project_root: Path,
+    run_dir: Path,
+) -> list[Path]:
+    """Select only chapter-relevant story evidence from a provenance-rich packet."""
+    packet = _chapter_packet(run_dir)
+    relative_paths: list[str] = []
+    evidence_groups = (packet.get("knowledge_contract") or {}).get(
+        "evidence_groups"
+    ) or {}
+    if isinstance(evidence_groups, dict):
+        for items in evidence_groups.values():
+            if isinstance(items, list):
+                relative_paths.extend(str(item).strip() for item in items)
+
+    story_authority = packet.get("story_authority") or {}
+    if isinstance(story_authority, dict):
+        candidate_ledger = str(
+            story_authority.get("candidate_fact_ledger") or ""
+        ).strip()
+        if candidate_ledger:
+            relative_paths.append(candidate_ledger)
+    previous_sources = packet.get("previous_candidate_sources") or []
+    if isinstance(previous_sources, list):
+        relative_paths.extend(str(item).strip() for item in previous_sources)
+
+    files: list[Path] = []
+    seen: set[Path] = set()
+    for relative in relative_paths:
+        if not relative:
+            continue
+        try:
+            path = assert_path_allowed(project_root / relative, project_root)
+        except Exception:
+            continue
+        resolved = path.resolve(strict=False)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        files.append(path)
+    return files
+
+
+def _writer_story_context_files(project_root: Path, run_dir: Path) -> list[Path]:
+    if _writer_context_profile(run_dir) == _COMPACT_WRITER_CONTEXT_PROFILE:
+        return _compact_writer_story_context_files(project_root, run_dir)
+    return _story_authority_context_files(project_root, run_dir)
+
+
 def _skill_context_sections(agentlab_root: Path, plan: WorkflowPlan, agent_name: str) -> list[str]:
     sections: list[str] = []
     selected = (plan.skills or {}).get("selected", [])
@@ -206,13 +273,14 @@ def writer_context_source_files(
     project_root = Path(plan.project_root)
     run_dir = Path(plan.run_dir)
     files = [
-        agentlab_root / "config" / "agent_registry.yml",
         Path(plan.user_request_path),
         run_dir / "mission_contract.yml",
         run_dir / "chapter_packet.yml",
         run_dir / "writer_contract_retry_feedback.yml",
     ]
-    files.extend(_story_authority_context_files(project_root, run_dir))
+    if _writer_context_profile(run_dir) != _COMPACT_WRITER_CONTEXT_PROFILE:
+        files.insert(0, agentlab_root / "config" / "agent_registry.yml")
+    files.extend(_writer_story_context_files(project_root, run_dir))
 
     configs = load_agentlab_configs(agentlab_root)
     writer_config = (configs.get("agent_registry", {}).get("agents", {}) or {}).get("Writer", {})
@@ -1041,7 +1109,7 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / "mission_contract.yml",
             run_dir / "chapter_packet.yml",
         ]
-        context_files.extend(_story_authority_context_files(project_root, run_dir))
+        context_files.extend(_writer_story_context_files(project_root, run_dir))
     elif agent_name == "Observer" and output_path.name == "visual_observation_report.yml":
         context_files = observer_context_source_files(
             agentlab_root,
@@ -2515,7 +2583,7 @@ def _apply_writer_workflow_activation(
         else ""
     )
     contract = contracts.get(contract_name) if contract_name else None
-    worker = str(profile.get("cli_agent") or "")
+    worker = str(route.get("worker") or "") if isinstance(route, dict) else ""
     valid = bool(
         isinstance(route, dict)
         and str(route.get("role") or "") == "writer"
@@ -2541,6 +2609,7 @@ def _apply_writer_workflow_activation(
 
     activated.update(
         {
+            "cli_agent": worker,
             "invocation_contract": contract_name,
             "default": str(route["model_key"]),
             "capacity_route": route_id,

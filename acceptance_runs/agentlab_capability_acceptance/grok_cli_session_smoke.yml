@@ -1,6 +1,6 @@
 schema_version: 1
 report_type: agentlab_grok_cli_session_smoke
-created_at: '2026-07-09T15:37:19.377548+00:00'
+created_at: '2026-07-23T04:29:35.351696+00:00'
 live: true
 prompt_scope: non_private_session_reachability_smoke
 private_project_context_loaded: false
@@ -11,15 +11,15 @@ adapter_kind_legacy_aliases:
 - grok_cli_oauth
 command_variants:
 - command: hermes
-  command_shape: hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z <non_private_prompt>
-- command: grok
-  command_shape: grok -p <non_private_prompt> --output-format plain --max-turns 3
+  command_shape: hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <non_private_prompt>
 command: hermes
+contract_command: hermes
+configured_contract_key: session_smoke
 command_available: true
 cli_entrypoint_available: true
 local_cli_entrypoint_available: true
 command_path: <local_path:hermes>
-command_shape: hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z <non_private_prompt>
+command_shape: hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <non_private_prompt>
 tested_invocation_mode: non_interactive_prompt_contract
 execution_scope: internal_local_cli_worker
 local_cli_entrypoint_is_internal_worker: true
@@ -27,36 +27,69 @@ local_cli_auth_mode: oauth_cli_session
 local_cli_requires_api_key: false
 interactive_cli_entrypoint: hermes
 interactive_cli_start_is_not_task_contract_proof: true
-non_interactive_prompt_contract_status: pass
+non_interactive_prompt_contract_status: blocked
 expected_stdout_token: AGENTLAB_GROK_CLI_SMOKE_OK
 timeout_seconds: 60
 attempts:
 - attempt: 0
   live: true
   command: hermes
-  command_shape: hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z <non_private_prompt>
-  returncode: 0
-  stdout_excerpt: 'AGENTLAB_GROK_CLI_SMOKE_OK
+  command_shape: hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <non_private_prompt>
+  returncode: 1
+  stdout_excerpt: ''
+  stderr_excerpt: 'hermes -z: agent failed: xAI OAuth state is missing access_token.
+    Re-authenticate with `hermes model`.
 
     '
-  stderr_excerpt: ''
   settings_fetch_failed: false
   transport_failure_marker_present: false
-  auth_failure_marker_present: false
+  auth_failure_marker_present: true
   command_available: true
   command_path: <local_path:hermes>
-  expected_token_present: true
-  status: pass
-  non_interactive_prompt_contract_status: pass
-status: pass
-stdout_excerpt: 'AGENTLAB_GROK_CLI_SMOKE_OK
+  expected_token_present: false
+  status: blocked
+  reason: grok_cli_auth_session_unhealthy
+  block_scope: local_grok_session_health
+  non_interactive_prompt_contract_status: blocked
+status: blocked
+stdout_excerpt: ''
+stderr_excerpt: 'hermes -z: agent failed: xAI OAuth state is missing access_token.
+  Re-authenticate with `hermes model`.
 
   '
-stderr_excerpt: ''
 settings_fetch_failed: false
 transport_failure_marker_present: false
-auth_failure_marker_present: false
-expected_token_present: true
-returncode: 0
-evidence_interpretation: The local Grok CLI entrypoint and the AgentLab non-interactive
-  prompt contract both completed for a non-private smoke prompt.
+auth_failure_marker_present: true
+expected_token_present: false
+block_scope: local_grok_session_health
+reason: grok_cli_auth_session_unhealthy
+returncode: 1
+diagnostics:
+  scope: non_private_local_cli_diagnostics
+  loads_private_project_context: false
+  commands:
+    xai_oauth_status:
+      command_shape: hermes auth status xai-oauth
+      status: pass
+      returncode: 0
+      stdout_excerpt: 'xai-oauth: logged out (xAI OAuth state is missing access_token.
+        Re-authenticate with `hermes model`.)
+
+        '
+      stderr_excerpt: ''
+      settings_fetch_failed: false
+      transport_failure_marker_present: false
+      auth_failure_marker_present: true
+      logged_in_marker_present: false
+      not_authenticated_marker_present: true
+      default_model_marker_present: false
+      model_catalog_visible: false
+  auth_status: not_authenticated
+  auth_session_healthy: false
+  not_authenticated_marker_present: true
+  model_catalog_visible: false
+  login_or_model_catalog_visible: false
+  settings_fetch_failed: false
+  transport_failure_marker_present: false
+evidence_interpretation: The Grok CLI entrypoint is present, but the non-interactive
+  AgentLab prompt contract failed before producing accepted output.

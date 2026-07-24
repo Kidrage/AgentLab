@@ -252,10 +252,10 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["archivist"]["cli_agent"] == "claude_code"
     assert tier["archivist"]["default"] == "deepseek_v4_pro"
 
-    assert tier["writer"]["cli_agent"] == "claude_code"
-    assert tier["writer"]["invocation_contract"] == "claude_writer"
-    assert tier["writer"]["default"] == "deepseek_v4_pro"
-    assert tier["writer"]["capacity_route"] == "Writer"
+    assert tier["writer"]["cli_agent"] == "agy"
+    assert tier["writer"]["invocation_contract"] == "agy_writer"
+    assert tier["writer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["writer"]["capacity_route"] == "WriterAgy"
 
 
 def test_full_cli_full_tier_matches_operator_matrix() -> None:
@@ -299,10 +299,10 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
     assert tier["narrative_planner"]["cli_agent"] == "claude_code"
     assert tier["narrative_planner"]["default"] == "deepseek_v4_pro"
     assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerRewrite"
-    assert tier["writer"]["cli_agent"] == "claude_code"
-    assert tier["writer"]["invocation_contract"] == "claude_writer"
-    assert tier["writer"]["default"] == "deepseek_v4_pro"
-    assert tier["writer"]["capacity_route"] == "Writer"
+    assert tier["writer"]["cli_agent"] == "agy"
+    assert tier["writer"]["invocation_contract"] == "agy_writer"
+    assert tier["writer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["writer"]["capacity_route"] == "WriterAgy"
 
 
 def test_narrative_planner_capacity_route_has_no_fallback() -> None:
@@ -446,15 +446,15 @@ def test_agy_is_multimodal_observer_and_not_writer_or_image_renderer() -> None:
     assert tier["observer"]["cli_agent"] == "agy"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
     assert tier["observer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
-    assert tier["writer"]["cli_agent"] == "claude_code"
+    assert tier["writer"]["cli_agent"] == "agy"
     assert tier["artifact_producer"]["cli_agent"] == "grok"
-    assert "Writer" not in bindings["workers"]["agy"]["allowed_roles"]
+    assert "Writer" in bindings["workers"]["agy"]["allowed_roles"]
     assert "Observer" in bindings["workers"]["agy"]["allowed_roles"]
 
     agy_model = catalog["models"]["gemini_3_5_flash_high_agy_oauth"]
     assert agy_model["runtime_provider"] == "agy-gemini-oauth"
     assert agy_model["model_id"] == "gemini-3.5-flash-high"
-    assert agy_model["cli_model_id"] == "Gemini 3.5 Flash (High)"
+    assert agy_model["cli_model_id"] == "gemini-3.5-flash-high"
     assert agy_model["pricing"]["billing_source"] == "agy_oauth"
     assert agy_model["capabilities"]["input_modalities"] == [
         "text", "image", "video", "audio", "pdf"
@@ -468,13 +468,14 @@ def test_agy_is_multimodal_observer_and_not_writer_or_image_renderer() -> None:
 
     assert providers["agy-gemini-oauth"]["type"] == "oauth_cli"
     assert providers["agy-gemini-oauth"]["default_model"] == "gemini-3.5-flash-high"
-    assert catalog["providers"]["agy_gemini_oauth"]["cli_model_id"] == "Gemini 3.5 Flash (High)"
+    assert catalog["providers"]["agy_gemini_oauth"]["cli_model_id"] == "gemini-3.5-flash-high"
     assert providers["gemini-api"]["never_default"] is True
     assert providers["gemini-api"]["api_key"] == "env:GEMINI_API_KEY"
     assert "Do not use GEMINI_API_KEY" in contracts["agy_observer"]["template"]
     assert '--model "{model_id}"' in contracts["agy_observer"]["template"]
     assert "read-only multimodal Observer" in contracts["agy_observer"]["template"]
-    assert "agy_writer" not in contracts
+    assert "agy_writer" in contracts
+    assert "writer" in agy_model["suitable_agents"]
     assert _cost_source(agy_model, {}) == "oauth/subscription quota"
     assert _cost_source(api_model, {}) == "free-tier/api quota"
 
@@ -746,7 +747,7 @@ def test_gate1_narrative_editor_is_sealed_qwen_max_with_no_fallback() -> None:
     assert contract["fallback"] == {"on_binary_missing": "stop_and_report"}
 
 
-def test_writer_is_claude_deepseek_with_bounded_optional_ultracode() -> None:
+def test_writer_uses_agy_with_current_claude_deepseek_route_as_fallback() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
     bindings = _load_config("agent_role_bindings.yml")
@@ -754,9 +755,21 @@ def test_writer_is_claude_deepseek_with_bounded_optional_ultracode() -> None:
 
     for tier in ("full", "performance"):
         route = profiles["modes"]["full_cli"]["tiers"][tier]["writer"]
-        assert route["cli_agent"] == "claude_code"
-        assert route["invocation_contract"] == "claude_writer"
-        assert route["default"] == "deepseek_v4_pro"
+        assert route["cli_agent"] == "agy"
+        assert route["invocation_contract"] == "agy_writer"
+        assert route["default"] == "gemini_3_5_flash_high_agy_oauth"
+        assert route["capacity_route"] == "WriterAgy"
+    agy_writer = contracts["agy_writer"]
+    assert agy_writer["worker_id"] == "agy"
+    assert agy_writer["invocation_style"] == "sealed_packet_stdin"
+    assert agy_writer["packet_delivery"] == "stdin"
+    assert agy_writer["required_placeholders"] == ["model_id"]
+    assert agy_writer["safe_probe"] == ["agy", "--help"]
+    agy_route = capacity["WriterAgy"]
+    assert agy_route["worker"] == "agy"
+    assert agy_route["invocation_contract"] == "agy_writer"
+    assert agy_route["model_key"] == "gemini_3_5_flash_high_agy_oauth"
+    assert agy_route["approved_fallbacks"] == ["Writer"]
     writer = contracts["claude_writer"]
     assert '--model "{model_id}"' in writer["template"]
     assert "--effort max" in writer["template"]
@@ -778,7 +791,7 @@ def test_writer_is_claude_deepseek_with_bounded_optional_ultracode() -> None:
     assert ultracode_route["model_key"] == "deepseek_v4_pro"
     assert ultracode_route["activation_policy"] == "explicit_sealed_packet_only"
     assert ultracode_route["approved_fallbacks"] == []
-    assert "Writer" not in bindings["workers"]["agy"]["allowed_roles"]
+    assert "Writer" in bindings["workers"]["agy"]["allowed_roles"]
     assert "Writer" in bindings["workers"]["claude_code"]["allowed_roles"]
 
 

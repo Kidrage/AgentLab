@@ -631,6 +631,91 @@ def _model_label(log_path: Path) -> str | None:
     return labels[-1] if labels else None
 
 
+def _authorized_writer_fallback(
+    run_dir: Path,
+    *,
+    expected_route: Any,
+    final: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify a final Writer route is a declared same-role capacity fallback."""
+    final_route = str(final.get("capacity_route") or "").strip()
+    expected_route = str(expected_route or "").strip()
+    result = {
+        "status": "not_applicable",
+        "expected_route": expected_route or None,
+        "final_route": final_route or None,
+        "receipt_verified": False,
+        "issues": [],
+    }
+    if not expected_route or not final_route or final_route == expected_route:
+        return result
+
+    try:
+        root = run_dir.resolve().parents[3]
+    except IndexError:
+        result["status"] = "fail"
+        result["issues"].append("capacity_root")
+        return result
+
+    capacity = _read_yaml(root / "config" / "model_capacity.yml")
+    routes = capacity.get("routes")
+    routes = routes if isinstance(routes, dict) else {}
+    expected = routes.get(expected_route)
+    selected = routes.get(final_route)
+    if not isinstance(expected, dict) or not isinstance(selected, dict):
+        result["status"] = "fail"
+        result["issues"].append("capacity_route_missing")
+        return result
+    if final_route not in (expected.get("approved_fallbacks") or []):
+        result["status"] = "fail"
+        result["issues"].append("capacity_fallback_not_declared")
+    if expected.get("role") != "writer" or selected.get("role") != "writer":
+        result["issues"].append("capacity_fallback_role")
+
+    raw_receipt_path = final.get("receipt_path")
+    receipt_path = Path(str(raw_receipt_path or ""))
+    if not receipt_path.is_absolute():
+        receipt_path = run_dir / receipt_path
+    try:
+        receipt_path = receipt_path.resolve()
+        receipt_path.relative_to(run_dir.resolve())
+    except (OSError, ValueError):
+        result["issues"].append("capacity_fallback_receipt_path")
+        receipt = {}
+    else:
+        receipt = _read_yaml(receipt_path)
+
+    expected_receipt = {
+        "status": "pass",
+        "role": "Writer",
+        "worker": selected.get("worker"),
+        "invocation_contract": selected.get("invocation_contract"),
+        "selected_model_key": selected.get("model_key"),
+        "capacity_route": final_route,
+    }
+    for key, expected_value in expected_receipt.items():
+        if receipt.get(key) != expected_value:
+            result["issues"].append(f"capacity_fallback_receipt_{key}")
+    for key in (
+        "profile_binding_verified",
+        "command_binding_verified",
+        "provider_model_binding_verified",
+    ):
+        if receipt.get(key) is not True:
+            result["issues"].append(f"capacity_fallback_receipt_{key}")
+    if receipt.get("selected_provider") != final.get("provider"):
+        result["issues"].append("capacity_fallback_receipt_provider")
+    if receipt.get("selected_model_id") != final.get("model"):
+        result["issues"].append("capacity_fallback_receipt_model")
+
+    result["receipt_verified"] = not any(
+        issue.startswith("capacity_fallback_receipt")
+        for issue in result["issues"]
+    )
+    result["status"] = "pass" if not result["issues"] else "fail"
+    return result
+
+
 def validate_writer_execution_contract(run_dir: Path, task_id: str) -> dict[str, Any]:
     """Validate Writer provenance against the execution contract recorded by the run."""
     workflow = _read_yaml(run_dir / "workflow_plan.yml")
@@ -654,6 +739,7 @@ def validate_writer_execution_contract(run_dir: Path, task_id: str) -> dict[str,
     )
     expected_provider = writer_model.get("provider")
     expected_model = writer_model.get("model")
+    expected_capacity_route = writer_model.get("capacity_route")
     expected_worker = writer_agent.get("execution_owner") or writer_model.get(
         "cli_agent"
     )
@@ -685,28 +771,43 @@ def validate_writer_execution_contract(run_dir: Path, task_id: str) -> dict[str,
     mode = "model_execution_chain"
     observed_provider = None
     observed_model = None
+    route_authorization = {
+        "status": "not_applicable",
+        "expected_route": expected_capacity_route,
+        "final_route": None,
+        "receipt_verified": False,
+        "issues": [],
+    }
     if chain_path.is_file():
         final = chain.get("final") if isinstance(chain.get("final"), dict) else {}
         attempts = chain.get("attempts") if isinstance(chain.get("attempts"), list) else []
         observed_provider = final.get("provider")
         observed_model = final.get("model")
+        route_authorization = _authorized_writer_fallback(
+            run_dir,
+            expected_route=expected_capacity_route,
+            final=final,
+        )
+        approved_fallback = route_authorization.get("status") == "pass"
         if chain.get("role") != "Writer":
             issues.append("model_chain_role")
         if chain.get("status") != "pass":
             issues.append("model_chain_status")
-        if chain.get("fallback_used") is not False:
+        if chain.get("fallback_used") is not False and not approved_fallback:
             issues.append("model_chain_fallback")
         if any(
             isinstance(attempt, dict) and attempt.get("fallback_detected") is True
             for attempt in attempts
-        ):
+        ) and not approved_fallback:
             issues.append("model_chain_attempt_fallback")
         if final.get("status") != "pass":
             issues.append("model_chain_final_status")
-        if observed_provider != expected_provider:
+        if observed_provider != expected_provider and not approved_fallback:
             issues.append("model_chain_provider")
-        if observed_model != expected_model:
+        if observed_model != expected_model and not approved_fallback:
             issues.append("model_chain_model")
+        if route_authorization.get("status") == "fail":
+            issues.extend(route_authorization.get("issues") or [])
     else:
         mode = "legacy_agy_log"
         observed_provider = "agy-gemini-oauth" if legacy_agy else None
@@ -730,6 +831,7 @@ def validate_writer_execution_contract(run_dir: Path, task_id: str) -> dict[str,
             "model": observed_model,
         },
         "fallback_used": chain.get("fallback_used") if chain_path.is_file() else False,
+        "route_authorization": route_authorization,
         "issues": issues,
     }
 
