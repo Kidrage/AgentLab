@@ -82,9 +82,10 @@ quality after Checker.
 
 The approved collaboration DAG is executable infrastructure, not only a plan:
 the scheduler materializes every expert step as a dependency-linked Runtime v2
-WorkItem bound to the current snapshot, manifest revision, and effective
-contract hash. Factory roles map Writer, Coder, Verifier, and Reviewer duties
-to their actual Runtime roles. Agent `model_profile` replacement changes the
+WorkItem in one atomic event, bound to the current snapshot, manifest revision,
+and effective contract hash. A conflicting WorkItem ID leaves the ledger
+unchanged. Factory roles map Writer, Coder, Verifier, and Reviewer duties to
+their actual Runtime roles. Agent `model_profile` replacement changes the
 subsequent configured model tier.
 
 Validated behavior:

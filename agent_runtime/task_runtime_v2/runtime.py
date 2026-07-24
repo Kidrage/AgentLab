@@ -608,6 +608,92 @@ class TaskRuntime:
         )
         return self.rebuild_task(task_id)
 
+    def create_work_items(
+        self,
+        task_id: str,
+        *,
+        batch_id: str,
+        items: list[dict[str, Any]],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Atomically create one topologically ordered WorkItem batch."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        batch_id = _validated_id(batch_id, field="batch_id")
+        if not items:
+            raise ValueError("work item batch must not be empty")
+        normalized: list[dict[str, Any]] = []
+        batch_ids: set[str] = set()
+        for raw in items:
+            if not isinstance(raw, dict):
+                raise ValueError("work item batch entries must be mappings")
+            job_id = _validated_id(raw.get("job_id"), field="job_id")
+            work_item_id = _validated_id(
+                raw.get("work_item_id"),
+                field="work_item_id",
+            )
+            if work_item_id in batch_ids:
+                raise EntityAlreadyExists(
+                    f"duplicate work item in batch: {work_item_id!r}"
+                )
+            kind = _validated_id(raw.get("kind"), field="kind")
+            title = str(raw.get("title") or "").strip()
+            if not title:
+                raise ValueError("work item title is required")
+            dependencies = [
+                _validated_id(item, field="depends_on")
+                for item in (raw.get("depends_on") or [])
+            ]
+            agent_binding = self._validate_project_agent_binding(
+                assigned_agent_id=raw.get("assigned_agent_id"),
+                agent_manifest_revision=raw.get("agent_manifest_revision"),
+                canonical_snapshot_id=raw.get("canonical_snapshot_id"),
+                contract_hash=raw.get("effective_contract_hash"),
+            )
+            normalized.append(
+                {
+                    "work_item_id": work_item_id,
+                    "job_id": job_id,
+                    "kind": kind,
+                    "title": title,
+                    "depends_on": dependencies,
+                    **agent_binding,
+                }
+            )
+            batch_ids.add(work_item_id)
+
+        def validate(projection: dict[str, Any]) -> None:
+            if projection["task"]["status"] in {"completed", "failed", "cancelled"}:
+                raise InvalidTransition("reopen the Task before adding WorkItems")
+            available = set(projection["work_items"])
+            for item in normalized:
+                if item["job_id"] not in projection["jobs"]:
+                    raise EntityNotFound(
+                        f"job {item['job_id']!r} does not exist"
+                    )
+                if item["work_item_id"] in available:
+                    raise EntityAlreadyExists(
+                        f"work item {item['work_item_id']!r} already exists"
+                    )
+                missing = set(item["depends_on"]) - available
+                if missing:
+                    raise EntityNotFound(
+                        "work item dependencies do not exist: "
+                        f"{', '.join(sorted(missing))}"
+                    )
+                available.add(item["work_item_id"])
+
+        self._append_event(
+            task_id=task_id,
+            event_type="WORK_ITEMS_CREATED",
+            entity_type="work_item_batch",
+            entity_id=batch_id,
+            idempotency_key=idempotency_key,
+            payload={"items": normalized},
+            validate_projection=validate,
+        )
+        return self.rebuild_task(task_id)
+
     def _validate_project_agent_binding(
         self,
         *,
@@ -2159,47 +2245,71 @@ class TaskRuntime:
                 task["input_classification_attempt_id"] = attempt_id
                 task["updated_at"] = event["recorded_at"]
                 continue
-            if event["event_type"] == "WORK_ITEM_CREATED":
+            if event["event_type"] in {"WORK_ITEM_CREATED", "WORK_ITEMS_CREATED"}:
                 if task is None:
                     raise LedgerIntegrityError("work item precedes TASK_CREATED")
-                work_item_id = _validated_id(event["entity_id"], field="work_item_id")
-                job_id = _validated_id(event["payload"].get("job_id"), field="job_id")
-                if job_id not in jobs:
-                    raise LedgerIntegrityError(f"work item references missing job: {job_id}")
-                if work_item_id in work_items:
-                    raise LedgerIntegrityError(f"duplicate work item: {work_item_id}")
-                dependencies = list(event["payload"].get("depends_on") or [])
-                if any(item not in work_items for item in dependencies):
-                    raise LedgerIntegrityError("work item references missing dependency")
-                work_items[work_item_id] = {
-                    "work_item_id": work_item_id,
-                    "job_id": job_id,
-                    "kind": event["payload"]["kind"],
-                    "title": event["payload"]["title"],
-                    "depends_on": dependencies,
-                    "status": (
-                        "ready"
-                        if not dependencies
-                        or all(
-                            work_items[dependency]["status"] == "accepted"
-                            for dependency in dependencies
+                entries = (
+                    event["payload"].get("items")
+                    if event["event_type"] == "WORK_ITEMS_CREATED"
+                    else [
+                        {
+                            "work_item_id": event["entity_id"],
+                            **event["payload"],
+                        }
+                    ]
+                )
+                if not isinstance(entries, list) or not entries:
+                    raise LedgerIntegrityError("work item batch is empty or malformed")
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        raise LedgerIntegrityError("work item entry is malformed")
+                    work_item_id = _validated_id(
+                        entry.get("work_item_id"),
+                        field="work_item_id",
+                    )
+                    job_id = _validated_id(entry.get("job_id"), field="job_id")
+                    if job_id not in jobs:
+                        raise LedgerIntegrityError(
+                            f"work item references missing job: {job_id}"
                         )
-                        else "pending"
-                    ),
-                    "active_attempt_id": None,
-                    "created_at": event["recorded_at"],
-                    "updated_at": event["recorded_at"],
-                }
-                for binding_field in (
-                    "assigned_agent_id",
-                    "agent_manifest_revision",
-                    "canonical_snapshot_id",
-                    "effective_contract_hash",
-                ):
-                    if event["payload"].get(binding_field) is not None:
-                        work_items[work_item_id][binding_field] = event["payload"][
-                            binding_field
-                        ]
+                    if work_item_id in work_items:
+                        raise LedgerIntegrityError(
+                            f"duplicate work item: {work_item_id}"
+                        )
+                    dependencies = list(entry.get("depends_on") or [])
+                    if any(item not in work_items for item in dependencies):
+                        raise LedgerIntegrityError(
+                            "work item references missing dependency"
+                        )
+                    work_items[work_item_id] = {
+                        "work_item_id": work_item_id,
+                        "job_id": job_id,
+                        "kind": entry["kind"],
+                        "title": entry["title"],
+                        "depends_on": dependencies,
+                        "status": (
+                            "ready"
+                            if not dependencies
+                            or all(
+                                work_items[dependency]["status"] == "accepted"
+                                for dependency in dependencies
+                            )
+                            else "pending"
+                        ),
+                        "active_attempt_id": None,
+                        "created_at": event["recorded_at"],
+                        "updated_at": event["recorded_at"],
+                    }
+                    for binding_field in (
+                        "assigned_agent_id",
+                        "agent_manifest_revision",
+                        "canonical_snapshot_id",
+                        "effective_contract_hash",
+                    ):
+                        if entry.get(binding_field) is not None:
+                            work_items[work_item_id][binding_field] = entry[
+                                binding_field
+                            ]
                 continue
             if event["event_type"] == "JOB_CREATED":
                 if task is None:

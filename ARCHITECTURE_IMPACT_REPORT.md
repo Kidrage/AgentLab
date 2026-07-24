@@ -175,7 +175,8 @@ The assigned project agent resolves to an existing `runtime_role`. The existing
 RoleAttemptExecutor remains responsible for worker execution. Expert
 consultations are ordinary WorkItems and produce snapshot-bound advisory
 artifacts. `ExpertCollaborationScheduler` materializes the registered,
-topologically validated expert DAG as Runtime v2 WorkItems. At execution time
+topologically validated expert DAG as one atomic Runtime v2 event. A conflict
+therefore creates none of the batch's WorkItems. At execution time
 the RoleAttemptExecutor revalidates the current snapshot, manifest revision,
 active status, runtime role, and effective contract hash. The Agent manifest's
 `model_profile` then selects the configured full, performance, or low model

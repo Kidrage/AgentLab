@@ -200,6 +200,26 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         "RUNTIME_V2_SOURCE"
     )
 
+    idempotent_executor = RoleAttemptExecutor(
+        tmp_path,
+        project="Demo",
+        cli_runner=fake_cli,
+    )
+
+    def reject_new_profile_resolution(*args, **kwargs):
+        raise AssertionError("successful Attempt retry must not resolve a new route")
+
+    idempotent_executor._resolve_bound_profile = reject_new_profile_resolution
+    idempotent = idempotent_executor.execute(
+        task_id="task-role",
+        work_item_id="writer",
+        attempt_id="writer-attempt-001",
+        role="Writer",
+        messages=[{"role": "user", "content": "Return the immutable receipt."}],
+        idempotency_key="writer-attempt-001",
+    )
+    assert idempotent["receipt_path"] == result["receipt_path"]
+
     def mismatched_cli(*args, **kwargs):
         bad_result = fake_cli(*args, **kwargs)
         bad_result.raw_usage["cli_runtime_provider"] = "unexpected-provider"
@@ -292,7 +312,13 @@ def test_bound_agent_model_profile_selects_runtime_tier_and_replacement(
                 "tier_policy": {
                     "default_tier": "performance",
                     "tiers": {
-                        "full": {"budget_aliases": ["max_quality", "full"]},
+                        "full": {
+                            "budget_aliases": [
+                                "max_quality",
+                                "full",
+                                "high_reasoning",
+                            ]
+                        },
                         "performance": {
                             "budget_aliases": ["balanced", "performance"]
                         },

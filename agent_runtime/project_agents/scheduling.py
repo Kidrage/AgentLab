@@ -31,46 +31,46 @@ class ExpertCollaborationScheduler:
         key_prefix = str(idempotency_prefix).strip()
         if not key_prefix:
             raise ValueError("idempotency_prefix is required")
-        current = registry.truth.current()
-        manifests = {manifest.id: manifest for manifest in registry.list()}
-        plan = self.planner.plan(
-            domain,
-            available_agent_ids=manifests,
-        )
-
-        seen: set[str] = set()
-        for node in plan.nodes:
-            manifest = manifests.get(node.agent_id)
-            if manifest is None:
-                raise ValueError(
-                    f"collaboration agent is not registered: {node.agent_id}"
-                )
-            AgentContract(manifest).assert_active()
-            missing = set(node.depends_on) - seen
-            if missing:
-                raise ValueError(
-                    "collaboration plan is not topologically ordered: "
-                    f"{', '.join(sorted(missing))}"
-                )
-            seen.add(node.id)
-
-        projection = runtime.load_task(task_id)
-        for node in plan.nodes:
-            manifest = manifests[node.agent_id]
-            projection = runtime.create_work_item(
-                task_id,
-                job_id=job_id,
-                work_item_id=node.id,
-                kind=node.kind,
-                title=f"{manifest.name}: {node.kind}",
-                depends_on=list(node.depends_on),
-                assigned_agent_id=manifest.id,
-                agent_manifest_revision=manifest.manifest_revision,
-                canonical_snapshot_id=current.snapshot_id,
-                effective_contract_hash=effective_contract_hash(manifest),
-                idempotency_key=(
-                    f"{key_prefix[:80]}-{node.id}-"
-                    f"r{manifest.manifest_revision}"
-                ),
+        with registry.truth.current_snapshot_lease() as current:
+            manifests = {manifest.id: manifest for manifest in registry.list()}
+            plan = self.planner.plan(
+                domain,
+                available_agent_ids=manifests,
             )
-        return projection
+
+            seen: set[str] = set()
+            items: list[dict] = []
+            for node in plan.nodes:
+                manifest = manifests.get(node.agent_id)
+                if manifest is None:
+                    raise ValueError(
+                        f"collaboration agent is not registered: {node.agent_id}"
+                    )
+                AgentContract(manifest).assert_active()
+                missing = set(node.depends_on) - seen
+                if missing:
+                    raise ValueError(
+                        "collaboration plan is not topologically ordered: "
+                        f"{', '.join(sorted(missing))}"
+                    )
+                items.append(
+                    {
+                        "job_id": job_id,
+                        "work_item_id": node.id,
+                        "kind": node.kind,
+                        "title": f"{manifest.name}: {node.kind}",
+                        "depends_on": list(node.depends_on),
+                        "assigned_agent_id": manifest.id,
+                        "agent_manifest_revision": manifest.manifest_revision,
+                        "canonical_snapshot_id": current.snapshot_id,
+                        "effective_contract_hash": effective_contract_hash(manifest),
+                    }
+                )
+                seen.add(node.id)
+
+            return runtime.create_work_items(
+                task_id,
+                batch_id=f"collaboration-{domain}",
+                items=items,
+                idempotency_key=f"{key_prefix[:80]}-collaboration",
+            )

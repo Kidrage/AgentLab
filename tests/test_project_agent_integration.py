@@ -20,7 +20,7 @@ from agent_runtime.project_agents import (
 )
 from agent_runtime.project_ops.project_router import init_project
 from agent_runtime.project_truth import ChangeSet, FactChange, ProjectTruthStore
-from agent_runtime.task_runtime_v2 import TaskRuntime
+from agent_runtime.task_runtime_v2 import EntityAlreadyExists, TaskRuntime
 
 
 def _manifest() -> AgentManifest:
@@ -248,6 +248,41 @@ def test_collaboration_scheduler_materializes_snapshot_bound_runtime_work_items(
         for item in projection["work_items"].values()
     )
     assert retried == projection
+
+    runtime.create_task(
+        task_id="collision",
+        title="Reject a partial collaboration DAG",
+        user_goal="Prove collaboration materialization is atomic.",
+        idempotency_key="create-collision",
+    )
+    writer_manifest = registry.get("writer")
+    runtime.create_work_item(
+        "collision",
+        job_id="job-main",
+        work_item_id="writer",
+        kind="preexisting",
+        title="Preexisting writer item",
+        idempotency_key="preexisting-writer",
+        assigned_agent_id="writer",
+        agent_manifest_revision=writer_manifest.manifest_revision,
+        canonical_snapshot_id=created.snapshot_id,
+        effective_contract_hash=effective_contract_hash(writer_manifest),
+    )
+    before_collision = runtime.load_task("collision")
+    with pytest.raises(EntityAlreadyExists, match="writer"):
+        ExpertCollaborationScheduler().materialize(
+            runtime,
+            registry,
+            task_id="collision",
+            domain="narrative",
+            idempotency_prefix="collision-collaboration",
+        )
+    after_collision = runtime.load_task("collision")
+    assert set(after_collision["work_items"]) == {"writer"}
+    assert (
+        after_collision["last_event_sequence"]
+        == before_collision["last_event_sequence"]
+    )
 
 
 def test_enforced_truth_indexes_only_current_snapshot_as_project_authority(

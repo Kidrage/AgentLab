@@ -110,6 +110,12 @@ class ProjectTruthStore:
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
+    @contextmanager
+    def current_snapshot_lease(self) -> Iterator[CanonicalSnapshot]:
+        """Hold the canonical write lock while consuming one current snapshot."""
+        with self._lock():
+            yield self.current()
+
     def initialize(self, project_id: str) -> ProjectTruthPointer:
         """Create the initial empty snapshot, or return the existing pointer."""
         self._validate_identifier(project_id, "project_id")

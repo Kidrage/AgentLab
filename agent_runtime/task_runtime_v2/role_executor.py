@@ -86,6 +86,19 @@ class RoleAttemptExecutor:
         work_item = projection["work_items"].get(work_item_id)
         if work_item is None:
             raise EntityNotFound(f"work item {work_item_id!r} does not exist")
+        attempt = projection["attempts"].get(attempt_id)
+        attempt_root = self.runtime.tasks_root / task_id / "attempt_logs" / attempt_id
+        output_path = attempt_root / "output.md"
+        receipt_path = attempt_root / "attempt_receipt.yml"
+        if attempt is not None:
+            if attempt.get("status") != "succeeded" or not receipt_path.is_file():
+                raise InvalidTransition(f"Attempt {attempt_id!r} already exists")
+            self.runtime.verify_attempt_execution_receipt(task_id, attempt_id)
+            return {
+                "projection": projection,
+                "output_path": str(output_path),
+                "receipt_path": str(receipt_path),
+            }
         classification = projection["task"].get("input_classification") or {}
         role_name = canonical_role_name(role)
         profile, provider, agent_model_profile = self._resolve_bound_profile(
@@ -109,20 +122,6 @@ class RoleAttemptExecutor:
                     "only Supervisor may execute before input classification"
                 )
             execution_contract["purpose"] = "input_classification"
-
-        attempt = projection["attempts"].get(attempt_id)
-        attempt_root = self.runtime.tasks_root / task_id / "attempt_logs" / attempt_id
-        output_path = attempt_root / "output.md"
-        receipt_path = attempt_root / "attempt_receipt.yml"
-        if attempt is not None:
-            if attempt.get("status") != "succeeded" or not receipt_path.is_file():
-                raise InvalidTransition(f"Attempt {attempt_id!r} already exists")
-            self.runtime.verify_attempt_execution_receipt(task_id, attempt_id)
-            return {
-                "projection": projection,
-                "output_path": str(output_path),
-                "receipt_path": str(receipt_path),
-            }
 
         self.runtime.schedule_attempt(
             task_id,
@@ -306,8 +305,6 @@ class RoleAttemptExecutor:
         tier_policy = profiles.get("tier_policy") or {}
         tier_definitions = tier_policy.get("tiers") or {}
         requested = str(model_profile or "").strip().lower()
-        if requested == "high_reasoning":
-            requested = "full"
         tier = str(tier_policy.get("default_tier") or "performance")
         if requested:
             matched = next(

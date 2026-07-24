@@ -179,7 +179,8 @@ Materialize an approved DAG as ordinary, dependency-linked Runtime v2 WorkItems:
 
 Each generated WorkItem is bound to the current canonical snapshot, Agent
 manifest revision, and effective contract hash. The command validates the full
-DAG before writing any WorkItem.
+DAG before atomically appending one batch event; a conflict writes no WorkItem
+from the batch.
 
 `workspace.isolation: required` currently means a logical, symlink-safe project
 boundary with governed writes and leases. Moving runtime project roots
