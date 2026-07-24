@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 import sys
@@ -95,11 +96,15 @@ def test_explicit_push_refuses_to_overwrite_remote_only_change(tmp_path: Path) -
     receipt = {"state": {"projects": {"projects/AgentLab": "a", "projects/Crown_of_Ash": "a"}}}
     local = {
         "code_commit": "c1",
+        "project_inventory": ["AgentLab", "Crown_of_Ash"],
+        "forbidden_project_paths": [],
         "projects": {"projects/AgentLab": "a", "projects/Crown_of_Ash": "a"},
         "knowledge_marker": "k1",
     }
     remote = {
         "code_commit": "c1",
+        "project_inventory": ["AgentLab", "Crown_of_Ash"],
+        "forbidden_project_paths": [],
         "projects": {"projects/AgentLab": "b", "projects/Crown_of_Ash": "a"},
         "knowledge_marker": "k2",
     }
@@ -197,6 +202,38 @@ def test_plan_cas_rejects_local_drift(
         cws._assert_plan_current(tmp_path, profile, plan)
 
 
+def test_build_plan_rejects_a_third_project(tmp_path: Path) -> None:
+    _write_config(tmp_path)
+    profile = load_profile(tmp_path)
+    state = {
+        "code_commit": "c1",
+        "project_inventory": ["AgentLab", "Crown_of_Ash", "OldProject"],
+        "forbidden_project_paths": [],
+        "projects": {"projects/AgentLab": "a", "projects/Crown_of_Ash": "b"},
+        "knowledge_marker": "k",
+    }
+    with pytest.raises(SyncError, match="exactly the configured projects"):
+        build_plan(tmp_path, profile, state, state, None, "auto")
+
+
+def test_activate_launch_agent_bootstraps_and_kickstarts(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **_kwargs: object) -> object:
+        calls.append(command)
+        return type(
+            "Result",
+            (),
+            {"returncode": 1 if len(calls) == 1 else 0, "stdout": "", "stderr": ""},
+        )()
+
+    cws.activate_launch_agent(tmp_path / "sync.plist", runner=runner)
+
+    assert calls[0][:2] == ["launchctl", "print"]
+    assert calls[1][:2] == ["launchctl", "bootstrap"]
+    assert calls[2][:3] == ["launchctl", "kickstart", "-k"]
+
+
 def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -223,6 +260,11 @@ def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
     monkeypatch.setattr(cws, "_assert_plan_current", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         cws,
+        "remote_execution_lock",
+        lambda *_args, **_kwargs: contextlib.nullcontext(),
+    )
+    monkeypatch.setattr(
+        cws,
         "deploy_remote_code",
         lambda *_args, **_kwargs: {"head": "c2"},
     )
@@ -236,6 +278,8 @@ def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
         "local_state",
         lambda *_args, **_kwargs: {
             "code_commit": "c2",
+            "project_inventory": ["AgentLab", "Crown_of_Ash"],
+            "forbidden_project_paths": [],
             "projects": projects,
             "knowledge_marker": "k2",
         },
@@ -245,6 +289,8 @@ def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
         "remote_state",
         lambda *_args, **_kwargs: {
             "code_commit": "c2",
+            "project_inventory": ["AgentLab", "Crown_of_Ash"],
+            "forbidden_project_paths": [],
             "projects": projects,
             "knowledge_marker": "k2",
         },
