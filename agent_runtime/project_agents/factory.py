@@ -47,21 +47,74 @@ _TEAMS: dict[str, tuple[tuple[str, str, str, tuple[str, ...]], ...]] = {
     ),
 }
 
+_NARRATIVE_SPECIALISTS = (
+    (
+        "mystery_keeper",
+        "Mystery Keeper",
+        "mystery_keeper",
+        ("mystery.*",),
+        ("mystery", "suspense", "secret", "谜团", "悬念", "秘密", "信息差"),
+    ),
+    (
+        "style_guardian",
+        "Style Guardian",
+        "style_guardian",
+        ("style.*",),
+        (
+            "style",
+            "aesthetic",
+            "atmosphere",
+            "adult",
+            "sensual",
+            "风格",
+            "美学",
+            "氛围",
+            "成人",
+            "感官",
+        ),
+    ),
+)
+
 
 class ProjectAgentFactory:
     """Select a trusted generic team template without invoking a model."""
 
     def propose(self, prompt: str, *, project_id: str) -> AgentTeamProposal:
         domain = self._classify(prompt)
+        templates = list(_TEAMS[domain])
+        specialist_ids: list[str] = []
+        if domain == "narrative":
+            text = prompt.casefold()
+            insert_at = next(
+                index
+                for index, template in enumerate(templates)
+                if template[0] == "writer"
+            )
+            for agent_id, name, role, write_scope, keywords in (
+                _NARRATIVE_SPECIALISTS
+            ):
+                if any(keyword in text for keyword in keywords):
+                    templates.insert(
+                        insert_at,
+                        (agent_id, name, role, write_scope),
+                    )
+                    specialist_ids.append(agent_id)
+                    insert_at += 1
         manifests = tuple(
-            self._manifest(project_id, *template) for template in _TEAMS[domain]
+            self._manifest(project_id, *template) for template in templates
         )
+        rationale = f"Matched trusted {domain} project organization template."
+        if specialist_ids:
+            rationale = (
+                f"{rationale} Added prompt-requested specialists: "
+                f"{', '.join(specialist_ids)}."
+            )
         return AgentTeamProposal(
             project_id=project_id,
             manifests=manifests,
             source="factory",
             requires_approval=True,
-            rationale=f"Matched trusted {domain} project organization template.",
+            rationale=rationale,
         )
 
     def create_team(

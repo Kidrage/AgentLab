@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -69,7 +70,12 @@ _PLANS = {
 
 
 class ExpertCollaborationPlanner:
-    def plan(self, domain: str) -> CollaborationPlan:
+    def plan(
+        self,
+        domain: str,
+        *,
+        available_agent_ids: Iterable[str] | None = None,
+    ) -> CollaborationPlan:
         normalized = domain.casefold()
         if normalized in {"code", "coding", "software", "code_engineering"}:
             normalized = "software"
@@ -77,4 +83,38 @@ class ExpertCollaborationPlanner:
             normalized = "narrative"
         elif normalized not in _PLANS:
             normalized = "generic"
-        return CollaborationPlan(domain=normalized, nodes=_PLANS[normalized])
+        nodes = list(_PLANS[normalized])
+        if normalized == "narrative" and available_agent_ids is not None:
+            available = set(available_agent_ids)
+            specialist_nodes = tuple(
+                node
+                for node in (
+                    CollaborationNode(
+                        "mystery-check",
+                        "mystery_keeper",
+                        "expert-check",
+                    ),
+                    CollaborationNode(
+                        "style-check",
+                        "style_guardian",
+                        "expert-check",
+                    ),
+                )
+                if node.agent_id in available
+            )
+            if specialist_nodes:
+                writer_index = next(
+                    index
+                    for index, node in enumerate(nodes)
+                    if node.id == "writer"
+                )
+                writer = nodes[writer_index]
+                nodes[writer_index:writer_index] = specialist_nodes
+                nodes[writer_index + len(specialist_nodes)] = CollaborationNode(
+                    writer.id,
+                    writer.agent_id,
+                    writer.kind,
+                    writer.depends_on
+                    + tuple(node.id for node in specialist_nodes),
+                )
+        return CollaborationPlan(domain=normalized, nodes=tuple(nodes))

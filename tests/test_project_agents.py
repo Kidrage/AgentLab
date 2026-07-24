@@ -246,3 +246,17 @@ def test_factory_can_atomically_register_its_trusted_team(tmp_path: Path) -> Non
     assert len(
         registry.truth.resource_history("agents.manifest.architecture")
     ) == 1
+
+
+def test_factory_adds_prompt_requested_narrative_specialists() -> None:
+    proposal = ProjectAgentFactory().propose(
+        "创作成人黑暗幻想小说，需要谜团悬念控制与成熟感官美学",
+        project_id="adult_narrative",
+    )
+
+    by_id = {manifest.id: manifest for manifest in proposal.manifests}
+
+    assert {"mystery_keeper", "style_guardian"} <= set(by_id)
+    assert by_id["mystery_keeper"].write_scope == ("mystery.*",)
+    assert by_id["style_guardian"].write_scope == ("style.*",)
+    assert "prompt-requested specialists" in proposal.rationale

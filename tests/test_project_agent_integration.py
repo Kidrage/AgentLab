@@ -142,6 +142,36 @@ def test_expert_collaboration_is_a_domain_dag_not_a_reviewer_monolith() -> None:
     }
 
 
+def test_narrative_collaboration_includes_registered_specialists_before_writer() -> None:
+    narrative = ExpertCollaborationPlanner().plan(
+        "narrative",
+        available_agent_ids={
+            "world",
+            "character",
+            "timeline",
+            "foreshadow",
+            "mystery_keeper",
+            "style_guardian",
+            "writer",
+            "checker",
+            "reviewer",
+        },
+    )
+    by_id = {node.id: node for node in narrative.nodes}
+
+    assert by_id["mystery-check"].agent_id == "mystery_keeper"
+    assert by_id["style-check"].agent_id == "style_guardian"
+    assert by_id["writer"].depends_on == (
+        "world-check",
+        "character-check",
+        "timeline-check",
+        "foreshadow-check",
+        "mystery-check",
+        "style-check",
+    )
+    assert by_id["reviewer"].depends_on == ("checker",)
+
+
 def test_enforced_truth_indexes_only_current_snapshot_as_project_authority(
     tmp_path: Path,
 ) -> None:
