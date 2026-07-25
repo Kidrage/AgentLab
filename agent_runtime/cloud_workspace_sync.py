@@ -442,6 +442,16 @@ def build_plan(
         if local.get("code_commit") == remote.get("code_commit")
         else "deploy_remote_from_github"
     )
+    receipt_state = (receipt or {}).get("state") or {}
+    no_op = bool(
+        receipt
+        and code_action == "synced"
+        and project_action == "synced"
+        and receipt_state.get("code_commit") == local.get("code_commit")
+        and receipt_state.get("projects") == local.get("projects")
+        and receipt_state.get("local_knowledge_marker") == local.get("knowledge_marker")
+        and receipt_state.get("remote_knowledge_marker") == remote.get("knowledge_marker")
+    )
     return {
         "schema_version": 1,
         "profile": profile.name,
@@ -449,6 +459,8 @@ def build_plan(
         "requested_direction": requested_direction,
         "code_action": code_action,
         "project_action": project_action,
+        "no_op": no_op,
+        "current_receipt": dict(receipt) if no_op and receipt else None,
         "local": dict(local),
         "remote": dict(remote),
         "receipt_present": receipt is not None,
@@ -993,6 +1005,8 @@ def execute_plan(
         with remote_execution_lock(profile, lock_token, runner=runner):
             _validate_local_git_clean(root, profile)
             _assert_plan_current(root, profile, plan, runner=runner)
+            if plan.get("no_op"):
+                return dict(plan["current_receipt"])
             sync_id = "sync_" + _sha256_bytes(
                 json.dumps(
                     {

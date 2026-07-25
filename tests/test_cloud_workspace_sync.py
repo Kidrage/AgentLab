@@ -218,6 +218,37 @@ def test_build_plan_rejects_a_third_project(tmp_path: Path) -> None:
         build_plan(tmp_path, profile, state, state, None, "auto")
 
 
+def test_build_plan_marks_an_unchanged_shared_receipt_as_no_op(tmp_path: Path) -> None:
+    _write_config(tmp_path)
+    profile = load_profile(tmp_path)
+    local = {
+        "code_commit": "c1",
+        "project_inventory": ["AgentLab", "Crown_of_Ash"],
+        "forbidden_project_paths": [],
+        "projects": {"projects/AgentLab": "a", "projects/Crown_of_Ash": "b"},
+        "knowledge_marker": "local-k",
+    }
+    remote = {
+        **local,
+        "git_status": [],
+        "knowledge_marker": "remote-k",
+    }
+    receipt = {
+        "sync_id": "sync_existing",
+        "state": {
+            "code_commit": "c1",
+            "projects": local["projects"],
+            "local_knowledge_marker": "local-k",
+            "remote_knowledge_marker": "remote-k",
+        },
+    }
+
+    plan = build_plan(tmp_path, profile, local, remote, receipt, "auto")
+
+    assert plan["no_op"] is True
+    assert plan["current_receipt"] == receipt
+
+
 def test_activate_launch_agent_bootstraps_and_kickstarts(tmp_path: Path) -> None:
     calls: list[list[str]] = []
 
