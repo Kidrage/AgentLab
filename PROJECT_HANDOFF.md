@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-28T16:29:01.439306+00:00`
+- Generated at: `2026-07-28T16:54:38.903696+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `22eb2a4`
+- HEAD: `c9fdf35`
 - Indexed paths: 2023
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,8 +88,8 @@
 
 ### Categories
 
-- code: 1035 files, 10108525 bytes
-- literature: 424 files, 2420514 bytes
+- code: 1035 files, 10102439 bytes
+- literature: 424 files, 2421332 bytes
 - other: 12 files, 74102 bytes
 - structured_data: 552 files, 3275768 bytes
 
@@ -230,6 +230,9 @@
 
 ## Change History
 
+- `c9fdf35 2026-07-29 test: align full-cli worker identities`
+- `8277b01 2026-07-29 fix: block retired agent modes before provider dispatch`
+- `15d833b 2026-07-29 config: retire non-full-cli agent modes`
 - `22eb2a4 2026-07-28 fix: forbid hermes internal fallback drift`
 - `b9c43b4 2026-07-28 fix: bind alter hermes profile and artifact worker`
 - `ea11160 2026-07-28 config: route alter grok roles through hermes`
@@ -247,38 +250,10 @@
 - `b615e45 2026-07-25 feat: harden project agents and canonical narrative truth`
 - `79390b3 2026-07-24 feat: converge project governance and runtime evidence`
 - `90916a0 2026-07-24 fix(task-runtime): make task list v2-only by default`
-- `5c1f9e7 2026-07-24 test(cli): cover agy proxy inheritance defaults and preflight reporting`
-- `f45bef0 2026-07-24 chore: log proxy inheritance status for runtime worker env`
-- `2724894 2026-07-24 fix(cli): keep agy auth_mode while retaining proxy diagnostics`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 17]`
-- ` M DRIVER_PROTOCOL.md`
-- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/agent_role_chain_audit.py`
-- ` M agent_runtime/agent_runner.py`
-- ` M agent_runtime/capability_acceptance.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/frontdesk_boundary_audit.py`
-- ` M agent_runtime/protocols/artifact_task.py`
-- ` M agent_runtime/run_task.py`
-- ` M agent_runtime/schemas.py`
-- ` M config/README.md`
-- ` M config/agent_model_profiles.yml`
-- ` M config/artifact_task_policy.yml`
-- ` M config/cli_workflow_shells.yml`
-- ` M config/execution_modes.yml`
-- ` M config/model_providers.yml`
-- ` M docs/CCS_CLAUDE_CODE_SWITCH.md`
-- ` M docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
-- ` M docs/CLI_BINARY_ALIASES.md`
-- ` M scripts/check_cli_schema_v4_routing.py`
-- ` M tests/test_agent_runner_cli_integration.py`
-- ` M tests/test_artifact_task_runtime_inputs.py`
-- ` M tests/test_cli_agent_profile_safety.py`
-- ` M tests/test_execution_config_consolidation.py`
-- ` M tests/test_workflow_plan_routing.py`
+- `## agentlab/unified-stable...origin/main [ahead 20]`
 - `?? tmp_debug/`
 
 ## Related Repositories
