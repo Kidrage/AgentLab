@@ -55,6 +55,91 @@ contracts:
       on_binary_missing: stop_and_report
       on_invalid_invocation: stop_and_report
 
+  hermes_alter_high:
+    worker_id: hermes
+    display_name: Hermes Alter Grok 4.5 High
+    command: hermes
+    invocation_style: governed_profile_task_packet
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_profile: agentlabalter
+    required_receipts:
+      - role_session_receipt.yml
+      - changed_files_or_findings.yml
+      - validation_evidence.yml
+    template: >-
+      hermes -p agentlabalter chat -Q --provider {provider} -m {model_id}
+      --ignore-rules --max-turns 90 -q "You are an AgentLab CLI executor.
+      Read the JSON task packet at {task_packet_path}, perform only the assigned
+      AgentLab role work, and return a concise markdown report with findings,
+      actions taken, verification, and blockers."
+    required_placeholders: [task_packet_path, provider, model_id]
+    required_shell_state:
+      model.provider: xai-oauth
+      model.default: grok-4.5
+      agent.reasoning_effort: high
+    requested_reasoning_label: high
+    resolved_reasoning_effort: high
+    reasoning_resolution_note: >-
+      The classic chat path loads the isolated agentlabalter profile so Grok 4.5
+      receives high reasoning. Hermes one-shot mode does not bind profile
+      reasoning state and is therefore not used by Alter roles.
+    safe_probe: [hermes, -p, agentlabalter, config, check]
+    expected_parse:
+      argv_prefix: [hermes, -p, agentlabalter, chat, -Q, --provider, xai-oauth, -m, grok-4.5]
+    validation:
+      shlex_parse_required: true
+      require_existing_binary: false
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
+      on_auth_required: capacity_manager
+
+  hermes_alter_artifact:
+    worker_id: hermes
+    display_name: Hermes Alter Grok 4.5 High Artifact Producer
+    command: hermes
+    invocation_style: governed_profile_artifact_task_packet
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_profile: agentlabalter
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+    template: >-
+      hermes -p agentlabalter chat -Q --provider {provider} -m {model_id}
+      --ignore-rules --max-turns 90 -q "Read the AgentLab ArtifactProducer task
+      packet at {task_packet_path}; create only the requested text, spreadsheet,
+      presentation, image, or video candidate artifacts. Use the registered
+      Hermes generation tools when media generation is requested. Return
+      artifact paths, sha256 receipts, parameters, validation notes, and any
+      auth or settings errors. Never approve the candidate's quality yourself;
+      Observer, Reviewer, and Verifier own downstream acceptance."
+    required_placeholders: [task_packet_path, provider, model_id]
+    required_shell_state:
+      model.provider: xai-oauth
+      model.default: grok-4.5
+      agent.reasoning_effort: high
+    requested_reasoning_label: high
+    resolved_reasoning_effort: high
+    safe_probe: [hermes, -p, agentlabalter, config, check]
+    expected_parse:
+      argv_prefix: [hermes, -p, agentlabalter, chat, -Q, --provider, xai-oauth, -m, grok-4.5]
+    validation:
+      shlex_parse_required: true
+      require_existing_binary: false
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
+      on_auth_required: capacity_manager
+
   hermes_supervisor:
     worker_id: hermes
     display_name: Legacy Hermes Supervisor (Codex OAuth, Non-Default)

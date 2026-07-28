@@ -217,6 +217,89 @@ def test_hermes_supervisor_rejects_trailing_command_overrides_before_provider(
     assert "supervisor_command_binding_mismatch" in preflight["issues"]
 
 
+def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _hermes_supervisor_preflight
+
+    hermes_home = tmp_path / "hermes-home"
+    profile_dir = hermes_home / "profiles" / "agentlabalter"
+    profile_dir.mkdir(parents=True)
+    config_path = profile_dir / "config.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.5"},
+                "agent": {"reasoning_effort": "high"},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_alter_high",
+        "default": "grok_4_5_hermes_oauth",
+        "capacity_route": "AlterCoder",
+    }
+    argv = [
+        "hermes",
+        "-p",
+        "agentlabalter",
+        "chat",
+        "-Q",
+        "--provider",
+        "xai-oauth",
+        "-m",
+        "grok-4.5",
+        "--ignore-rules",
+        "--max-turns",
+        "90",
+        "-q",
+        "Read the task packet.",
+    ]
+    model_values = {
+        "provider": "xai-oauth",
+        "model_id": "grok-4.5",
+        "model_key": "grok_4_5_hermes_oauth",
+    }
+
+    preflight = _hermes_supervisor_preflight(
+        role_profile,
+        Path(__file__).resolve().parents[1],
+        {"HERMES_HOME": str(hermes_home)},
+        argv,
+        model_values,
+        agent_name="Coder",
+    )
+    assert preflight["status"] == "pass"
+    assert preflight["role"] == "Coder"
+    assert preflight["observed_shell_state"]["agent.reasoning_effort"] == "high"
+    assert preflight["command_binding_verified"] is True
+
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.5"},
+                "agent": {"reasoning_effort": "medium"},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    drifted = _hermes_supervisor_preflight(
+        role_profile,
+        Path(__file__).resolve().parents[1],
+        {"HERMES_HOME": str(hermes_home)},
+        argv,
+        model_values,
+        agent_name="Coder",
+    )
+    assert drifted["status"] == "fail"
+    assert "profile_state_mismatch:agent.reasoning_effort" in drifted["issues"]
+
+
 def test_codex_supervisor_preflight_derives_model_binding_from_config(
     tmp_path: Path,
 ) -> None:
@@ -698,7 +781,7 @@ class TestResolveCliProfileSchemaV4:
         assert result["resolved_mode"] == "full_cli"
         assert result["resolved_tier"] == "alter"
         assert result["cli_agent"] == "hermes"
-        assert result["invocation_contract"] == "hermes"
+        assert result["invocation_contract"] == "hermes_alter_high"
         assert result["default"] == "grok_4_5_hermes_oauth"
         assert result["reasoning_effort"] == "high"
         assert result["capacity_route"] == "AlterSupervisor"

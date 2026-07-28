@@ -2442,7 +2442,7 @@ def _artifact_task_profile_for_plan(
             required_capabilities=required,
             preferred_provider=(
                 bound_provider
-                or ("grok_native" if requested_artifact_tier == "alter" else None)
+                or ("hermes_grok" if requested_artifact_tier == "alter" else None)
             ),
             provider_type=provider_type,
             output_format=output_format,

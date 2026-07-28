@@ -17,7 +17,7 @@ components:
     install_source: Hermes Agent upstream installer
     version_probe: hermes --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker hermes
-    live_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z "Return AGENTLAB_HERMES_GROK_SMOKE_OK only."
+    live_smoke: hermes -p agentlabalter chat -Q --provider xai-oauth -m grok-4.5 --ignore-rules --max-turns 1 -q "Return AGENTLAB_HERMES_GROK_SMOKE_OK only."
     capacity_probe: hermes auth status xai-oauth
     forbidden_probe: hermes status --all
     notes: General workflow/frontdesk shell and the alter-tier Grok 4.5 high-reasoning execution shell. The retained hermes_supervisor contract is legacy diagnostic evidence.

@@ -1,10 +1,10 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-07-28T12:27:16Z'
+generated_at: '2026-07-28T12:57:02Z'
 repository:
   root: .
-  head: 604b42c
+  head: ea11160
   worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
@@ -179,14 +179,14 @@ current_evidence:
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
-  sha256: 20809eadedfd9e786800c4c6c36b6d8fe31ca18ea3bd73401a0d16b4d7d35a2e
+  sha256: 6e3af7ad50a1d3a4cb8e584c144488b7e58d936e7b047bdba51252d0cef2e32f
 - path: config/agent_role_bindings.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 6e49324889412a888bfb63bbbbae3ce20d16c32f2f5e0e83652952a178a0549f
+  sha256: 75f1079ce39362fbb5f0f20cfb6850d5213843074808942cf01d23ce88ac6708
 - path: config/cli_workflow_shells.yml
   class: active
   capability_ids:
@@ -203,7 +203,7 @@ current_evidence:
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: aed5d3bb02ded7dfd1d3a52b532dafe51a4680d42aeccc804dfe89e34025c455
+  sha256: 11a9225728cb45517db91a6efe86dd8b2020b1d79502a53cfde3bf18bd2c3748
 - path: config/model_catalog.yml
   class: active
   capability_ids:
@@ -220,7 +220,7 @@ current_evidence:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 398ca5270ef52b4c3da7838a23d5f08bacd1fef972df0f3e223b286e5b3abb3a
+  sha256: 2567948746139d43c30b52cf6e281c060c77ef59b5f02b29eca42001c612c561
 - path: tests/test_core_package_imports.py
   class: active
   capability_ids:
@@ -234,7 +234,7 @@ current_evidence:
 current_evidence_count: 42
 historical_references: []
 historical_reference_count: 0
-aggregate_digest: e6ce40d40ae2f0005bd33db3c9a6cef6a1b27f06133f858a040c7a1ad890f068
+aggregate_digest: bcc61fad61fd159c1daf23ead44d227600ac747dc442887567c08a008f55aa54
 status: pass
 issues: []
 notes:

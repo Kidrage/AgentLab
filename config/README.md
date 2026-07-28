@@ -51,15 +51,9 @@ For agent backend mode switching:
 - Use `AGENTLAB_BUDGET_MODE=alter|max_quality|balanced|frugal` to select the
   `alter|full|performance|low` tier. A task line containing exactly `alter` or
   `budget_mode: alter` also selects it.
-- In `alter`, Supervisor, RepoScout, InterfaceMapper, Researcher,
-  PromptEngineer, Coder, ArtifactProducer, TesterAuditor, Verifier, and
-  Archivist use Hermes xAI OAuth with Grok 4.5 at `high`. Observer,
-  NarrativePlanner, Writer, Reviewer, VisualReviewer, and Scribe use Agy
-  Gemini 3.6.
-- The normal `alter` fallback is Claude Code + DeepSeek Pro/Flash. Observer and
-  VisualReviewer retain Agy Claude to preserve multimodal inputs, while
-  ArtifactProducer uses Codex medium because Claude Code is intentionally not
-  authorized to own artifact production.
+- Read the canonical `alter` role allocation from `agent_model_profiles.yml`
+  and its governed capacity/fallback routes from `model_capacity.yml`; this
+  overview intentionally does not duplicate that volatile matrix.
 - `trusted_headless_cli` is never default and requires its explicit env gate and human approval.
 
 General policy:

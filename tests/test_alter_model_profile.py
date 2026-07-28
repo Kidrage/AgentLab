@@ -74,13 +74,25 @@ def test_alter_tier_routes_grok_work_through_hermes_and_keeps_agy_primaries() ->
             "scribe",
         )
     }
-    assert {cfg["cli_agent"] for cfg in alter.values()} == {"hermes", "grok", "agy"}
+    assert {cfg["cli_agent"] for cfg in alter.values()} == {"hermes", "agy"}
 
-    assert alter["supervisor"]["invocation_contract"] == "hermes"
+    assert alter["supervisor"]["invocation_contract"] == "hermes_alter_high"
     for role, cfg in alter.items():
-        if cfg["cli_agent"] in {"hermes", "grok"}:
+        if cfg["cli_agent"] == "hermes":
             assert cfg["default"] == "grok_4_5_hermes_oauth", role
             assert cfg["reasoning_effort"] == "high", role
+
+    contracts = _yaml("config/worker_invocation_contracts.yml")["contracts"]
+    for contract_name in {"hermes_alter_high", "hermes_alter_artifact"}:
+        contract = contracts[contract_name]
+        assert contract["worker_id"] == "hermes"
+        assert contract["workflow_shell_profile"] == "agentlabalter"
+        assert contract["required_shell_state"] == {
+            "model.provider": "xai-oauth",
+            "model.default": "grok-4.5",
+            "agent.reasoning_effort": "high",
+        }
+        assert "hermes -p agentlabalter chat -Q" in contract["template"]
 
 
 def test_alter_capacity_routes_have_governed_deepseek_fallbacks() -> None:
@@ -108,10 +120,10 @@ def test_alter_capacity_routes_have_governed_deepseek_fallbacks() -> None:
             assert fallback["model_key"] in {"deepseek_v4_pro", "deepseek_v4_flash"}
 
 
-def test_alter_artifact_dispatch_uses_hermes_through_the_grok_media_boundary() -> None:
+def test_alter_artifact_dispatch_uses_the_hermes_grok_artifact_contract() -> None:
     policy = _yaml("config/artifact_task_policy.yml")
-    provider = policy["providers"]["grok_native"]
+    provider = policy["providers"]["hermes_grok"]
 
-    assert provider["worker"] == "grok"
-    assert provider["invocation_contract"] == "grok_media"
+    assert provider["worker"] == "hermes"
+    assert provider["invocation_contract"] == "hermes_alter_artifact"
     assert provider["capacity_routes"]["alter"] == "AlterArtifactProducer"

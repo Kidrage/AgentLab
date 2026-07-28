@@ -41,10 +41,10 @@ artifact_types:
     output_formats: [directory]
     required_capabilities: [produce_mixed_artifacts, write_artifact_file, validate_artifact_contract]
 providers:
-  grok_native:
-    worker: grok
+  hermes_grok:
+    worker: hermes
     provider_type: cli
-    invocation_contract: grok_media
+    invocation_contract: hermes_alter_artifact
     capacity_routes:
       alter: AlterArtifactProducer
     priority: 80

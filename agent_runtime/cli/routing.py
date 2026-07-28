@@ -185,7 +185,7 @@ def register_routing_commands(app: typer.Typer, project_root: ProjectRootProvide
                     normalized_type,
                     required_capabilities=extra_capabilities,
                     preferred_provider=(
-                        "grok_native"
+                        "hermes_grok"
                         if str(tier).strip().lower() in {"alter", "altered"}
                         else None
                     ),

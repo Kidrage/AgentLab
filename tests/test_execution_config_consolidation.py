@@ -677,7 +677,9 @@ def test_seedance_agent_plan_is_registered_as_task_only_artifact_backend() -> No
     assert "claude_ark" in bindings["roles"]["ArtifactProducer"]["allowed_workers"]
     assert bindings["workers"]["hermes_ark"]["allowed_roles"] == ["ArtifactProducer"]
     assert bindings["workers"]["claude_ark"]["allowed_roles"] == ["ArtifactProducer"]
-    assert "ArtifactProducer" not in bindings["workers"]["hermes"]["allowed_roles"]
+    assert "ArtifactProducer" in bindings["workers"]["hermes"]["allowed_roles"]
+    assert contracts["hermes_alter_artifact"]["worker_id"] == "hermes"
+    assert contracts["hermes_alter_artifact"]["workflow_shell_profile"] == "agentlabalter"
     assert "ArtifactProducer" not in bindings["workers"]["claude_code"]["allowed_roles"]
 
 

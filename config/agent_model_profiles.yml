@@ -225,7 +225,7 @@ modes:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterSupervisor
@@ -238,43 +238,43 @@ modes:
         reposcout:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterRepoScout
         interface_mapper:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterInterfaceMapper
         researcher:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterResearcher
         prompt_engineer:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterPromptEngineer
         coder:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           external_ide_allowed: true
           capacity_route: AlterCoder
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_media
+          cli_agent: hermes
+          invocation_contract: hermes_alter_artifact
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterArtifactProducer
@@ -287,21 +287,21 @@ modes:
         tester_auditor:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterTesterAuditor
         verifier:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterVerifier
         archivist:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes
+          invocation_contract: hermes_alter_high
           default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterArchivist

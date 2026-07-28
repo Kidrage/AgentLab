@@ -70,7 +70,7 @@ def _artifact_dispatch_summary(
         required = set((artifact_config or {}).get("required_capabilities") or [])
         eligible: list[tuple[int, str, dict[str, Any]]] = []
         for provider_id, provider_config in providers.items():
-            if capacity_tier == "alter" and provider_id != "grok_native":
+            if capacity_tier == "alter" and provider_id != "hermes_grok":
                 continue
             handles = set((provider_config or {}).get("handles") or [])
             capabilities = set(

@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-28T12:28:37.951515+00:00`
+- Generated at: `2026-07-28T12:57:21.908639+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `604b42c`
+- HEAD: `ea11160`
 - Indexed paths: 2023
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,10 +88,10 @@
 
 ### Categories
 
-- code: 1035 files, 10112019 bytes
-- literature: 424 files, 2421888 bytes
+- code: 1035 files, 10115987 bytes
+- literature: 424 files, 2422135 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 552 files, 3285702 bytes
+- structured_data: 552 files, 3289859 bytes
 
 ### Common Extensions
 
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `ea11160 2026-07-28 config: route alter grok roles through hermes`
 - `604b42c 2026-07-25 [codex] fix: suppress no-op sync receipts`
 - `57efca0 2026-07-25 [codex] fix: keep RAG rebuilds project-neutral`
 - `7fb95a3 2026-07-25 [codex] fix: bound cloud sync connections`
@@ -249,27 +250,27 @@
 - `2724894 2026-07-24 fix(cli): keep agy auth_mode while retaining proxy diagnostics`
 - `3bffea9 2026-07-24 Fix agy observer/visual reviewer network fallback and proxy defaults`
 - `d2708cb 2026-07-24 chore: consolidate archived capability outputs and clean stale runtime artifacts`
-- `898398d 2026-07-24 chore: consolidate crown narrative evidence into canonical dirs`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 14]`
-- ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
+- `## agentlab/unified-stable...origin/main [ahead 15]`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/cli/routing.py`
+- ` M agent_runtime/cli_executor.py`
 - ` M config/README.md`
 - ` M config/agent_model_profiles.yml`
 - ` M config/agent_role_bindings.yml`
 - ` M config/artifact_task_policy.yml`
 - ` M config/model_capacity.yml`
-- ` M config/model_catalog.yml`
-- ` M config/model_providers.yml`
 - ` M config/runtime_cli_requirements.yml`
+- ` M config/worker_invocation_contracts.yml`
 - ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
 - ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M scripts/generate_agent_cli_matrix.py`
 - ` M tests/test_alter_model_profile.py`
-- ` M tests/test_capability_acceptance.py`
 - ` M tests/test_cli_executor.py`
-- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_execution_config_consolidation.py`
 - `?? tmp_debug/`
 
 ## Related Repositories

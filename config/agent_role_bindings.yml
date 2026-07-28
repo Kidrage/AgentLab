@@ -41,7 +41,7 @@ roles:
     allowed_workers: [grok, claude_code, codex, aider, hermes]
     required_session: true
   ArtifactProducer:
-    allowed_workers: [grok, codex, qwen, hermes_ark, claude_ark]
+    allowed_workers: [grok, codex, qwen, hermes, hermes_ark, claude_ark]
     required_session: true
   NarrativePlanner:
     allowed_workers: [claude_code, agy]
@@ -112,10 +112,10 @@ workers:
   hermes:
     frontdesk_capable: true
     worker_capable: true
-    worker_capabilities: [frontdesk_gateway, role_worker, workflow_shell]
+    worker_capabilities: [frontdesk_gateway, candidate_artifact_worker, role_worker, workflow_shell]
     frontdesk_profiles: [internal_cli_gateway]
-    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
-    forbidden_roles: [Observer, ArtifactProducer, NarrativePlanner, Writer, Reviewer, Scribe]
+    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: [Observer, NarrativePlanner, Writer, Reviewer, Scribe]
   qwen:
     frontdesk_capable: true
     worker_capable: true

@@ -432,7 +432,7 @@ routes:
   AlterSupervisor:
     role: supervisor
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [SupervisorDeepSeek]
@@ -449,7 +449,7 @@ routes:
   AlterRepoScout:
     role: reposcout
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterRepoScoutDeepSeekPro]
@@ -465,7 +465,7 @@ routes:
   AlterInterfaceMapper:
     role: interface_mapper
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterInterfaceMapperDeepSeekPro]
@@ -481,7 +481,7 @@ routes:
   AlterResearcher:
     role: researcher
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterResearcherDeepSeekPro]
@@ -497,7 +497,7 @@ routes:
   AlterPromptEngineer:
     role: prompt_engineer
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterPromptEngineerDeepSeekFlash]
@@ -513,7 +513,7 @@ routes:
   AlterCoder:
     role: coder
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterCoderDeepSeekPro]
@@ -528,8 +528,8 @@ routes:
     fallback_on: []
   AlterArtifactProducer:
     role: artifact_producer
-    worker: grok
-    invocation_contract: grok_media
+    worker: hermes
+    invocation_contract: hermes_alter_artifact
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterArtifactProducerCodexMedium]
@@ -561,7 +561,7 @@ routes:
   AlterTesterAuditor:
     role: tester_auditor
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterTesterAuditorDeepSeekPro]
@@ -577,7 +577,7 @@ routes:
   AlterVerifier:
     role: verifier
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterVerifierDeepSeekFlash]
@@ -593,7 +593,7 @@ routes:
   AlterArchivist:
     role: archivist
     worker: hermes
-    invocation_contract: hermes
+    invocation_contract: hermes_alter_high
     model_key: grok_4_5_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterArchivistDeepSeekFlash]

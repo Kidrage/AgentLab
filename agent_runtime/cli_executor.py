@@ -2976,12 +2976,14 @@ def _hermes_supervisor_preflight(
     process_env: dict[str, str],
     argv: list[str],
     model_values: dict[str, str],
+    *,
+    agent_name: str = "Supervisor",
 ) -> dict[str, Any]:
-    """Verify the exact governed Supervisor request path before provider launch.
+    """Verify an exact governed Hermes profile request before provider launch.
 
     Native Codex is verified from its exact argv/model/reasoning binding. The
-    retained Hermes compatibility contract additionally verifies its isolated
-    profile state. Neither path calls a provider during preflight.
+    Hermes contracts additionally verify their isolated profile state. Neither
+    path calls a provider during preflight.
     """
     invocation_contract = str(role_profile.get("invocation_contract") or "")
     contract = _resolve_invocation_contract(role_profile, agentlab_root)
@@ -3039,6 +3041,7 @@ def _hermes_supervisor_preflight(
             "status": "pass" if not issues else "fail",
             "issues": sorted(set(issues)),
             "worker": "codex",
+            "role": agent_name,
             "invocation_contract": invocation_contract,
             "required_shell_state": {
                 "model.provider": expected_provider,
@@ -3064,7 +3067,12 @@ def _hermes_supervisor_preflight(
             "evidence_source": "runtime_verified_codex_argv",
         }
 
-    if invocation_contract != "hermes_supervisor":
+    hermes_profile_contracts = {
+        "hermes_supervisor": 6,
+        "hermes_alter_high": 90,
+        "hermes_alter_artifact": 90,
+    }
+    if invocation_contract not in hermes_profile_contracts:
         return {"applicable": False, "status": "not_applicable", "issues": []}
 
     profile_name = str(contract.get("workflow_shell_profile") or "").strip()
@@ -3121,7 +3129,7 @@ def _hermes_supervisor_preflight(
         expected_model,
         "--ignore-rules",
         "--max-turns",
-        "6",
+        str(hermes_profile_contracts[invocation_contract]),
         "-q",
     ]
     command_bound = (
@@ -3132,7 +3140,11 @@ def _hermes_supervisor_preflight(
         and bool(str(argv[-1]).strip())
     )
     if not command_bound:
-        issues.append("supervisor_command_binding_mismatch")
+        issues.append(
+            "supervisor_command_binding_mismatch"
+            if invocation_contract == "hermes_supervisor"
+            else "hermes_profile_command_binding_mismatch"
+        )
 
     return {
         "applicable": True,
@@ -3154,6 +3166,7 @@ def _hermes_supervisor_preflight(
         "selection_kind": role_profile.get("_runtime_capacity_selection_kind"),
         "provider_process_started": False,
         "worker": "hermes",
+        "role": agent_name,
         "invocation_contract": invocation_contract,
         "evidence_source": "runtime_verified_argv_and_hermes_profile",
     }
@@ -3178,7 +3191,7 @@ def _write_hermes_supervisor_model_receipt(
     receipt = {
         "schema_version": 1,
         "status": status,
-        "role": "Supervisor",
+        "role": preflight.get("role") or "Supervisor",
         "worker": preflight.get("worker") or "hermes",
         "invocation_contract": preflight.get("invocation_contract") or "hermes_supervisor",
         "requested_reasoning_label": preflight.get("requested_reasoning_label"),
@@ -3201,7 +3214,7 @@ def _write_hermes_supervisor_model_receipt(
     }
     return _persist_model_execution_receipt(
         run_dir,
-        "Supervisor",
+        str(preflight.get("role") or "Supervisor"),
         preflight,
         receipt,
     )
@@ -4472,13 +4485,16 @@ def run_cli_agent(
                 execution_cwd.chmod(0o500)
                 research_workspace_read_only = True
 
-        if agent_name == "Supervisor":
+        if agent_name == "Supervisor" or str(
+            role_profile.get("invocation_contract") or ""
+        ) in {"hermes_alter_high", "hermes_alter_artifact"}:
             hermes_preflight = _hermes_supervisor_preflight(
                 role_profile,
                 plan.agentlab_root,
                 process_env,
                 argv,
                 model_values,
+                agent_name=agent_name,
             )
         agy_preflight = _agy_oauth_preflight(
             role_profile,
@@ -4526,18 +4542,22 @@ def run_cli_agent(
                 provider="agentlab-protocol",
                 model=cli_agent_name,
                 content=(
-                    "# Supervisor model execution blocked\n\n"
-                    "The resolved Supervisor provider, model, reasoning effort, or "
+                    f"# {agent_name} model execution blocked\n\n"
+                    f"The resolved {agent_name} provider, model, reasoning effort, or "
                     "exact command binding did not match the governed route. No "
                     "provider process was started.\n"
                 ),
                 status="blocked_user_decision",
-                error="supervisor_model_preflight_failed",
+                error=f"{agent_name.lower()}_model_preflight_failed",
                 raw_usage={
                     "cli_agent": cli_agent_name,
                     "cli_runtime_provider": model_values["provider"],
                     "provider_process_started": False,
-                    "supervisor_model_preflight": hermes_preflight,
+                    (
+                        "supervisor_model_preflight"
+                        if agent_name == "Supervisor"
+                        else "hermes_profile_preflight"
+                    ): hermes_preflight,
                     **(
                         {"model_execution_receipt": model_receipt_path}
                         if model_receipt_path
