@@ -1601,8 +1601,8 @@ def test_coder_applies_run_local_candidate_artifact_blocks_when_policy_is_propos
         monkeypatch,
         role_key="coder",
         result=LLMCallResult(
-            provider="qwen-coder",
-            model="qwen3-coder-next",
+            provider="agentlab-cli-executor",
+            model="codex",
             content="""# Coder Report
 
 <!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/web_ui/index.html -->
@@ -1650,8 +1650,8 @@ def test_artifact_producer_applies_run_local_candidate_artifact_blocks(
         monkeypatch,
         role_key="artifact_producer",
         result=LLMCallResult(
-            provider="deepseek",
-            model="deepseek-v4-flash",
+            provider="agentlab-cli-executor",
+            model="codex",
             content="""# ArtifactProducer Report
 
 <!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/article_draft.md -->
@@ -1695,8 +1695,8 @@ def test_coder_does_not_partially_apply_when_edit_blocks_are_truncated(
         monkeypatch,
         role_key="coder",
         result=LLMCallResult(
-            provider="qwen-coder",
-            model="qwen3-coder-next",
+            provider="agentlab-cli-executor",
+            model="codex",
             content="""# Coder Report
 
 <!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/web_ui/index.html -->
@@ -1743,8 +1743,8 @@ def test_writer_profile_keeps_full_delivery_output_budget() -> None:
                         "performance": {
                             "writer": {
                                 "executor_type": "cli_agent",
-                                "cli_agent": "agy",
-                                "invocation_contract": "agy_writer",
+                                "cli_agent": "claude_code",
+                                "invocation_contract": "claude_writer",
                                 "default": "deepseek_v4_flash",
                             }
                         }
