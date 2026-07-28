@@ -1,15 +1,15 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-07-24T21:50:49Z'
+generated_at: '2026-07-28T12:27:16Z'
 repository:
   root: .
-  head: 3de363b
+  head: 604b42c
   worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
   report_type: agentlab_capability_acceptance
-  sha256: 5de649dbaf39d34a16ee560b04af7553a1d08bd3b11d5f56ee8e1a9403a77bf2
+  sha256: f6cbfd6131aef055ccc22037aa6d0e615f0c7e766beb9968190ee5917f70386a
   overall_status: fail
 current_evidence:
 - path: acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml
@@ -179,14 +179,14 @@ current_evidence:
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
-  sha256: e88df5cda67d8c8122265d11629c22fe6ec3580056008db23fe300346dd58758
+  sha256: 20809eadedfd9e786800c4c6c36b6d8fe31ca18ea3bd73401a0d16b4d7d35a2e
 - path: config/agent_role_bindings.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 864269f6a14091bd14f0ce95b01e59b8961a1307f2ae51911159a51707d6bfd9
+  sha256: 6e49324889412a888bfb63bbbbae3ce20d16c32f2f5e0e83652952a178a0549f
 - path: config/cli_workflow_shells.yml
   class: active
   capability_ids:
@@ -203,12 +203,12 @@ current_evidence:
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: 1b388e857b1b1a133ade55d6ebafe766d4484bf1d0f69bddb904bc9e4609535d
+  sha256: aed5d3bb02ded7dfd1d3a52b532dafe51a4680d42aeccc804dfe89e34025c455
 - path: config/model_catalog.yml
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: 7deb13ee6bba6c70e7e3c5f4089453961b403078af57568c9f8cc7047c67e529
+  sha256: a75658e7deb2b28b876d1763859e07f8a40cab552d729d40a072721e10daf16c
 - path: config/production_packs.yml
   class: active
   capability_ids:
@@ -234,7 +234,7 @@ current_evidence:
 current_evidence_count: 42
 historical_references: []
 historical_reference_count: 0
-aggregate_digest: 697db6478ef631d4703edb3e75e0faf3500b9ba35ec46cf4e5ea2faa90383021
+aggregate_digest: e6ce40d40ae2f0005bd33db3c9a6cef6a1b27f06133f858a040c7a1ad890f068
 status: pass
 issues: []
 notes:

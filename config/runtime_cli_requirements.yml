@@ -17,10 +17,10 @@ components:
     install_source: Hermes Agent upstream installer
     version_probe: hermes --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker hermes
-    live_smoke: hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol --ignore-rules --max-turns 6 -q "Return AGENTLAB_HERMES_CODEX_SMOKE_OK only."
-    capacity_probe: hermes auth status openai-codex
+    live_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z "Return AGENTLAB_HERMES_GROK_SMOKE_OK only."
+    capacity_probe: hermes auth status xai-oauth
     forbidden_probe: hermes status --all
-    notes: General workflow/frontdesk shell. The retained hermes_supervisor contract is legacy diagnostic evidence and is not an allowed default Supervisor route.
+    notes: General workflow/frontdesk shell and the alter-tier Grok 4.5 high-reasoning execution shell. The retained hermes_supervisor contract is legacy diagnostic evidence.
   claude_code:
     kind: agent_cli
     release_requirement: required
@@ -72,7 +72,7 @@ components:
     notes: Multimodal Observer, isolated visual Reviewer, NarrativePlanner, Writer, and Scribe use Gemini 3.6 through the shared Agy subscription pool in all three current full_cli tiers. Agy has no quota/status command; agy models is catalog-only, and remaining/reset stay unknown until provider error evidence. Never invent /usage or use GEMINI_API_KEY.
   grok:
     kind: agent_cli_backend
-    release_requirement: required_for_alter_default
+    release_requirement: optional_legacy_backend
     command: grok
     legacy_command: hermes
     auth_mode: local_grok_oauth_session
@@ -83,7 +83,7 @@ components:
     live_smoke: grok models
     capacity_probe: grok models
     forbidden_probe: hermes status --all
-    notes: Native Grok 4.5 is the alter-tier brain and production shell. Legacy performance Researcher/media contracts remain on Hermes xAI until separately migrated. Neither probe reports remaining quota or reset time.
+    notes: Native Grok CLI is retained only for explicit legacy tasks. The alter tier uses Hermes xAI OAuth with Grok 4.5 high reasoning. Neither probe reports remaining quota or reset time.
   bl:
     kind: specialist_cli
     release_requirement: optional_specialist

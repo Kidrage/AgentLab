@@ -270,7 +270,7 @@ providers:
       - subscription_exhausted
       - provider_error
     notes:
-      - The alter tier invokes the installed native Grok CLI, not Hermes.
+      - Retained for explicit legacy native-Grok tasks; the alter tier uses Hermes xAI OAuth.
       - "`grok models` confirms login and model availability but does not report a remaining percentage or reset time."
 
   xai-oauth:
@@ -292,7 +292,7 @@ providers:
       - subscription_exhausted
       - provider_error
     notes:
-      - Grok Researcher and Grok media generation share this observed capacity pool.
+      - Alter-tier Hermes Grok roles, Grok Researcher, and Grok media generation share this observed capacity pool.
       - "`hermes auth status xai-oauth` is an auth/cooldown signal, not a weekly remaining percentage."
       - "Never use `hermes status --all`; its output is not safe for AgentLab logs."
 

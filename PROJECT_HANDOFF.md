@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-24T21:51:21.830361+00:00`
+- Generated at: `2026-07-28T12:28:37.951515+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `3de363b`
+- HEAD: `604b42c`
 - Indexed paths: 2023
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,10 +88,10 @@
 
 ### Categories
 
-- code: 1035 files, 10109057 bytes
-- literature: 424 files, 2423457 bytes
+- code: 1035 files, 10112019 bytes
+- literature: 424 files, 2421888 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 552 files, 3285934 bytes
+- structured_data: 552 files, 3285702 bytes
 
 ### Common Extensions
 
@@ -230,6 +230,11 @@
 
 ## Change History
 
+- `604b42c 2026-07-25 [codex] fix: suppress no-op sync receipts`
+- `57efca0 2026-07-25 [codex] fix: keep RAG rebuilds project-neutral`
+- `7fb95a3 2026-07-25 [codex] fix: bound cloud sync connections`
+- `8045ea9 2026-07-25 [codex] fix: accept loaded launch agent`
+- `7cfed4e 2026-07-25 [codex] docs: record cloud migration handoff`
 - `3de363b 2026-07-25 [codex] fix: serialize and validate cloud sync`
 - `61917ca 2026-07-25 [codex] fix: harden cloud workspace synchronization`
 - `ee74f1a 2026-07-25 [codex] feat: synchronize local and cloud workspaces`
@@ -245,16 +250,26 @@
 - `3bffea9 2026-07-24 Fix agy observer/visual reviewer network fallback and proxy defaults`
 - `d2708cb 2026-07-24 chore: consolidate archived capability outputs and clean stale runtime artifacts`
 - `898398d 2026-07-24 chore: consolidate crown narrative evidence into canonical dirs`
-- `db0c13b 2026-07-24 Merge pull request #12 from Kidrage/codex/m3-main-validation`
-- `72336d3 2026-07-24 docs: record final attempt replay gate`
-- `7b18382 2026-07-24 fix: bind successful attempt replay identity`
-- `c364669 2026-07-24 docs: record atomic M3 merge gate`
-- `8253c20 2026-07-24 fix: make project agent scheduling atomic`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 9]`
+- `## agentlab/unified-stable...origin/main [ahead 14]`
+- ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M config/README.md`
+- ` M config/agent_model_profiles.yml`
+- ` M config/agent_role_bindings.yml`
+- ` M config/artifact_task_policy.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_providers.yml`
+- ` M config/runtime_cli_requirements.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M tests/test_alter_model_profile.py`
+- ` M tests/test_capability_acceptance.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_models_and_governance_cli.py`
 - `?? tmp_debug/`
 
 ## Related Repositories

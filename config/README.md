@@ -46,16 +46,16 @@ For agent backend mode switching:
   `QWEN_TOKEN_PLAN_API_KEY` / `QWEN_TOKEN_PLAN_BASE_URL`.
 - Use `AGENTLAB_MODE=full_api` for direct API-backed agents.
 - Use `AGENTLAB_MODE=hybrid_ide` when AgentLab plans/reviews and external IDE AI handles Coder.
-- The default backend tier is `alter`: native Grok 4.5 plus Agy Gemini 3.6,
+- The default backend tier is `alter`: Hermes xAI OAuth with Grok 4.5 high reasoning plus Agy Gemini 3.6,
   with governed Claude Code + DeepSeek fallback routes.
 - Use `AGENTLAB_BUDGET_MODE=alter|max_quality|balanced|frugal` to select the
   `alter|full|performance|low` tier. A task line containing exactly `alter` or
   `budget_mode: alter` also selects it.
-- In `alter`, Supervisor uses native Grok at `high`; RepoScout,
-  InterfaceMapper, Researcher, Coder, and TesterAuditor use native Grok at
-  `medium`; PromptEngineer, ArtifactProducer, Verifier, and Archivist use
-  native Grok at `low`. Observer, NarrativePlanner, Writer, Reviewer,
-  VisualReviewer, and Scribe use Agy Gemini 3.6.
+- In `alter`, Supervisor, RepoScout, InterfaceMapper, Researcher,
+  PromptEngineer, Coder, ArtifactProducer, TesterAuditor, Verifier, and
+  Archivist use Hermes xAI OAuth with Grok 4.5 at `high`. Observer,
+  NarrativePlanner, Writer, Reviewer, VisualReviewer, and Scribe use Agy
+  Gemini 3.6.
 - The normal `alter` fallback is Claude Code + DeepSeek Pro/Flash. Observer and
   VisualReviewer retain Agy Claude to preserve multimodal inputs, while
   ArtifactProducer uses Codex medium because Claude Code is intentionally not

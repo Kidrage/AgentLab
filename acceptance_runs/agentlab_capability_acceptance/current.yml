@@ -221,7 +221,7 @@ capabilities:
   - config/media_generation_backends.yml
   - config/agent_model_profiles.yml
   summary: Full CLI mode governs native CLI shell capability and delivery contracts
-    instead of rebuilding shell scaffolds; families=13; full_cli_shells=agy,claude_code,codex,grok;
+    instead of rebuilding shell scaffolds; families=13; full_cli_shells=agy,claude_code,codex,grok,hermes;
     media_kernel=hermes_workflow_shell
   details:
     registered_shells:
@@ -236,6 +236,7 @@ capabilities:
     - claude_code
     - codex
     - grok
+    - hermes
     registered_capability_families:
     - collaboration_board_governance
     - model_auth_and_fallback_governance

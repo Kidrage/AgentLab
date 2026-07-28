@@ -683,8 +683,8 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
 class TestResolveCliProfileSchemaV4:
     """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
 
-    def test_real_default_full_cli_supervisor_resolves_to_native_grok(self):
-        """The real default mode/tier keeps Supervisor on native Grok."""
+    def test_real_default_full_cli_supervisor_resolves_to_hermes_grok(self):
+        """The real default mode/tier keeps Supervisor on Hermes Grok."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -697,9 +697,10 @@ class TestResolveCliProfileSchemaV4:
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
         assert result["resolved_tier"] == "alter"
-        assert result["cli_agent"] == "grok"
-        assert result["invocation_contract"] == "grok_native_high"
-        assert result["default"] == "grok_4_5_high_cli_oauth"
+        assert result["cli_agent"] == "hermes"
+        assert result["invocation_contract"] == "hermes"
+        assert result["default"] == "grok_4_5_hermes_oauth"
+        assert result["reasoning_effort"] == "high"
         assert result["capacity_route"] == "AlterSupervisor"
         assert "fallback" not in result
 

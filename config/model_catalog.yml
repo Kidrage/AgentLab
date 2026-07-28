@@ -154,10 +154,11 @@ models:
     runtime_provider: xai-oauth
     cli_provider: xai-oauth
     model_id: grok-4.5
+    reasoning_effort: high
     capacity_pool: xai_subscription_shared
-    strengths: [social_research, web_research, x_search, media_tool_orchestration, current_events]
+    strengths: [planning, reasoning, repository_analysis, coding, testing, verification, social_research, web_research, x_search, media_tool_orchestration, current_events]
     weaknesses: [requires_hermes_xai_oauth, subscription_quota_unknown, not_aesthetic_judge, text_output]
-    suitable_agents: [researcher, artifact_producer]
+    suitable_agents: [supervisor, reposcout, interface_mapper, researcher, prompt_engineer, coder, artifact_producer, tester_auditor, verifier, archivist]
     capabilities:
       input_modalities: [text, image]
       output_modalities: [text]
@@ -169,7 +170,7 @@ models:
       currency: subscription_or_oauth_quota
       billing_source: xai_oauth
     notes: >
-      Grok 4.5 through Hermes xAI OAuth provider.
+      Grok 4.5 at high reasoning through the Hermes xAI OAuth provider.
 
   grok_4_5_high_cli_oauth:
     provider: grok_cli_oauth

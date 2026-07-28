@@ -72,12 +72,12 @@ def test_models_show_lists_observer_supervisor_and_grok_research_routes():
     assert "agy" in observer.output
     assert "gemini_3_6_flash_high_agy_oauth" in observer.output
     assert supervisor.exit_code == 0
-    assert "grok_4_5_high_cli_oauth" in supervisor.output
-    assert "grok" in supervisor.output
+    assert "grok_4_5_hermes_oauth" in supervisor.output
+    assert "hermes" in supervisor.output
     assert "SupervisorDeepSeek" in supervisor.output
     assert researcher.exit_code == 0
-    assert "grok" in researcher.output
-    assert "grok_4_5_medium_cli_oauth" in researcher.output
+    assert "hermes" in researcher.output
+    assert "grok_4_5_hermes_oauth" in researcher.output
 
 
 def test_models_capacity_keeps_unobserved_remaining_and_reset_null():

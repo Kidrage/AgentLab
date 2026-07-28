@@ -258,6 +258,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         "claude_code",
         "codex",
         "grok",
+        "hermes",
     }
     assert by_id["cli_native_command_surface_governance"]["status"] == "pass"
     assert "hermes_kanban_registered=True" in by_id["cli_native_command_surface_governance"]["summary"]

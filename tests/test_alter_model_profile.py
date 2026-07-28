@@ -27,8 +27,8 @@ def test_alter_is_the_default_subscription_first_tier() -> None:
     resolved = resolve_cli_profile(profiles, agent_role="supervisor")
     assert resolved is not None
     assert resolved["resolved_tier"] == "alter"
-    assert resolved["cli_agent"] == "grok"
-    assert resolved["default"] == "grok_4_5_high_cli_oauth"
+    assert resolved["cli_agent"] == "hermes"
+    assert resolved["default"] == "grok_4_5_hermes_oauth"
 
 
 def test_alter_keyword_is_an_exact_task_trigger() -> None:
@@ -50,7 +50,7 @@ def test_configure_agent_updates_only_tiers_declared_by_each_mode() -> None:
     assert _configured_tiers_for_update({"full": {}}, "ALTER") == ["alter"]
 
 
-def test_alter_tier_uses_only_native_grok_and_agy_primaries() -> None:
+def test_alter_tier_routes_grok_work_through_hermes_and_keeps_agy_primaries() -> None:
     profiles = _yaml("config/agent_model_profiles.yml")
     alter = profiles["modes"]["full_cli"]["tiers"]["alter"]
     assert {role for role in alter} == {
@@ -74,13 +74,13 @@ def test_alter_tier_uses_only_native_grok_and_agy_primaries() -> None:
             "scribe",
         )
     }
-    assert {cfg["cli_agent"] for cfg in alter.values()} == {"grok", "agy"}
+    assert {cfg["cli_agent"] for cfg in alter.values()} == {"hermes", "grok", "agy"}
 
-    assert alter["supervisor"]["invocation_contract"] == "grok_native_high"
-    assert alter["supervisor"]["reasoning_effort"] == "high"
+    assert alter["supervisor"]["invocation_contract"] == "hermes"
     for role, cfg in alter.items():
-        if cfg["cli_agent"] == "grok" and role != "supervisor":
-            assert cfg["reasoning_effort"] in {"medium", "low"}
+        if cfg["cli_agent"] in {"hermes", "grok"}:
+            assert cfg["default"] == "grok_4_5_hermes_oauth", role
+            assert cfg["reasoning_effort"] == "high", role
 
 
 def test_alter_capacity_routes_have_governed_deepseek_fallbacks() -> None:
@@ -108,10 +108,10 @@ def test_alter_capacity_routes_have_governed_deepseek_fallbacks() -> None:
             assert fallback["model_key"] in {"deepseek_v4_pro", "deepseek_v4_flash"}
 
 
-def test_alter_artifact_dispatch_uses_the_native_grok_route() -> None:
+def test_alter_artifact_dispatch_uses_hermes_through_the_grok_media_boundary() -> None:
     policy = _yaml("config/artifact_task_policy.yml")
     provider = policy["providers"]["grok_native"]
 
     assert provider["worker"] == "grok"
-    assert provider["invocation_contract"] == "grok_native_artifact_low"
+    assert provider["invocation_contract"] == "grok_media"
     assert provider["capacity_routes"]["alter"] == "AlterArtifactProducer"

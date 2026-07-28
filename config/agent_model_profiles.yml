@@ -224,9 +224,9 @@ modes:
       alter:
         supervisor:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_high
-          default: grok_4_5_high_cli_oauth
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
           reasoning_effort: high
           capacity_route: AlterSupervisor
         observer:
@@ -237,46 +237,46 @@ modes:
           capacity_route: AlterObserver
         reposcout:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_medium
-          default: grok_4_5_medium_cli_oauth
-          reasoning_effort: medium
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterRepoScout
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_medium
-          default: grok_4_5_medium_cli_oauth
-          reasoning_effort: medium
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterInterfaceMapper
         researcher:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_research_medium
-          default: grok_4_5_medium_cli_oauth
-          reasoning_effort: medium
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterResearcher
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_low
-          default: grok_4_5_low_cli_oauth
-          reasoning_effort: low
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterPromptEngineer
         coder:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_medium
-          default: grok_4_5_medium_cli_oauth
-          reasoning_effort: medium
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           external_ide_allowed: true
           capacity_route: AlterCoder
         artifact_producer:
           executor_type: cli_agent
           cli_agent: grok
-          invocation_contract: grok_native_artifact_low
-          default: grok_4_5_low_cli_oauth
-          reasoning_effort: low
+          invocation_contract: grok_media
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterArtifactProducer
         narrative_planner:
           executor_type: cli_agent
@@ -286,24 +286,24 @@ modes:
           capacity_route: AlterNarrativePlanner
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_medium
-          default: grok_4_5_medium_cli_oauth
-          reasoning_effort: medium
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterTesterAuditor
         verifier:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_low
-          default: grok_4_5_low_cli_oauth
-          reasoning_effort: low
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterVerifier
         archivist:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_native_low
-          default: grok_4_5_low_cli_oauth
-          reasoning_effort: low
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: grok_4_5_hermes_oauth
+          reasoning_effort: high
           capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent

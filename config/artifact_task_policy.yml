@@ -44,7 +44,7 @@ providers:
   grok_native:
     worker: grok
     provider_type: cli
-    invocation_contract: grok_native_artifact_low
+    invocation_contract: grok_media
     capacity_routes:
       alter: AlterArtifactProducer
     priority: 80
