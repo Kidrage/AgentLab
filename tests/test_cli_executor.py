@@ -232,6 +232,7 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
             {
                 "model": {"provider": "xai-oauth", "default": "grok-4.5"},
                 "agent": {"reasoning_effort": "high"},
+                "fallback_providers": [],
             },
             sort_keys=False,
         ),
@@ -283,6 +284,7 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
             {
                 "model": {"provider": "xai-oauth", "default": "grok-4.5"},
                 "agent": {"reasoning_effort": "medium"},
+                "fallback_providers": [],
             },
             sort_keys=False,
         ),
@@ -298,6 +300,30 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
     )
     assert drifted["status"] == "fail"
     assert "profile_state_mismatch:agent.reasoning_effort" in drifted["issues"]
+
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.5"},
+                "agent": {"reasoning_effort": "high"},
+                "fallback_providers": [
+                    {"provider": "openrouter", "model": "other-model"}
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    fallback_drifted = _hermes_supervisor_preflight(
+        role_profile,
+        Path(__file__).resolve().parents[1],
+        {"HERMES_HOME": str(hermes_home)},
+        argv,
+        model_values,
+        agent_name="Coder",
+    )
+    assert fallback_drifted["status"] == "fail"
+    assert "profile_state_mismatch:fallback_providers" in fallback_drifted["issues"]
 
 
 def test_codex_supervisor_preflight_derives_model_binding_from_config(

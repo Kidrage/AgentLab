@@ -91,6 +91,8 @@ def test_alter_tier_routes_grok_work_through_hermes_and_keeps_agy_primaries() ->
             "model.provider": "xai-oauth",
             "model.default": "grok-4.5",
             "agent.reasoning_effort": "high",
+            "fallback_providers": [],
+            "fallback_model": None,
         }
         assert "hermes -p agentlabalter chat -Q" in contract["template"]
 

@@ -78,6 +78,8 @@ contracts:
       model.provider: xai-oauth
       model.default: grok-4.5
       agent.reasoning_effort: high
+      fallback_providers: []
+      fallback_model: null
     requested_reasoning_label: high
     resolved_reasoning_effort: high
     reasoning_resolution_note: >-
@@ -125,6 +127,8 @@ contracts:
       model.provider: xai-oauth
       model.default: grok-4.5
       agent.reasoning_effort: high
+      fallback_providers: []
+      fallback_model: null
     requested_reasoning_label: high
     resolved_reasoning_effort: high
     safe_probe: [hermes, -p, agentlabalter, config, check]
