@@ -1042,7 +1042,7 @@ def run_artifact_task_doctor(root: Path) -> dict[str, Any]:
         check(bool(cfg.get("required_capabilities")), "artifact_type_capabilities_present", f"{required} has required capabilities")
 
     providers = policy.get("providers") or {}
-    for provider_id in ("grok_media", "qwen_cli", "qwen_37max_api"):
+    for provider_id in ("hermes_grok", "qwen_cli", "codex_cli", "grok_media"):
         cfg = providers.get(provider_id) or {}
         check(bool(cfg), "artifact_provider_present", f"{provider_id} provider is configured")
         check(bool(cfg.get("worker")), "artifact_provider_worker_present", f"{provider_id} has a worker binding")

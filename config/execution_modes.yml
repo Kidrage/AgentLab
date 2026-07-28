@@ -24,27 +24,7 @@ execution_modes:
     artifact_required: true
     allow_worker_all_roles: false
 
-  api_native:
-    description: "AgentLab agents run through configured API providers."
-    driver_scope: agentlab_orchestrated
-    agent_backend_mode: full_api
-    artifact_required: true
-    allow_worker_all_roles: false
-
-  hybrid_ide:
-    description: "AgentLab plans and reviews while one explicitly assigned IDE worker performs the Coder role."
-    driver_scope: assigned_coder_stage_only
-    agent_backend_mode: hybrid_ide
-    coder_provider: external_ide_ai
-    artifact_required: true
-    allow_worker_all_roles: false
-
 legacy_aliases:
-  codex_coder_only:
-    status: deprecated
-    replacement: hybrid_ide
-    read_compatibility_only: true
-    dispatch_allowed: false
   codex_full_driver:
     status: retired
     replacement: agentlab_orchestrated_cli

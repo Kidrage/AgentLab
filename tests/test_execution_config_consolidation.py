@@ -17,7 +17,7 @@ def _load_config(name: str) -> dict:
     return yaml.safe_load((ROOT / "config" / name).read_text(encoding="utf-8")) or {}
 
 
-def test_agent_backend_modes_include_the_default_alter_tier() -> None:
+def test_full_cli_is_the_only_agent_backend_mode() -> None:
     profiles = _load_config("agent_model_profiles.yml")
 
     assert profiles["default_mode"] == "full_cli"
@@ -29,15 +29,13 @@ def test_agent_backend_modes_include_the_default_alter_tier() -> None:
     }
 
     modes = profiles["modes"]
+    assert set(modes) == {"full_cli"}
     assert set(modes["full_cli"]["tiers"]) == {
         "alter",
         "full",
         "performance",
         "low",
     }
-    for mode_name in ("qwen_token_plan_cli", "full_api", "hybrid_ide"):
-        assert mode_name in modes
-        assert set(modes[mode_name]["tiers"]) == {"full", "performance", "low"}
 
 
 def test_agent_registry_contains_only_role_contracts() -> None:
@@ -88,8 +86,6 @@ def test_cli_profiles_reference_worker_invocation_contracts() -> None:
     }
 
     for mode_name, mode in profiles["modes"].items():
-        if mode_name == "trusted_headless_cli":
-            continue
         for tier_name, tier in mode.get("tiers", {}).items():
             for role_name, role in tier.items():
                 if not isinstance(role, dict):
@@ -151,8 +147,6 @@ def test_cli_profiles_invocation_contracts_match_selected_workers() -> None:
     contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
 
     for mode_name, mode in profiles["modes"].items():
-        if mode_name == "trusted_headless_cli":
-            continue
         for tier_name, tier in mode.get("tiers", {}).items():
             for role_name, role in tier.items():
                 if not isinstance(role, dict) or role.get("executor_type") != "cli_agent":
@@ -467,32 +461,6 @@ def test_narrative_planner_uses_agy_gemini_36_in_every_full_cli_tier() -> None:
         assert planner["invocation_contract"] == "agy_narrative_planner"
         assert planner["default"] == "gemini_3_6_flash_high_agy_oauth"
         assert planner["capacity_route"] == "NarrativePlannerAgy"
-
-
-def test_qwen_token_plan_cli_preserves_original_cli_allocation() -> None:
-    profiles = _load_config("agent_model_profiles.yml")
-    tier = profiles["modes"]["qwen_token_plan_cli"]["tiers"]["performance"]
-
-    assert tier["supervisor"]["cli_agent"] == "hermes"
-    assert tier["supervisor"]["default"] == "deepseek_v4_pro"
-    assert tier["reposcout"]["cli_agent"] == "codex"
-    assert tier["reposcout"]["default"] == "qwen3_6_plus_tokenplan"
-    assert tier["interface_mapper"]["cli_agent"] == "codex"
-    assert tier["interface_mapper"]["default"] == "qwen3_6_plus_tokenplan"
-    assert tier["prompt_engineer"]["cli_agent"] == "hermes"
-    assert tier["prompt_engineer"]["default"] == "qwen3_6_plus_tokenplan"
-    assert tier["coder"]["cli_agent"] == "claude_code"
-    assert tier["coder"]["default"] == "qwen3_coder_plus_tokenplan"
-    assert tier["artifact_producer"]["cli_agent"] == "codex"
-    assert tier["artifact_producer"]["default"] == "qwen3_6_plus_tokenplan"
-    assert tier["tester_auditor"]["cli_agent"] == "codex"
-    assert tier["tester_auditor"]["default"] == "qwen3_6_plus_tokenplan"
-    assert tier["verifier"]["cli_agent"] == "codex"
-    assert tier["verifier"]["default"] == "qwen3_6_flash_tokenplan"
-    assert tier["archivist"]["cli_agent"] == "claude_code"
-    assert tier["archivist"]["default"] == "qwen3_6_plus_tokenplan"
-    assert tier["writer"]["executor_type"] == "direct_api"
-    assert tier["writer"]["default"] == "deepseek_v4_flash"
 
 
 def test_qwen_token_plan_models_route_to_tokenplan_provider() -> None:

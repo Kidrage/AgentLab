@@ -2400,25 +2400,8 @@ def _artifact_task_profile_for_plan(
         if isinstance(existing_selected, dict)
         else ""
     )
-    provider_type = "api" if execution_mode == "full_api" else "cli"
-    assigned_inputs_declared = bool(contract) and "assigned_inputs" in contract
-    assigned_inputs = contract.get("assigned_inputs") if assigned_inputs_declared else []
-    direct_api_has_inputs = execution_mode == "full_api" and (
-        (assigned_inputs_declared and not isinstance(assigned_inputs, list))
-        or bool(assigned_inputs)
-    )
-    if direct_api_has_inputs:
-        route = {
-            "artifact_type": artifact_type,
-            "output_format": output_format,
-            "provider_type": "api",
-            "required_capabilities": sorted(set(required)),
-            "selected": None,
-            "candidates": [],
-            "status": "capability_mismatch",
-            "mode_blocker": "full_api_assigned_inputs_unsupported",
-        }
-    elif execution_mode not in {"full_api", "full_cli"}:
+    provider_type = "cli"
+    if execution_mode != "full_cli":
         route = {
             "artifact_type": artifact_type,
             "output_format": output_format,
@@ -2478,11 +2461,6 @@ def _artifact_task_profile_for_plan(
         "artifact_type": artifact_type,
         "_artifact_task_contract": contract,
     }
-    if direct_api_has_inputs:
-        profile["artifact_routing_reason"] = (
-            "full_api ArtifactProducer does not support assigned file inputs; "
-            "use the governed isolated CLI surface"
-        )
     if not isinstance(selected, dict):
         return profile
 
@@ -2494,29 +2472,6 @@ def _artifact_task_profile_for_plan(
     )
     provider_id = str(selected.get("provider_id") or "")
     provider_cfg = ((policy.get("providers") or {}).get(provider_id) or {})
-    if provider_type == "api":
-        if (
-            provider_cfg.get("runtime_activation") == "explicit_full_api_only"
-            and execution_mode != "full_api"
-        ):
-            profile["artifact_routing_status"] = "capability_mismatch"
-            profile["artifact_routing_reason"] = (
-                f"provider {provider_id} requires explicit full_api mode"
-            )
-            return profile
-        profile.update(
-            {
-                "executor_type": "direct_api",
-                "artifact_provider": provider_id,
-                "artifact_allowed_runtime_providers": list(
-                    provider_cfg.get("allowed_runtime_providers") or []
-                ),
-                "artifact_routing_status": "routed",
-                "artifact_routing_reason": str(selected.get("reason") or ""),
-            }
-        )
-        return profile
-
     tier = {
         "altered": "alter",
         "quality": "full",

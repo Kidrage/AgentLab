@@ -41,11 +41,8 @@ For model switching:
 For agent backend mode switching:
 
 - Use `AGENTLAB_MODE=full_cli` for local CLI-backed agents.
-- Use `AGENTLAB_MODE=qwen_token_plan_cli` to use the preserved pre-2026-07-02
-  full CLI role allocation with Qwen defaults routed through
-  `QWEN_TOKEN_PLAN_API_KEY` / `QWEN_TOKEN_PLAN_BASE_URL`.
-- Use `AGENTLAB_MODE=full_api` for direct API-backed agents.
-- Use `AGENTLAB_MODE=hybrid_ide` when AgentLab plans/reviews and external IDE AI handles Coder.
+- `full_cli` is the only configured agent backend mode. Unknown or retired
+  `AGENTLAB_MODE` values do not resolve a role profile and must stop.
 - The default backend tier is `alter`: Hermes xAI OAuth with Grok 4.5 high reasoning plus Agy Gemini 3.6,
   with governed Claude Code + DeepSeek fallback routes.
 - Use `AGENTLAB_BUDGET_MODE=alter|max_quality|balanced|frugal` to select the
@@ -54,7 +51,6 @@ For agent backend mode switching:
 - Read the canonical `alter` role allocation from `agent_model_profiles.yml`
   and its governed capacity/fallback routes from `model_capacity.yml`; this
   overview intentionally does not duplicate that volatile matrix.
-- `trusted_headless_cli` is never default and requires its explicit env gate and human approval.
 
 General policy:
 

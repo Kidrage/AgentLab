@@ -237,10 +237,9 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "openclaw"
             "status": "pass"
             if full_cli_shells
             and full_cli_shells.issubset(set(shell_registry))
+            and set(mode_policy) == {"full_cli"}
             and ((mode_policy.get("full_cli") or {}).get("primary_governance_object") == "cli_shell_capability_and_delivery")
             and ((mode_policy.get("full_cli") or {}).get("own_workflow_shell_scaffold") is False)
-            and ((mode_policy.get("full_api") or {}).get("primary_governance_object") == "agentlab_internal_work_shell")
-            and ((mode_policy.get("full_api") or {}).get("own_workflow_shell_scaffold") is True)
             else "fail",
             "evidence": ["config/cli_workflow_shells.yml", "config/agent_model_profiles.yml"],
             "summary": (

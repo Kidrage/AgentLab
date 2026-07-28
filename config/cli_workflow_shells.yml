@@ -17,20 +17,6 @@ mode_policy:
     onboarding_required_before_use: true
     shell_capability_audit_required: true
     own_workflow_shell_scaffold: false
-  full_api:
-    primary_governance_object: agentlab_internal_work_shell
-    rule: >
-      Direct API models do not bring a mature local CLI workflow shell, so
-      AgentLab must provide task packet execution, tool routing, memory
-      discipline, validation, and receipt collection itself.
-    onboarding_required_before_use: false
-    shell_capability_audit_required: false
-    own_workflow_shell_scaffold: true
-  hybrid_ide:
-    primary_governance_object: external_ide_handoff_and_evidence
-    rule: >
-      External IDE agents are governed as handoff surfaces unless they are
-      explicitly promoted into a CLI workflow shell registry entry.
 
 boundary:
   agentlab_owns:

@@ -2690,13 +2690,10 @@ def prepare(
     ensure_safe_task_id(task_id)
     if execution_backend not in {
         "agentlab_orchestrated_cli",
-        "api_native",
-        "hybrid_ide",
         "langgraph",
     }:
         raise typer.BadParameter(
-            "execution_backend must be agentlab_orchestrated_cli, api_native, "
-            "hybrid_ide, or langgraph"
+            "execution_backend must be agentlab_orchestrated_cli or langgraph"
         )
     if observation_input and not write_plan:
         raise typer.BadParameter("--observation-input requires --write-plan")
@@ -7090,7 +7087,7 @@ def _configured_tiers_for_update(
 @app.command("configure-agent")
 def configure_agent_cmd(
     agent: str = typer.Option(..., "--agent", help="Canonical agent name (e.g. Supervisor, Coder, RepoScout, etc.)."),
-    mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli, qwen_token_plan_cli, full_api, or hybrid_ide. If omitted, applies to all modes."),
+    mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli. If omitted, applies to the configured mode."),
     tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: alter, full, performance, or low. If omitted, applies to all tiers."),
     executor_type: Optional[str] = typer.Option(None, "--executor-type", help="Executor type: cli_agent, direct_api, or special."),
     cli_agent: Optional[str] = typer.Option(None, "--cli-agent", help="CLI agent binary name (e.g. hermes, claude_code)."),
@@ -7130,11 +7127,14 @@ def configure_agent_cmd(
     }
     role_key = _role_key_map.get(role_key, role_key)
 
-    modes_to_update = [mode.lower()] if mode else ["full_cli", "qwen_token_plan_cli", "full_api", "hybrid_ide"]
+    modes_to_update = [mode.lower()] if mode else ["full_cli"]
     modes_data = data.setdefault("modes", {})
 
     updated_count = 0
     for m in modes_to_update:
+        if m != "full_cli":
+            console.print(f"[red]Error: unsupported agent backend mode {m!r}; only full_cli is configured.[/red]")
+            raise typer.Exit(code=1)
         mode_cfg = modes_data.setdefault(m, {})
         tiers_cfg = mode_cfg.setdefault("tiers", {})
         tiers_to_update = _configured_tiers_for_update(tiers_cfg, tier)

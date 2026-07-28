@@ -259,18 +259,6 @@ def resolve_cli_profile(
 
         role_cfg = role_cfg_raw
 
-        # Safety gate: trusted_headless_cli requires explicit env opt-in
-        if resolved_mode == "trusted_headless_cli":
-            safety = mode_cfg.get("safety", {}) or {}
-            requires_env = safety.get("requires_env", {}) or {}
-            for env_key, env_val in requires_env.items():
-                if os.getenv(env_key) != str(env_val):
-                    return None  # gate not satisfied
-            if safety.get("never_default") and not mode:
-                # Only allow when explicitly requested via mode arg, not from env or default
-                if not (os.getenv("AGENTLAB_MODE") == "trusted_headless_cli"):
-                    return None
-
         if role_cfg.get("executor_type") != "cli_agent":
             return None
 

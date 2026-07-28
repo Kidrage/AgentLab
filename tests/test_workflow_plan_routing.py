@@ -69,31 +69,20 @@ def test_workflow_driver_resolves_the_configured_role_backend_mode(
         "task_driver_cli_probe",
         user_request_path=request,
     )
-    api_plan = build_workflow_plan(
-        ROOT,
-        "AgentLab",
-        "task_driver_api_probe",
-        execution_backend="api_native",
-        user_request_path=request,
-    )
-
     assert cli_plan.execution_backend == "agentlab_orchestrated_cli"
     assert {profile["resolved_mode"] for profile in cli_plan.model_profiles.values()} == {
         "full_cli"
     }
-    assert api_plan.execution_backend == "api_native"
-    assert {profile["resolved_mode"] for profile in api_plan.model_profiles.values()} == {
-        "full_api"
-    }
 
-    with pytest.raises(ValueError, match="inactive workflow driver"):
-        build_workflow_plan(
-            ROOT,
-            "AgentLab",
-            "task_retired_driver_probe",
-            execution_backend="codex_full_driver",
-            user_request_path=request,
-        )
+    for retired_driver in ("api_native", "hybrid_ide", "codex_full_driver"):
+        with pytest.raises(ValueError, match="inactive workflow driver"):
+            build_workflow_plan(
+                ROOT,
+                "AgentLab",
+                f"task_retired_{retired_driver}_probe",
+                execution_backend=retired_driver,
+                user_request_path=request,
+            )
 
 
 def test_workflow_plan_uses_mission_route_for_chinese_crown_chapter(tmp_path: Path) -> None:

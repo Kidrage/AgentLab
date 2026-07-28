@@ -110,18 +110,6 @@ providers:
       - generate_video
       - write_artifact_file
       - validate_artifact_contract
-  qwen_37max_api:
-    worker: qwen
-    provider_type: api
-    runtime_activation: explicit_full_api_only
-    allowed_runtime_providers: [qwen3, qwen, qwen-flash]
-    priority: 10
-    fallback: true
-    handles: [text]
-    output_formats: [markdown, txt, yaml]
-    capabilities:
-      - write_text_artifact
-      - write_artifact_file
 failure_contract:
   capability_mismatch:
     required_fields: [missing_capability, recommended_provider, recommended_role]

@@ -345,7 +345,7 @@ def test_artifact_producer_honors_prebound_native_codex_yaml_route(
     assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
 
 
-def test_artifact_producer_full_api_uses_explicit_text_api_only(
+def test_artifact_producer_rejects_retired_backend_modes(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -356,48 +356,24 @@ def test_artifact_producer_full_api_uses_explicit_text_api_only(
     plan.route.agents = ["Supervisor", "ArtifactProducer"]
     request_path = Path(plan.user_request_path)
     request_path.parent.mkdir(parents=True, exist_ok=True)
-    request_path.write_text("Write a concise markdown article.", encoding="utf-8")
-    monkeypatch.setenv("AGENTLAB_MODE", "full_api")
-
-    _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
-        ROOT, plan, "ArtifactProducer"
-    )
-
-    assert mode == "full_api"
-    assert profile["executor_type"] == "direct_api"
-    assert profile["artifact_provider"] == "qwen_37max_api"
-    assert profile["artifact_routing_status"] == "routed"
-
-    request_path.write_text("Create a spreadsheet.xlsx", encoding="utf-8")
-    _configs, _mode, _role, blocked = _resolve_cli_profile_for_agent(
-        ROOT, plan, "ArtifactProducer"
-    )
-    assert blocked["artifact_routing_status"] == "capability_mismatch"
-    assert blocked["executor_type"] == "blocked"
-
-
-def test_artifact_producer_does_not_cross_execution_mode_billing_surface(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    from agent_runner import _resolve_cli_profile_for_agent
-
-    plan = _make_plan(tmp_path)
-    plan.route.route_key = "article_light_draft"
-    request_path = Path(plan.user_request_path)
-    request_path.parent.mkdir(parents=True, exist_ok=True)
     request_path.write_text("Write a markdown article.", encoding="utf-8")
-    monkeypatch.setenv("AGENTLAB_MODE", "qwen_token_plan_cli")
+    for retired_mode in (
+        "qwen_token_plan_cli",
+        "full_api",
+        "hybrid_ide",
+        "trusted_headless_cli",
+    ):
+        monkeypatch.setenv("AGENTLAB_MODE", retired_mode)
+        _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
+            ROOT, plan, "ArtifactProducer"
+        )
 
-    _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
-        ROOT, plan, "ArtifactProducer"
-    )
-
-    assert mode == "qwen_token_plan_cli"
-    assert profile["artifact_routing_status"] == "capability_mismatch"
-    assert profile["_artifact_task_contract"]["routing"]["mode_blocker"] == (
-        "unsupported_artifact_execution_mode:qwen_token_plan_cli"
-    )
+        assert mode == retired_mode
+        assert profile["executor_type"] == "blocked"
+        assert profile["artifact_routing_status"] == "capability_mismatch"
+        assert profile["_artifact_task_contract"]["routing"]["mode_blocker"] == (
+            f"unsupported_artifact_execution_mode:{retired_mode}"
+        )
 
 
 def test_artifact_producer_materializes_contract_before_cli_execution(
@@ -2780,42 +2756,21 @@ class TestConfigProfiles:
         assert cli_coders, "No profile has CLI-backed coder"
         print(f"CLI-backed coder profiles: {cli_coders}")
 
-    def test_has_direct_api_only_profile(self):
-        """At least one profile is entirely direct_api."""
+    def test_only_full_cli_mode_is_configured(self):
+        """The canonical profile matrix exposes only the governed CLI mode."""
         import yaml
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        direct_api_profiles = []
-        for name, profile in _iter_config_role_groups(data):
-            all_direct = all(
-                role.get("executor_type") == "direct_api"
-                for role in profile.values()
-                if isinstance(role, dict) and "executor_type" in role
-            )
-            if all_direct and profile:
-                direct_api_profiles.append(name)
-
-        assert direct_api_profiles, "No direct API-only profile found"
-        print(f"Direct API-only profiles: {direct_api_profiles}")
+        assert set(data["modes"]) == {"full_cli"}
 
     def test_required_execution_modes_exist(self):
-        """Config has the schema-v4 execution modes or legacy named profiles."""
+        """Config has only the canonical schema-v4 execution mode."""
         import yaml
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        if "modes" in data:
-            required = {"full_cli", "full_api", "hybrid_ide"}
-            missing = required - set((data.get("modes", {}) or {}).keys())
-            assert not missing, f"Missing modes: {missing}"
-            return
-
-        profiles = data.get("profiles", {})
-        required = {"balanced", "low_cost", "direct_api_only", "hybrid_agent_executor"}
-        missing = required - set(profiles.keys())
-        assert not missing, f"Missing profiles: {missing}"
-        print(f"All required profiles present: {sorted(required)}")
+        assert set((data.get("modes", {}) or {})) == {"full_cli"}
 
     def test_default_mode_is_full_cli(self):
         """Default execution uses the canonical local CLI company mode."""

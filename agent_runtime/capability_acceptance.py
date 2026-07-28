@@ -979,10 +979,9 @@ def _cli_workflow_shell_absorption(root: Path) -> dict[str, Any]:
         for worker_id in required_shells
     )
     mode_policy_ok = (
-        ((mode_policy.get("full_cli") or {}).get("primary_governance_object") == "cli_shell_capability_and_delivery")
+        set(mode_policy) == {"full_cli"}
+        and ((mode_policy.get("full_cli") or {}).get("primary_governance_object") == "cli_shell_capability_and_delivery")
         and ((mode_policy.get("full_cli") or {}).get("own_workflow_shell_scaffold") is False)
-        and ((mode_policy.get("full_api") or {}).get("primary_governance_object") == "agentlab_internal_work_shell")
-        and ((mode_policy.get("full_api") or {}).get("own_workflow_shell_scaffold") is True)
     )
     boundary_ok = (
         boundary.get("shells_do_not_create_agentlab_roles") is True
@@ -1006,7 +1005,7 @@ def _cli_workflow_shell_absorption(root: Path) -> dict[str, Any]:
     if not delivery_contracts_ok:
         missing.append("one or more full_cli shells lack common/unique/efficiency/delivery/risk governance fields")
     if not mode_policy_ok:
-        missing.append("cli workflow shell mode policy does not separate full_cli shell governance from api work-shell construction")
+        missing.append("cli workflow shell mode policy must configure only full_cli shell governance")
     if not media_shell_ok:
         missing.append("hermes_grok_oauth backend is not bound to hermes_workflow_shell")
     if not boundary_ok:

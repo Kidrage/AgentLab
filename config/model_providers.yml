@@ -19,7 +19,7 @@ version: 2
 #  本地算力: Frugal 模式下优先使用本地 LLM (Ollama/vLLM)
 #  外部IDE窗口: external_ide_ai 只是可选 provider 事实。
 #  Coder 默认后端由 config/agent_model_profiles.yml 决定。
-#  需要外部 IDE 接管时，选择 hybrid_ide mode 或显式激活 handoff。
+#  需要外部 IDE 接管时，只能显式激活单角色 handoff。
 # ──────────────────────────────────────────────────────────────────────────
 
 defaults:
@@ -219,7 +219,7 @@ providers:
       source: qwen_token_plan
       metering: prepaid_token_plan
     notes:
-      - 用于 AGENTLAB_MODE=qwen_token_plan_cli。
+      - 保留为显式模型目录能力；当前没有 Agent backend mode 自动分配此 provider。
       - 需要用户提供 QWEN_TOKEN_PLAN_API_KEY。
       - 需要用户提供 QWEN_TOKEN_PLAN_BASE_URL；不要猜测或硬编码未知 endpoint。
       - fallback_provider 指向普通 DashScope qwen，仅在用户明确同意时使用。
@@ -422,7 +422,7 @@ providers:
     display_name: External IDE AI (Coder Window)
     default_model: External AI
     notes:
-      - Optional Coder provider for hybrid_ide or explicit handoff mode.
+      - Optional Coder provider for an explicit handoff; no Agent backend mode selects it.
       - This provider entry is not the default backend decision source.
       - AgentLab 大脑层完成所有规划后，生成完整 handoff prompt + 上下文包。
       - 外部 AI 只需执行编码，无需自行规划/分析架构/确定范围。
