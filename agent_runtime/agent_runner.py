@@ -3013,9 +3013,8 @@ def run_agent_model(
         )
 
     # ── CLI Agent dispatch (executor_type: cli_agent) ─────────────────────────
-    # Route this call through the configured local CLI surface. A configured
-    # CLI never falls through to direct API; only explicit full_api mode may
-    # enter the API path below.
+    # Route every role through the configured full_cli surface. Missing or
+    # retired modes stop here and never fall through to a provider API.
     configs_for_cli, cli_mode, agent_role_key, cli_role_profile = _resolve_cli_profile_for_agent(
         agentlab_root,
         plan,
@@ -3430,8 +3429,8 @@ def run_agent_model(
                 content=(
                     f"# {agent_name} CLI worker unavailable\n\n"
                     "The configured production-pack role worker is unavailable. "
-                    "AgentLab refused to switch provider surfaces or use a direct-API "
-                    "fallback without a separately planned and approved full_api run.\n"
+                    "AgentLab refused to switch provider surfaces. Use an approved "
+                    "same-role capacity route or restore the configured CLI worker.\n"
                 ),
                 status="blocked_user_decision",
                 error="production_pack_cli_unavailable_no_fallback",
@@ -3453,7 +3452,7 @@ def run_agent_model(
             content=(
                 f"# {agent_name} CLI worker unavailable\n\n"
                 "AgentLab refused to switch from the configured CLI worker to a direct-API provider. "
-                "Select an explicit full_api mode or an approved capacity route.\n"
+                "Use an approved same-role capacity route or restore the configured CLI worker.\n"
             ),
             status="blocked_user_decision",
             error="cli_unavailable_no_fallback",
@@ -3469,19 +3468,21 @@ def run_agent_model(
                 "direct_api_fallback_attempted": False,
             },
         )
-    if cli_role_profile is None and cli_mode != "full_api":
+    if cli_role_profile is None:
         return LLMCallResult(
             provider="agentlab-cli-executor",
             model="unconfigured_cli_worker",
             content=(
                 f"# {agent_name} CLI profile missing\n\n"
-                "AgentLab refused to use a direct-API provider outside explicit full_api mode.\n"
+                f"AgentLab mode {cli_mode!r} has no configured full_cli role profile. "
+                "Retired or unknown modes cannot switch to a direct-API provider.\n"
             ),
             status="blocked_user_decision",
             error="cli_profile_required_no_fallback",
             raw_usage={
                 "executor_type": "cli_agent",
                 "configured_cli_agent": None,
+                "resolved_mode": cli_mode,
                 "provider_surface_changed": False,
                 "direct_api_fallback_attempted": False,
             },
