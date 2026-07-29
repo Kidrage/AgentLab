@@ -1096,7 +1096,11 @@ class TaskRuntime:
                     )
                 if not role:
                     raise InvalidTransition("execution contract must declare its AgentLab role")
-                delegated = role != "Supervisor"
+                delegated = (
+                    role != "Supervisor"
+                    and execution_contract.get("executor_type")
+                    != "deterministic_tool"
+                )
                 delegation_mode = str(classification.get("delegation_mode") or "")
                 if delegation_mode == "brain_only" and delegated:
                     raise InvalidTransition("this tier permits Brain-direct execution only")
@@ -1242,7 +1246,7 @@ class TaskRuntime:
             status=status,
             idempotency_key=idempotency_key,
             outcome=outcome,
-            executed_success=False,
+            execution_origin=None,
         )
 
     def _transition_executed_attempt(
@@ -1264,7 +1268,26 @@ class TaskRuntime:
             status=status,
             idempotency_key=idempotency_key,
             outcome=outcome,
-            executed_success=True,
+            execution_origin="role_attempt_executor",
+        )
+
+    def _transition_deterministic_attempt(
+        self,
+        task_id: str,
+        *,
+        attempt_id: str,
+        idempotency_key: str,
+        outcome: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Complete the private allowlisted deterministic-tool path."""
+
+        return self._transition_attempt(
+            task_id,
+            attempt_id=attempt_id,
+            status="succeeded",
+            idempotency_key=idempotency_key,
+            outcome=outcome,
+            execution_origin="deterministic_tool_executor",
         )
 
     def _transition_attempt(
@@ -1275,7 +1298,7 @@ class TaskRuntime:
         status: str,
         idempotency_key: str,
         outcome: dict[str, Any] | None,
-        executed_success: bool,
+        execution_origin: str | None,
     ) -> dict[str, Any]:
 
         task_id = _validated_id(task_id, field="task_id")
@@ -1338,9 +1361,19 @@ class TaskRuntime:
                 and projection["task"].get("legacy_source") is None
                 and classification.get("enforcement") == "strict"
             ):
-                if not executed_success:
+                if execution_origin not in {
+                    "role_attempt_executor",
+                    "deterministic_tool_executor",
+                }:
                     raise InvalidTransition(
-                        "strict Attempt success is owned by RoleAttemptExecutor"
+                        "strict Attempt success is owned by RoleAttemptExecutor "
+                        "or DeterministicToolExecutor"
+                    )
+                if payload["outcome"].get(
+                    "execution_origin"
+                ) != execution_origin:
+                    raise InvalidTransition(
+                        "Attempt execution origin does not match executor"
                     )
                 self._validate_attempt_execution_receipt(
                     task_id=task_id,
@@ -1377,12 +1410,19 @@ class TaskRuntime:
             attempt=attempt,
             outcome=attempt.get("outcome") or {},
         )
+        contract = attempt.get("execution_contract") or {}
+        work_item = projection["work_items"].get(attempt.get("work_item_id")) or {}
         return {
             "task_id": task_id,
             "attempt_id": attempt_id,
             "ok": True,
             "receipt_sha256": (attempt.get("outcome") or {}).get("receipt_sha256"),
             "output_sha256": (attempt.get("outcome") or {}).get("output_sha256"),
+            "work_item_id": attempt.get("work_item_id"),
+            "assigned_agent_id": work_item.get("assigned_agent_id"),
+            "runtime_role": contract.get("role"),
+            "runtime_provider": contract.get("runtime_provider"),
+            "model_id": contract.get("model_id"),
         }
 
     def record_artifact_version(
@@ -2043,8 +2083,21 @@ class TaskRuntime:
         ):
             raise InvalidTransition("Attempt execution receipt path or hash is invalid")
         contract = attempt.get("execution_contract") or {}
+        execution_origin = str(outcome.get("execution_origin") or "")
+        deterministic = execution_origin == "deterministic_tool_executor"
+        if (
+            execution_origin == "role_attempt_executor"
+            and contract.get("executor_type") == "deterministic_tool"
+        ):
+            raise InvalidTransition(
+                "RoleAttemptExecutor cannot impersonate a deterministic tool"
+            )
         expected = {
-            "schema_version": "task-runtime-role-attempt-receipt/v1",
+            "schema_version": (
+                "task-runtime-deterministic-attempt-receipt/v1"
+                if deterministic
+                else "task-runtime-role-attempt-receipt/v1"
+            ),
             "project": self.project,
             "task_id": task_id,
             "work_item_id": attempt.get("work_item_id"),
@@ -2054,9 +2107,10 @@ class TaskRuntime:
             "provider": attempt.get("provider"),
             "status": "pass",
         }
-        if outcome.get("execution_origin") != "role_attempt_executor" or not isinstance(
-            receipt, dict
-        ) or any(
+        if execution_origin not in {
+            "role_attempt_executor",
+            "deterministic_tool_executor",
+        } or not isinstance(receipt, dict) or any(
             receipt.get(field) != value for field, value in expected.items()
         ):
             raise InvalidTransition("Attempt execution receipt identity is invalid")
@@ -2075,6 +2129,21 @@ class TaskRuntime:
             or outcome.get("output_sha256") != output_hash
         ):
             raise InvalidTransition("Attempt output path or hash is invalid")
+        if deterministic:
+            deterministic_tool = contract.get("deterministic_tool")
+            receipt_tool = receipt.get("deterministic_tool")
+            if (
+                contract.get("executor_type") != "deterministic_tool"
+                or attempt.get("provider") != "agentlab-deterministic"
+                or not isinstance(deterministic_tool, dict)
+                or not isinstance(receipt_tool, dict)
+                or receipt_tool != deterministic_tool
+                or receipt.get("model_execution") is not None
+            ):
+                raise InvalidTransition(
+                    "Attempt deterministic tool binding is invalid"
+                )
+            return
         model_execution = receipt.get("model_execution") or {}
         if not isinstance(model_execution, dict):
             raise InvalidTransition("Attempt model execution binding is missing")

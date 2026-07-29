@@ -6,6 +6,12 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from agent_runtime.project_agents import (
+    AgentManifest,
+    ProjectAgentRegistry,
+    effective_contract_hash,
+)
+from agent_runtime.project_truth import ProjectTruthStore
 from agent_runtime.task_runtime_v2 import InvalidTransition, RoleAttemptExecutor, TaskRuntime
 
 
@@ -17,6 +23,21 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
     (config / "agent_model_profiles.yml").write_text(
         yaml.safe_dump(
             {
+                "tier_policy": {
+                    "default_tier": "performance",
+                    "tiers": {
+                        "performance": {
+                            "budget_aliases": ["performance"],
+                        }
+                    },
+                },
+                "professional_role_profiles": {
+                    "writer": {
+                        "base_role_key": "writer",
+                        "execution_tier": "performance",
+                        "execution_kind": "cli_agent",
+                    }
+                },
                 "modes": {
                     "full_cli": {
                         "tiers": {
@@ -50,6 +71,49 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         ),
         encoding="utf-8",
     )
+    project_root = tmp_path / "projects" / "Demo"
+    project_root.mkdir(parents=True)
+    (project_root / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Demo",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project_root)
+    initial = truth.initialize("Demo")
+    manifest = AgentManifest(
+        id="writer",
+        name="Writer",
+        version="2.0.0",
+        role="writer",
+        description="Write governed candidates.",
+        responsibilities=("Write governed candidates.",),
+        runtime_role="Writer",
+        read_scope=("production/**", "runs/**", "runtime/tasks/**"),
+        write_scope=("runs/**",),
+        approval_scope=(),
+        knowledge_binding={"namespace": "agent.Demo.writer"},
+        model_profile="writer",
+        tool_permission=(),
+        budget_profile="standard",
+        status="active",
+        acceptance_rules=("candidate_only",),
+    )
+    registered = ProjectAgentRegistry(truth).register(
+        manifest,
+        expected_snapshot_id=initial.current_snapshot_id,
+        actor_id="user",
+        source="user",
+        approved=True,
+    )
+    manifest = ProjectAgentRegistry(truth).get("writer")
     runtime = TaskRuntime(tmp_path, project="Demo")
     runtime.create_task(
         task_id="task-role",
@@ -70,16 +134,18 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         work_item_id="writer",
         kind="patch",
         title="Writer patch",
+        assigned_agent_id=manifest.id,
+        agent_manifest_revision=manifest.manifest_revision,
+        canonical_snapshot_id=registered.snapshot_id,
+        effective_contract_hash=effective_contract_hash(manifest),
         idempotency_key="work-writer",
     )
     calls: list[dict] = []
-    source = tmp_path / "projects" / "Demo" / "production" / "source.yml"
+    source = project_root / "production" / "source.yml"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("fact: grounded\n", encoding="utf-8")
     candidate_source = (
-        tmp_path
-        / "projects"
-        / "Demo"
+        project_root
         / "runs"
         / "candidate-patch"
         / "outputs"
@@ -144,6 +210,28 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
             },
         )
 
+    with pytest.raises(
+        ValueError,
+        match="external context approval request",
+    ):
+        RoleAttemptExecutor(
+            tmp_path,
+            project="Demo",
+            cli_runner=fake_cli,
+        ).execute(
+            task_id="task-role",
+            work_item_id="writer",
+            attempt_id="writer-attempt-unapproved-messages",
+            role="Writer",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Do not export this without approval.",
+                }
+            ],
+            idempotency_key="writer-attempt-unapproved-messages",
+        )
+
     result = RoleAttemptExecutor(
         tmp_path, project="Demo", cli_runner=fake_cli
     ).execute(
@@ -153,6 +241,11 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         role="Writer",
         messages=[{"role": "user", "content": "Write the assigned patch."}],
         source_paths=[source, candidate_source],
+        external_context_request={
+            "purpose": "Write one bounded candidate.",
+            "minimal_fragment": "Write the assigned patch.",
+            "expires_at": "2999-01-01T00:00:00Z",
+        },
         idempotency_key="writer-attempt-001",
     )
 
@@ -186,12 +279,51 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         role="Writer",
         messages=[{"role": "user", "content": "Read the prior Attempt."}],
         source_paths=[Path(result["output_path"])],
+        external_context_request={
+            "purpose": "Read one prior governed attempt.",
+            "minimal_fragment": "Read the prior Attempt.",
+            "expires_at": "2999-01-01T00:00:00Z",
+        },
         idempotency_key="writer-attempt-002",
     )
     assert chained["projection"]["attempts"]["writer-attempt-002"]["status"] == "succeeded"
     assert calls[-1]["kwargs"]["sealed_messages"][1]["content"].startswith(
         "RUNTIME_V2_SOURCE"
     )
+
+    governed = RoleAttemptExecutor(
+        tmp_path,
+        project="Demo",
+        cli_runner=fake_cli,
+    ).execute(
+        task_id="task-role",
+        work_item_id="writer",
+        attempt_id="writer-attempt-outbound-approved",
+        role="Writer",
+        messages=[{"role": "user", "content": "Review governed context."}],
+        source_paths=[source],
+        external_context_request={
+            "purpose": "Review one bounded candidate.",
+            "minimal_fragment": "Review governed context.",
+            "expires_at": "2999-01-01T00:00:00Z",
+        },
+        idempotency_key="writer-attempt-outbound-approved",
+    )
+    assert governed["projection"]["attempts"][
+        "writer-attempt-outbound-approved"
+    ]["status"] == "succeeded"
+    outbound_policy = calls[-1]["plan"].execution_policy
+    assert outbound_policy["external_context_approval_required"] is True
+    assert outbound_policy[
+        "external_context_payload_sha256_required"
+    ] is True
+    assert outbound_policy[
+        "external_context_scope_sha256_required"
+    ] is True
+    assert outbound_policy["external_context_transfer"]["recipient"] == (
+        "cli_agent:claude_code;runtime_provider:deepseek"
+    )
+    assert len(outbound_policy["external_context_scope_sha256"]) == 64
 
     def mismatched_cli(*args, **kwargs):
         bad_result = fake_cli(*args, **kwargs)
@@ -205,6 +337,11 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
             attempt_id="writer-attempt-model-mismatch",
             role="Writer",
             messages=[{"role": "user", "content": "Reject a mismatched route."}],
+            external_context_request={
+                "purpose": "Exercise a mismatched governed route.",
+                "minimal_fragment": "Reject a mismatched route.",
+                "expires_at": "2999-01-01T00:00:00Z",
+            },
             idempotency_key="writer-attempt-model-mismatch",
         )
     assert (

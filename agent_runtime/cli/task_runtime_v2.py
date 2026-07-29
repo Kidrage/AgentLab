@@ -344,21 +344,65 @@ def register_task_runtime_commands(
         role: str = typer.Option(..., "--role"),
         messages_path: Path = typer.Option(..., "--messages-path"),
         source_paths: list[Path] = typer.Option([], "--source-path"),
+        external_context_request_path: Path = typer.Option(
+            ...,
+            "--external-context-request",
+        ),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
         timeout: int | None = typer.Option(None, "--timeout", min=1),
     ) -> None:
         """Execute one configured role and bind its receipt to a v2 Attempt."""
 
-        raw_messages = messages_path.read_text(encoding="utf-8")
+        root = current_root()
+        raw_task_root = (
+            root
+            / "projects"
+            / project
+            / "runtime"
+            / "tasks"
+            / task_id
+        )
+        lexical_task_root = raw_task_root.absolute()
+        lexical_messages_path = messages_path.absolute()
+        try:
+            lexical_messages_path.relative_to(lexical_task_root)
+            current = root.absolute()
+            for part in lexical_messages_path.relative_to(current).parts:
+                current = current / part
+                if current.is_symlink():
+                    raise ValueError(f"symlink ancestor: {current}")
+            task_root = lexical_task_root.resolve(strict=True)
+            resolved_messages_path = messages_path.resolve(strict=True)
+            resolved_messages_path.relative_to(task_root)
+        except (OSError, ValueError) as exc:
+            raise typer.BadParameter(
+                "messages path must be an existing file inside the governed task"
+            ) from exc
+        if not resolved_messages_path.is_file():
+            raise typer.BadParameter("messages path must be a regular file")
+        raw_messages = resolved_messages_path.read_text(encoding="utf-8")
         messages = json_list(raw_messages, field="messages")
+        if external_context_request_path.is_symlink():
+            raise typer.BadParameter(
+                "external context request path may not be a symlink"
+            )
+        loaded_request = yaml.safe_load(
+            external_context_request_path.read_text(encoding="utf-8")
+        )
+        if not isinstance(loaded_request, dict):
+            raise typer.BadParameter(
+                "external context request must be a mapping"
+            )
+        external_context_request = loaded_request
         emit(
-            RoleAttemptExecutor(current_root(), project=project).execute(
+            RoleAttemptExecutor(root, project=project).execute(
                 task_id=task_id,
                 work_item_id=work_item_id,
                 attempt_id=attempt_id,
                 role=role,
                 messages=messages,
                 source_paths=source_paths,
+                external_context_request=external_context_request,
                 idempotency_key=idempotency_key,
                 timeout=timeout,
             )

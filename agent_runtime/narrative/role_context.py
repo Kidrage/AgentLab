@@ -7,6 +7,7 @@ from typing import Any, Mapping, Sequence
 import hashlib
 import json
 import math
+import re
 
 import yaml
 
@@ -20,6 +21,9 @@ RETRIEVAL_ORDER = (
     "semantic",
     "reflective",
 )
+_PROJECT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{1,127}$")
+_TASK_ID = re.compile(r"^task_[A-Za-z0-9][A-Za-z0-9_-]{0,80}$")
+_CANONICAL_INPUT_ROOTS = frozenset({"production", "project_brain"})
 
 
 def _blocked(*issues: str) -> dict[str, Any]:
@@ -31,7 +35,10 @@ def _blocked(*issues: str) -> dict[str, Any]:
 
 
 def _inside(root: Path, path: Path, *, label: str) -> tuple[Path | None, str | None]:
-    resolved = Path(path).resolve()
+    selected = Path(path)
+    if selected.is_symlink():
+        return None, f"{label}_symlink_forbidden:{path}"
+    resolved = selected.resolve()
     try:
         resolved.relative_to(root)
     except ValueError:
@@ -59,16 +66,122 @@ def _craft_card_issues(path: Path) -> list[str]:
     return issues
 
 
+def _unsafe_output_path(project_root: Path, path: Path) -> bool:
+    try:
+        relative = path.relative_to(project_root)
+    except ValueError:
+        return True
+    current = project_root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    try:
+        path.resolve().relative_to(project_root)
+    except ValueError:
+        return True
+    return False
+
+
+def _context_bundle_inventory(
+    bundle: Mapping[str, Any],
+    *,
+    role_id: str,
+) -> tuple[dict[str, str], list[str]]:
+    issues: list[str] = []
+    shared = bundle.get("shared_files")
+    role_specific = bundle.get("role_specific_files")
+    chapter_window = bundle.get("chapter_window")
+    if (
+        bundle.get("schema_version") != 1
+        or not isinstance(shared, list)
+        or not isinstance(role_specific, Mapping)
+        or not isinstance(chapter_window, list)
+        or not str(bundle.get("canon_snapshot_sha256") or "")
+    ):
+        return {}, ["context_bundle_manifest_schema_invalid"]
+    inventory: dict[str, str] = {}
+    records: list[tuple[object, bool]] = [
+        (record, True) for record in shared
+    ]
+    for role_label, role_records in role_specific.items():
+        if not isinstance(role_records, list):
+            issues.append("context_bundle_role_inventory_invalid")
+            continue
+        normalized_role = re.sub(
+            r"_+",
+            "_",
+            re.sub(
+                r"[^A-Za-z0-9]+",
+                "_",
+                re.sub(r"(?<!^)(?=[A-Z])", "_", str(role_label)),
+            ).strip("_").lower(),
+        )
+        records.extend(
+            (record, normalized_role == role_id) for record in role_records
+        )
+    for index, (raw, authorized) in enumerate(records):
+        if not isinstance(raw, Mapping):
+            issues.append(f"context_bundle_record_invalid:{index}")
+            continue
+        path = str(raw.get("path") or "")
+        sha256 = str(raw.get("sha256") or "")
+        size = raw.get("bytes")
+        if (
+            not path
+            or len(sha256) != 64
+            or any(character not in "0123456789abcdef" for character in sha256)
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or size < 0
+        ):
+            issues.append(f"context_bundle_record_invalid:{index}")
+            continue
+        if authorized:
+            previous = inventory.get(path)
+            if previous is not None and previous != sha256:
+                issues.append(f"context_bundle_record_conflict:{path}")
+                continue
+            inventory[path] = sha256
+    identity_fields = {
+        "canon_snapshot_sha256",
+        "chapter_window",
+        "shared_files",
+        "role_specific_files",
+        "creative_brief",
+        "creative_brief_sha256",
+        "predecessor_sha256",
+    }
+    identity = {
+        key: bundle[key]
+        for key in identity_fields
+        if key in bundle
+    }
+    expected_id = "ctx-" + hashlib.sha256(
+        json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()[:24]
+    if bundle.get("context_bundle_id") != expected_id:
+        issues.append("context_bundle_id_not_content_addressed")
+    return inventory, issues
+
+
 def compile_role_context_pack(
     agentlab_root: Path,
     *,
+    project: str,
+    task_id: str,
     role_id: str,
-    source_root: Path,
     context_bundle_manifest: Path,
     evidence_candidates: Sequence[Mapping[str, object]],
     token_budget: int,
     minimum_evidence_items: int,
-    output_dir: Path,
+    audit_chapter_id: int | None = None,
+    audit_candidate_path: Path | None = None,
 ) -> dict[str, Any]:
     """Compile one immutable pack using the mandated retrieval-stage order.
 
@@ -82,13 +195,26 @@ def compile_role_context_pack(
         return _blocked("token_budget_must_be_positive")
     if minimum_evidence_items < 0:
         return _blocked("minimum_evidence_items_must_be_nonnegative")
+    if not _PROJECT_ID.fullmatch(project):
+        return _blocked("project_id_invalid")
+    if not _TASK_ID.fullmatch(task_id):
+        return _blocked("task_id_invalid")
+    if (audit_chapter_id is None) != (audit_candidate_path is None):
+        return _blocked("audit_target_fields_must_be_declared_together")
+    if audit_chapter_id is not None and (
+        isinstance(audit_chapter_id, bool) or audit_chapter_id <= 0
+    ):
+        return _blocked("audit_chapter_id_must_be_positive")
 
-    root = Path(source_root).resolve()
-    output = Path(output_dir).resolve()
-    try:
-        output.relative_to(root)
-    except ValueError:
-        return _blocked(f"output_dir_outside_source_root:{output_dir}")
+    agentlab = Path(agentlab_root).resolve()
+    project_path = agentlab / "projects" / project
+    if project_path.is_symlink() or not project_path.is_dir():
+        return _blocked("project_root_invalid")
+    root = project_path.resolve()
+    run_artifacts = root / "runs" / task_id / "artifacts"
+    output = run_artifacts / "role_context"
+    if _unsafe_output_path(root, output):
+        return _blocked("run_artifacts_symlink_or_escape_forbidden")
 
     bundle_path, bundle_issue = _inside(
         root,
@@ -98,16 +224,55 @@ def compile_role_context_pack(
     if bundle_issue or bundle_path is None:
         return _blocked(str(bundle_issue))
     try:
+        bundle_relative = bundle_path.relative_to(root)
+    except ValueError:
+        return _blocked("context_bundle_manifest_outside_project")
+    expected_prefix = Path("runs") / task_id / "artifacts"
+    if bundle_relative.parts[:3] != expected_prefix.parts:
+        return _blocked("context_bundle_manifest_not_run_artifact")
+    try:
         bundle = yaml.safe_load(bundle_path.read_text(encoding="utf-8")) or {}
     except (OSError, UnicodeError, yaml.YAMLError):
         return _blocked("context_bundle_manifest_unreadable")
-    if not isinstance(bundle, Mapping) or not str(
-        bundle.get("context_bundle_id") or ""
-    ):
+    if not isinstance(bundle, Mapping):
         return _blocked("context_bundle_manifest_invalid")
+    bundle_inventory, bundle_issues = _context_bundle_inventory(
+        bundle,
+        role_id=role_id,
+    )
+    if bundle_issues:
+        return _blocked(*bundle_issues)
+    audit_target = None
+    if audit_chapter_id is not None and audit_candidate_path is not None:
+        candidate_path, candidate_issue = _inside(
+            root,
+            audit_candidate_path,
+            label="audit_candidate",
+        )
+        if candidate_issue or candidate_path is None:
+            return _blocked(str(candidate_issue))
+        try:
+            candidate_relative = candidate_path.relative_to(run_artifacts)
+        except ValueError:
+            return _blocked("audit_candidate_not_run_artifact")
+        if not candidate_relative.parts:
+            return _blocked("audit_candidate_not_run_artifact")
+        chapter_window = bundle.get("chapter_window")
+        if (
+            not isinstance(chapter_window, list)
+            or audit_chapter_id not in chapter_window
+        ):
+            return _blocked("audit_chapter_not_in_context_bundle_window")
+        audit_target = {
+            "chapter_id": audit_chapter_id,
+            "candidate_path": candidate_path.relative_to(root).as_posix(),
+            "candidate_sha256": hashlib.sha256(
+                candidate_path.read_bytes()
+            ).hexdigest(),
+        }
 
     try:
-        contract = load_author_team_contract(Path(agentlab_root))
+        contract = load_author_team_contract(agentlab)
     except ValueError as exc:
         return _blocked(f"author_team_contract_invalid:{exc}")
     roles = contract.get("roles")
@@ -135,6 +300,13 @@ def compile_role_context_pack(
             issues.append(str(path_issue))
             continue
         relative = path.relative_to(root).as_posix()
+        relative_parts = Path(relative).parts
+        if (
+            not relative_parts
+            or relative_parts[0] not in _CANONICAL_INPUT_ROOTS
+        ):
+            issues.append(f"evidence_not_canonical:{relative}")
+            continue
         if relative in observed_paths:
             issues.append(f"duplicate_evidence_path:{relative}")
             continue
@@ -160,6 +332,15 @@ def compile_role_context_pack(
             issues.extend(_craft_card_issues(path))
 
         payload = path.read_bytes()
+        payload_sha256 = hashlib.sha256(payload).hexdigest()
+        if bundle_inventory.get(relative) != payload_sha256:
+            issues.append(f"evidence_not_bound_by_context_bundle:{relative}")
+            continue
+        try:
+            content = payload.decode("utf-8")
+        except UnicodeDecodeError:
+            issues.append(f"evidence_not_utf8:{relative}")
+            continue
         candidates.append(
             {
                 "path": relative,
@@ -169,7 +350,8 @@ def compile_role_context_pack(
                 "required": bool(candidate.get("required", False)),
                 "bytes": len(payload),
                 "estimated_tokens": max(1, math.ceil(len(payload) / 4)),
-                "sha256": hashlib.sha256(payload).hexdigest(),
+                "sha256": payload_sha256,
+                "content": content,
             }
         )
     if issues:
@@ -184,6 +366,22 @@ def compile_role_context_pack(
             item["path"],
         )
     )
+    candidate_inventory = [
+        {
+            key: item[key]
+            for key in (
+                "path",
+                "namespace",
+                "retrieval_stage",
+                "score",
+                "required",
+                "bytes",
+                "estimated_tokens",
+                "sha256",
+            )
+        }
+        for item in candidates
+    ]
     selected: list[dict[str, Any]] = []
     omitted: list[dict[str, str]] = []
     used_tokens = 0
@@ -216,17 +414,29 @@ def compile_role_context_pack(
 
     identity = {
         "schema_version": "role-context-pack/v1",
+        "project": project,
+        "task_id": task_id,
         "role_id": role_id,
         "knowledge_namespaces": list(allowed_namespaces),
         "retrieval_order": list(RETRIEVAL_ORDER),
+        "retrieval_execution": {
+            "candidate_source": "caller_provided_hash_bound_candidates",
+            "compiler_performs_retrieval": False,
+            "external_transfer": "forbidden",
+            "external_transfer_approval_contract": (
+                "agent_runtime.narrative.outbound_transfer."
+                "build_narrative_outbound_transfer_contract"
+            ),
+        },
         "context_bundle": {
-            "path": bundle_path.relative_to(root).as_posix(),
+            "path": bundle_relative.as_posix(),
             "context_bundle_id": bundle["context_bundle_id"],
             "sha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
         },
         "authority_bindings": contract["authority_bindings"],
         "selected_evidence": selected,
         "omitted_evidence": omitted,
+        "candidate_inventory": candidate_inventory,
         "token_usage": {
             "budget": token_budget,
             "used": used_tokens,
@@ -236,6 +446,8 @@ def compile_role_context_pack(
         "minimum_evidence_items": minimum_evidence_items,
         "evidence_sufficient": len(selected) >= minimum_evidence_items,
     }
+    if audit_target is not None:
+        identity["audit_target"] = audit_target
     pack_sha256 = hashlib.sha256(
         json.dumps(
             identity,

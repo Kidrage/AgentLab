@@ -340,6 +340,22 @@ class NarrativeStateStore:
                     "event_id": event["event_id"],
                 }
             }
+        elif event.get("event_type") == "NARRATIVE_STATE_ROLLED_BACK":
+            restored_state = payload.get("restored_state")
+            if (
+                not isinstance(restored_state, Mapping)
+                or restored_state.get("schema_version") != SNAPSHOT_SCHEMA
+                or restored_state.get("project") != self.project
+                or restored_state.get("state_sha256")
+                != _state_hash(restored_state)
+                or payload.get("restored_state_sha256")
+                != restored_state.get("state_sha256")
+            ):
+                raise NarrativeStateIntegrityError(
+                    "rollback event restored state is invalid"
+                )
+            snapshot.clear()
+            snapshot.update(deepcopy(dict(restored_state)))
         else:
             raise NarrativeStateIntegrityError(
                 f"unsupported narrative event type: {event.get('event_type')}"
@@ -355,6 +371,32 @@ class NarrativeStateStore:
             self._apply_event(snapshot, event)
         snapshot["state_sha256"] = _state_hash(snapshot)
         return snapshot
+
+    @staticmethod
+    def _active_authority_events(
+        events: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Resolve the active chapter lineage while retaining immutable history."""
+
+        active: list[dict[str, Any]] = []
+        for event in events:
+            if event.get("event_type") != "NARRATIVE_STATE_ROLLED_BACK":
+                active.append(event)
+                continue
+            target = int(
+                (event.get("payload") or {}).get("target_chapter") or 0
+            )
+            active = [
+                candidate
+                for candidate in active
+                if candidate.get("event_type")
+                != "VERIFIED_CHAPTER_COMMITTED"
+                or int(
+                    (candidate.get("payload") or {}).get("chapter") or 0
+                )
+                <= target
+            ]
+        return active
 
     def _persist_snapshot(self, events: list[dict[str, Any]]) -> dict[str, Any]:
         snapshot = self._project(events)
@@ -422,6 +464,8 @@ class NarrativeStateStore:
                 if event.get("event_type") == "EDITORIAL_MEMORY_RECORDED"
                 else "overridden"
                 if event.get("event_type") == "FACT_AUTHORITY_COMMITTED"
+                else "rolled_back"
+                if event.get("event_type") == "NARRATIVE_STATE_ROLLED_BACK"
                 else "committed"
             ),
             "project": self.project,
@@ -430,6 +474,8 @@ class NarrativeStateStore:
             "state_sha256": snapshot["state_sha256"],
             "manifest_sha256": payload.get("manifest_sha256"),
             "commit_sha256": payload.get("commit_sha256"),
+            "target_chapter": payload.get("target_chapter"),
+            "restored_state_sha256": payload.get("restored_state_sha256"),
         }
 
     def bootstrap(self, manifest: Mapping[str, Any]) -> dict[str, Any]:
@@ -752,11 +798,101 @@ class NarrativeStateStore:
                 events = [
                     event
                     for event in events
-                    if event.get("event_type") != "VERIFIED_CHAPTER_COMMITTED"
-                    or int((event.get("payload") or {}).get("chapter") or 0)
-                    <= chapter
+                    if (
+                        event.get("event_type")
+                        != "VERIFIED_CHAPTER_COMMITTED"
+                        or int((event.get("payload") or {}).get("chapter") or 0)
+                        <= chapter
+                    )
+                    and (
+                        event.get("event_type")
+                        != "NARRATIVE_STATE_ROLLED_BACK"
+                        or int(
+                            (event.get("payload") or {}).get(
+                                "target_chapter"
+                            )
+                            or 0
+                        )
+                        <= chapter
+                    )
                 ]
             return self._project(events)
+
+    def rollback_to_chapter(
+        self,
+        chapter: int,
+        *,
+        reason: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Append an auditable rollback event and make that projection active."""
+
+        if isinstance(chapter, bool) or not isinstance(chapter, int) or chapter < 0:
+            raise ValueError("rollback chapter must be a non-negative integer")
+        reason = str(reason or "").strip()
+        idempotency_key = str(idempotency_key or "").strip()
+        if not reason:
+            raise ValueError("rollback reason is required")
+        if not idempotency_key:
+            raise ValueError("rollback idempotency_key is required")
+        with self._lock():
+            events = self._load_events()
+            if not events:
+                raise NarrativeStateConflict(
+                    "narrative state must be bootstrapped first"
+                )
+            for event in events:
+                if event.get("event_type") != "NARRATIVE_STATE_ROLLED_BACK":
+                    continue
+                payload = event.get("payload") or {}
+                if payload.get("idempotency_key") != idempotency_key:
+                    continue
+                if (
+                    payload.get("target_chapter") != chapter
+                    or payload.get("reason") != reason
+                ):
+                    raise NarrativeStateConflict(
+                        "rollback idempotency key was reused"
+                    )
+                self._persist_snapshot(events)
+                return self._receipt(events, event)
+            current = self._project(events)
+            committed_chapters = [
+                int(value)
+                for value in current.get("chapters", {})
+                if str(value).isdigit()
+            ]
+            if not committed_chapters or chapter >= max(committed_chapters):
+                raise NarrativeStateConflict(
+                    "rollback target must precede the active committed chapter"
+                )
+            historical_events = [
+                event
+                for event in self._active_authority_events(events)
+                if (
+                    event.get("event_type")
+                    != "VERIFIED_CHAPTER_COMMITTED"
+                    or int((event.get("payload") or {}).get("chapter") or 0)
+                    <= chapter
+                )
+            ]
+            restored_state = self._project(historical_events)
+            event = self._new_event(
+                events,
+                event_type="NARRATIVE_STATE_ROLLED_BACK",
+                payload={
+                    "target_chapter": chapter,
+                    "reason": reason,
+                    "idempotency_key": idempotency_key,
+                    "previous_state_sha256": current["state_sha256"],
+                    "restored_state_sha256": restored_state["state_sha256"],
+                    "restored_state": restored_state,
+                },
+            )
+            events.append(event)
+            self._append_event_to_ledger(event)
+            self._persist_snapshot(events)
+            return self._receipt(events, event)
 
     def commit(self, verified_commit: Mapping[str, Any]) -> dict[str, Any]:
         """Commit one accepted, verified chapter delta to narrative authority."""
@@ -854,7 +990,7 @@ class NarrativeStateStore:
             events = self._load_events()
             if not events:
                 raise NarrativeStateConflict("narrative state must be bootstrapped first")
-            for event in events:
+            for event in self._active_authority_events(events):
                 if event.get("event_type") != "VERIFIED_CHAPTER_COMMITTED":
                     continue
                 payload = event.get("payload") or {}

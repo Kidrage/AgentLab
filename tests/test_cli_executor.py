@@ -9,11 +9,14 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+
+_REAL_SUBPROCESS_RUN = subprocess.run
 
 if TYPE_CHECKING:
     from agent_runtime.schemas import WorkflowPlan
@@ -40,6 +43,130 @@ def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> "WorkflowPlan":
         budget_mode=budget_mode,
         route=route,
     )
+
+
+def _authorize_external_packet(
+    plan: "WorkflowPlan",
+    *,
+    agent_name: str,
+    cli_agent_name: str,
+    sealed_messages: list[dict[str, str]] | None = None,
+    task_messages: list[dict[str, str]] | None = None,
+) -> None:
+    """Attach a real detached user signature for one exact outbound packet."""
+
+    from agent_runtime.approval_signature import (
+        approval_payload_bytes,
+        narrative_outbound_approval_payload,
+    )
+    from agent_runtime.cli_executor import _task_packet_payload
+
+    root = Path(plan.agentlab_root)
+    authority_root = root.parent / f".{root.name}-external-approval"
+    authority_root.mkdir(parents=True, exist_ok=True)
+    private_key = authority_root / "private.pem"
+    public_key = authority_root / "public.pem"
+    if not private_key.is_file():
+        subprocess.run(
+            [
+                "/usr/bin/openssl",
+                "genpkey",
+                "-algorithm",
+                "RSA",
+                "-pkeyopt",
+                "rsa_keygen_bits:2048",
+                "-out",
+                str(private_key),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "/usr/bin/openssl",
+                "pkey",
+                "-in",
+                str(private_key),
+                "-pubout",
+                "-out",
+                str(public_key),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+    config_path = root / "config" / "local_private_topology.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config = (
+        yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        if config_path.is_file()
+        else {}
+    )
+    config["external_context_approval_authority"] = {
+        "public_key_path": str(public_key),
+        "public_key_sha256": hashlib.sha256(public_key.read_bytes()).hexdigest(),
+    }
+    config_path.write_text(
+        yaml.safe_dump(config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    packet_text = json.dumps(
+        _task_packet_payload(
+            agent_name,
+            plan,
+            sealed_messages,
+            task_messages,
+        ),
+        indent=2,
+        ensure_ascii=False,
+    )
+    packet_sha256 = hashlib.sha256(packet_text.encode("utf-8")).hexdigest()
+    scope_sha256 = hashlib.sha256(
+        f"{plan.task_id}:{agent_name}:{cli_agent_name}".encode("utf-8")
+    ).hexdigest()
+    expires_at = "2999-01-01T00:00:00Z"
+    recipient = f"cli_agent:{cli_agent_name}"
+    purpose = "bounded role session test"
+    payload = narrative_outbound_approval_payload(
+        project=str(plan.project),
+        task_id=str(plan.task_id),
+        recipient=recipient,
+        purpose=purpose,
+        packet_payload_sha256=packet_sha256,
+        scope_sha256=scope_sha256,
+        expires_at=expires_at,
+    )
+    payload_path = authority_root / f"{plan.task_id}-{agent_name}.json"
+    payload_path.write_bytes(approval_payload_bytes(payload))
+    signature_path = authority_root / f"{plan.task_id}-{agent_name}.sig"
+    subprocess.run(
+        [
+            "/usr/bin/openssl",
+            "dgst",
+            "-sha256",
+            "-sign",
+            str(private_key),
+            "-out",
+            str(signature_path),
+            str(payload_path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    plan.execution_policy = {
+        "external_context_approval_required": True,
+        "external_context_payload_sha256_required": True,
+        "external_context_scope_sha256_required": True,
+        "external_context_scope_contract_valid": True,
+        "external_context_scope_sha256": scope_sha256,
+        "external_context_approval_signature_path": str(signature_path),
+        "external_context_transfer": {
+            "recipient": recipient,
+            "purpose": purpose,
+            "expires_at": expires_at,
+        },
+    }
 
 
 def _hermes_supervisor_fixture(
@@ -1638,6 +1765,65 @@ class TestRunCliAgentSubprocess:
         assert execution_log["commands"][0]["command_id"] == result.raw_usage["command_id"]
         assert execution_log["commands"][0]["exit_code"] == 0
 
+    def test_external_context_env_cannot_self_approve_without_signature(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        scope_sha256 = "a" * 64
+        plan.execution_policy = {
+            "external_context_approval_required": True,
+            "external_context_payload_sha256_required": True,
+            "external_context_scope_sha256_required": True,
+            "external_context_scope_contract_valid": True,
+            "external_context_scope_sha256": scope_sha256,
+            "external_context_transfer": {
+                "recipient": "cli_agent:hermes;runtime_provider:test",
+                "purpose": "bounded test transfer",
+                "expires_at": "2999-01-01T00:00:00Z",
+            },
+        }
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "hermes",
+            "cli_command": "hermes --task {task_packet_path}",
+            "default": "deepseek_v4_pro",
+        }
+        monkeypatch.setenv("AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED", "1")
+        monkeypatch.setenv(
+            "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256",
+            "b" * 64,
+        )
+        monkeypatch.setenv(
+            "AGENTLAB_ROLE_SESSION_ACCEPTANCE_SCOPE_SHA256",
+            scope_sha256,
+        )
+
+        with patch(
+            "cli_executor.shutil.which",
+            return_value="/usr/bin/hermes",
+        ), patch("cli_executor.subprocess.run") as process:
+            result = run_cli_agent(
+                plan,
+                "Supervisor",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "private context"}
+                ],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.error == "supervisor_outbound_context_gate_blocked"
+        process.assert_not_called()
+
     def test_hermes_supervisor_runtime_binds_extra_to_xhigh_and_writes_receipt(
         self,
         tmp_path,
@@ -2432,20 +2618,16 @@ class TestRunCliAgentSubprocess:
             "invocation_contract": "qwen_narrative_audit",
             "default": "deepseek_v4_flash",
         }
-        approved_payload_sha256 = hashlib.sha256(
-            json.dumps(
-                _task_packet_payload(
-                    "Reviewer",
-                    plan,
-                    sealed_messages=[
-                        {"role": "system", "content": "Do not call tools."},
-                        {"role": "user", "content": "Audit all 20 chapters."},
-                    ],
-                ),
-                indent=2,
-                ensure_ascii=False,
-            ).encode("utf-8")
-        ).hexdigest()
+        sealed_messages = [
+            {"role": "system", "content": "Do not call tools."},
+            {"role": "user", "content": "Audit all 20 chapters."},
+        ]
+        _authorize_external_packet(
+            plan,
+            agent_name="Reviewer",
+            cli_agent_name="qwen",
+            sealed_messages=sealed_messages,
+        )
         structured_result = {
             "fiction_review": {
                 "schema_version": 1,
@@ -2516,6 +2698,8 @@ class TestRunCliAgentSubprocess:
         observed: dict[str, object] = {}
 
         def fake_run(argv, **kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **kwargs)
             observed["argv"] = list(argv)
             observed["kwargs"] = dict(kwargs)
             observed["packet"] = json.loads(kwargs["input"])
@@ -2527,8 +2711,6 @@ class TestRunCliAgentSubprocess:
             "cli_executor.os.environ",
             {
                 "DASHSCOPE_API_KEY": "private-test-key",
-                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
-                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256": approved_payload_sha256,
             },
             clear=False,
         ), patch(
@@ -2540,10 +2722,7 @@ class TestRunCliAgentSubprocess:
                 plan,
                 "Reviewer",
                 role_profile,
-                sealed_messages=[
-                    {"role": "system", "content": "Do not call tools."},
-                    {"role": "user", "content": "Audit all 20 chapters."},
-                ],
+                sealed_messages=sealed_messages,
                 outbound_source_paths=[source],
             )
 
@@ -2664,20 +2843,16 @@ class TestRunCliAgentSubprocess:
             "invocation_contract": "qwen_narrative_literary_ab",
             "default": "qwen3_7_max_dashscope",
         }
-        approved_payload_sha256 = hashlib.sha256(
-            json.dumps(
-                _task_packet_payload(
-                    "Reviewer",
-                    plan,
-                    sealed_messages=[
-                        {"role": "system", "content": "No tools."},
-                        {"role": "user", "content": "Judge anonymous A/B."},
-                    ],
-                ),
-                indent=2,
-                ensure_ascii=False,
-            ).encode("utf-8")
-        ).hexdigest()
+        sealed_messages = [
+            {"role": "system", "content": "No tools."},
+            {"role": "user", "content": "Judge anonymous A/B."},
+        ]
+        _authorize_external_packet(
+            plan,
+            agent_name="Reviewer",
+            cli_agent_name="qwen",
+            sealed_messages=sealed_messages,
+        )
         dimensions = {
             name: {
                 "score": 4,
@@ -2726,6 +2901,8 @@ class TestRunCliAgentSubprocess:
         observed: dict[str, object] = {}
 
         def fake_run(argv, **kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **kwargs)
             observed["argv"] = list(argv)
             schema_path = Path(kwargs["cwd"]) / "narrative_literary_ab_output.schema.json"
             observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -2735,8 +2912,6 @@ class TestRunCliAgentSubprocess:
             "cli_executor.os.environ",
             {
                 "DASHSCOPE_API_KEY": "private-test-key",
-                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
-                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256": approved_payload_sha256,
             },
             clear=False,
         ), patch(
@@ -2748,10 +2923,7 @@ class TestRunCliAgentSubprocess:
                 plan,
                 "Reviewer",
                 role_profile,
-                sealed_messages=[
-                    {"role": "system", "content": "No tools."},
-                    {"role": "user", "content": "Judge anonymous A/B."},
-                ],
+                sealed_messages=sealed_messages,
                 outbound_source_paths=[source],
             )
 
@@ -3467,9 +3639,20 @@ class TestRunCliAgentSubprocess:
             "cli_agent": "agy",
             "cli_command": 'agy --sandbox -p "Read only {task_packet_path}"',
         }
+        task_messages = [
+            {"role": "user", "content": "Return candidate YAML blocks."}
+        ]
+        _authorize_external_packet(
+            plan,
+            agent_name="ArtifactProducer",
+            cli_agent_name="agy",
+            task_messages=task_messages,
+        )
         observed: dict[str, object] = {}
 
         def fake_run(argv, **kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **kwargs)
             packet_path = Path(kwargs["cwd"]) / "task_packet_artifactproducer.json"
             observed["packet"] = json.loads(
                 packet_path.read_text(encoding="utf-8")
@@ -3477,20 +3660,14 @@ class TestRunCliAgentSubprocess:
             observed["workspace"] = Path(kwargs["cwd"])
             return self._mock_proc(0, stdout="candidate blocks", stderr="")
 
-        with patch.dict(
-            "os.environ",
-            {PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME: "1"},
-            clear=False,
-        ), patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), patch(
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), patch(
             "cli_executor.subprocess.run", side_effect=fake_run
         ):
             result = run_cli_agent(
                 plan,
                 "ArtifactProducer",
                 role_profile,
-                task_messages=[
-                    {"role": "user", "content": "Return candidate YAML blocks."}
-                ],
+                task_messages=task_messages,
                 outbound_source_paths=[source],
             )
 

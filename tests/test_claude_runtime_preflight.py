@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -18,9 +19,11 @@ import yaml
 
 from agent_runtime.cli_executor import run_cli_agent
 from agent_runtime.schemas import AgentRoute, WorkflowPlan
+from outbound_approval_support import authorize_external_packet
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_REAL_SUBPROCESS_RUN = subprocess.run
 
 
 def _make_plan(runtime_root: Path) -> WorkflowPlan:
@@ -146,6 +149,17 @@ def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
             Path(plan.run_dir) / "outbound_context_manifest_reviewer.yml"
         ).read_text(encoding="utf-8")
     )
+    authorize_external_packet(
+        plan,
+        agent_name="Reviewer",
+        cli_agent_name="claude_code",
+        sealed_messages=REVIEWER_SEALED_MESSAGES,
+    )
+
+    def signed_provider_run(argv, **kwargs):
+        if argv[0] == "/usr/bin/openssl":
+            return _REAL_SUBPROCESS_RUN(argv, **kwargs)
+        return _provider_result()
 
     with patch.dict(
         "agent_runtime.cli_executor.os.environ",
@@ -159,7 +173,8 @@ def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
     ), patch(
         "agent_runtime.cli_executor.shutil.which", return_value="/usr/bin/claude"
     ), patch(
-        "agent_runtime.cli_executor.subprocess.run", return_value=_provider_result()
+        "agent_runtime.cli_executor.subprocess.run",
+        side_effect=signed_provider_run,
     ) as run:
         result = run_cli_agent(
             plan,

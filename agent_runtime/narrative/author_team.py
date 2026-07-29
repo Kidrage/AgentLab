@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
+import fcntl
 import hashlib
 import re
 
 import yaml
 
 from atomic_io import atomic_write_yaml
+from agent_runtime.knowledge_system.storage import KnowledgeStore
+from agent_runtime.project_agents.contract import AgentContractViolation
 from agent_runtime.project_agents.models import AgentManifest
 from agent_runtime.project_agents.registry import ProjectAgentRegistry
+from agent_runtime.project_truth.models import ChangeSet, ResourceChange
 from agent_runtime.project_truth.store import ProjectTruthStore
 
 REQUIRED_AUTHOR_ROLES = (
@@ -224,6 +229,16 @@ def validate_author_team_contract(
                 )
             ):
                 issues.append(f"{role_id}:{field}_must_be_strings")
+        dependencies = raw.get("dependencies")
+        if isinstance(dependencies, list):
+            for dependency in dependencies:
+                if (
+                    isinstance(dependency, str)
+                    and dependency not in role_ids
+                ):
+                    issues.append(
+                        f"{role_id}:unknown_dependency:{dependency}"
+                    )
         for field in ("input_schema", "output_schema"):
             if field in raw and (
                 not isinstance(raw.get(field), str)
@@ -293,6 +308,45 @@ def validate_author_team_contract(
         issues.append("state_projector:deterministic_runtime_required")
     if projector_runtime.get("execution_kind") != "deterministic_tool":
         issues.append("state_projector:generative_model_forbidden")
+
+    dependency_graph = {
+        role_id: tuple(
+            str(item)
+            for item in (
+                roles.get(role_id, {}).get("dependencies", [])
+                if isinstance(roles.get(role_id), Mapping)
+                else []
+            )
+            if isinstance(item, str) and item in role_ids
+        )
+        for role_id in role_ids
+    }
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(role_id: str) -> None:
+        if role_id in visited:
+            return
+        if role_id in visiting:
+            issues.append(f"dependency_cycle:{role_id}")
+            return
+        visiting.add(role_id)
+        for dependency in dependency_graph.get(role_id, ()):
+            visit(dependency)
+        visiting.remove(role_id)
+        visited.add(role_id)
+
+    for role_id in sorted(role_ids):
+        visit(role_id)
+    dag_status = (
+        "pass"
+        if not any(
+            issue.startswith(("dependency_cycle:",))
+            or ":unknown_dependency:" in issue
+            for issue in issues
+        )
+        else "blocked"
+    )
     return {
         "schema_version": "narrative-author-team-validation/v1",
         "status": "pass" if not issues else "blocked",
@@ -310,6 +364,10 @@ def validate_author_team_contract(
             "deterministic": projector_runtime.get("deterministic") is True,
             "execution_kind": projector_runtime.get("execution_kind"),
             "model_profile_ref": projector_runtime.get("model_profile_ref"),
+        },
+        "dependency_dag": {
+            "status": dag_status,
+            "node_count": len(dependency_graph),
         },
         "issues": sorted(set(issues)),
     }
@@ -400,6 +458,7 @@ def build_author_team_manifests(
             + ",".join(validation["issues"])
         )
     roles = contract["roles"]
+    project_id = str(contract.get("project_id") or "template")
     manifests: list[AgentManifest] = []
     for role_id in REQUIRED_AUTHOR_ROLES:
         profile = roles[role_id]
@@ -423,6 +482,7 @@ def build_author_team_manifests(
                 ),
                 knowledge_binding={
                     "isolation": "project_private",
+                    "namespace": f"agent.{project_id}.{role_id}",
                     "namespaces": list(profile["knowledge_namespaces"]),
                     "input_schema": profile["input_schema"],
                     "output_schema": profile["output_schema"],
@@ -454,6 +514,15 @@ def _proposal_sha256(value: Mapping[str, Any]) -> str:
             allow_unicode=True,
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _manifest_contract_identity(manifest: AgentManifest) -> dict[str, Any]:
+    document = manifest.to_dict()
+    identity = document.get("identity")
+    if isinstance(identity, dict):
+        identity.pop("manifest_revision", None)
+    document.pop("lifecycle", None)
+    return document
 
 
 def materialize_author_team_contract(
@@ -540,7 +609,52 @@ def materialize_author_team_contract(
     }
 
 
+@contextmanager
+def _author_team_provision_lock(project_root: Path) -> Iterator[None]:
+    lock_root = project_root / ".project_truth"
+    lock_root.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_root / ".author-team-provision.lock"
+    if lock_path.is_symlink():
+        raise ValueError("author-team provision lock may not be a symlink")
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def register_author_team_proposal(
+    agentlab_root: Path,
+    *,
+    project: str,
+    proposal_path: Path,
+    expected_proposal_sha256: str,
+    expected_snapshot_id: str,
+    actor_id: str,
+    approved: bool,
+) -> dict[str, Any]:
+    """Serialize KnowledgeStore provisioning with the Project Truth commit."""
+
+    if not _PROJECT_ID.fullmatch(project):
+        raise ValueError("project identifier is invalid")
+    root = Path(agentlab_root).resolve()
+    project_root = root / "projects" / project
+    if project_root.is_symlink() or not project_root.is_dir():
+        raise ValueError("project root is invalid")
+    with _author_team_provision_lock(project_root.resolve()):
+        return _register_author_team_proposal_unlocked(
+            root,
+            project=project,
+            proposal_path=proposal_path,
+            expected_proposal_sha256=expected_proposal_sha256,
+            expected_snapshot_id=expected_snapshot_id,
+            actor_id=actor_id,
+            approved=approved,
+        )
+
+
+def _register_author_team_proposal_unlocked(
     agentlab_root: Path,
     *,
     project: str,
@@ -584,20 +698,197 @@ def register_author_team_proposal(
         manifest.to_dict() for manifest in manifests
     ]:
         raise ValueError("author-team proposal manifest snapshot mismatch")
+    namespaces = [
+        str(manifest.knowledge_binding.get("namespace") or "")
+        for manifest in manifests
+    ]
+    expected_namespaces = [
+        f"agent.{project}.{role_id}" for role_id in REQUIRED_AUTHOR_ROLES
+    ]
+    if namespaces != expected_namespaces or len(set(namespaces)) != len(
+        manifests
+    ):
+        raise ValueError("author-team private knowledge namespaces are invalid")
+    validation = validate_author_team_contract(contract)
+    if validation["dependency_dag"]["status"] != "pass":
+        raise ValueError("author-team dependency DAG is invalid")
+    knowledge_store = KnowledgeStore(root)
+    preexisting_namespaces = {
+        namespace
+        for namespace in namespaces
+        if knowledge_store.space_exists(namespace)
+    }
     truth = ProjectTruthStore(project_root)
+    pre_registration_audit = truth.audit()
+    if pre_registration_audit.get("status") != "pass":
+        raise ValueError("project truth pre-registration audit did not pass")
+    knowledge_paths = []
+    try:
+        for namespace in namespaces:
+            knowledge_paths.append(knowledge_store.ensure_space(namespace))
+    except BaseException:
+        knowledge_store.retire_spaces(
+            namespace
+            for namespace in namespaces
+            if namespace not in preexisting_namespaces
+            and knowledge_store.space_exists(namespace)
+        )
+        raise
     registry = ProjectAgentRegistry(truth)
-    receipt = registry.register_many(
-        manifests,
-        expected_snapshot_id=expected_snapshot_id,
-        actor_id=actor_id,
-        source="user",
-        approved=True,
-    )
+    current_manifests: list[AgentManifest] = []
+    for manifest in manifests:
+        try:
+            current_manifests.append(registry.get(manifest.id))
+        except AgentContractViolation:
+            continue
+    try:
+        if current_manifests:
+            if len(current_manifests) != len(manifests):
+                raise ValueError(
+                    "author-team registration found a partial existing team"
+                )
+            statuses = {
+                current_manifest.status
+                for current_manifest in current_manifests
+            }
+            for current_manifest, proposed_manifest in zip(
+                current_manifests,
+                manifests,
+            ):
+                if (
+                    _manifest_contract_identity(current_manifest)
+                    != _manifest_contract_identity(proposed_manifest)
+                ):
+                    raise ValueError(
+                        "existing author team is not a matching compensated team"
+                    )
+            if statuses == {"archived"}:
+                current_snapshot_id = truth.current().snapshot_id
+                receipt = truth.commit(
+                    ChangeSet(
+                        project_id=truth.current().project_id,
+                        expected_snapshot_id=current_snapshot_id,
+                        actor_id=actor_id,
+                        idempotency_key=(
+                            f"author-team-reactivate:{actual_sha256}:"
+                            f"{current_snapshot_id}"
+                        ),
+                        reason=(
+                            "Reactivate an unchanged author team after a "
+                            "compensated post-registration audit failure."
+                        ),
+                        resources=tuple(
+                            ResourceChange(
+                                key=f"agents.manifest.{current_manifest.id}",
+                                content=current_manifest.evolve(
+                                    status="active"
+                                ).to_dict(),
+                            )
+                            for current_manifest in current_manifests
+                        ),
+                    )
+                )
+                registration_mode = "reactivated_compensated_team"
+                receipt_document = receipt.to_dict()
+            elif statuses == {"active"}:
+                current_snapshot_id = truth.current().snapshot_id
+                registration_mode = "existing_active_team"
+                receipt_document = {
+                    "schema_version": (
+                        "narrative-author-team-existing-registration/v1"
+                    ),
+                    "project_id": project,
+                    "snapshot_id": current_snapshot_id,
+                    "original_expected_snapshot_id": expected_snapshot_id,
+                    "proposal_sha256": actual_sha256,
+                    "status": "current",
+                }
+            else:
+                raise ValueError(
+                    "existing author team has mixed lifecycle states"
+                )
+        else:
+            receipt = registry.register_many(
+                manifests,
+                expected_snapshot_id=expected_snapshot_id,
+                actor_id=actor_id,
+                source="user",
+                approved=True,
+            )
+            registration_mode = "new_team"
+            receipt_document = receipt.to_dict()
+    except BaseException:
+        knowledge_store.retire_spaces(
+            namespace
+            for namespace in namespaces
+            if namespace not in preexisting_namespaces
+        )
+        raise
+    try:
+        truth_audit = truth.audit()
+        if truth_audit.get("status") != "pass":
+            raise ValueError("project truth post-registration audit did not pass")
+    except BaseException as audit_error:
+        compensation_succeeded = False
+        try:
+            current = truth.current()
+            truth.commit(
+                ChangeSet(
+                    project_id=current.project_id,
+                    expected_snapshot_id=current.snapshot_id,
+                    actor_id=actor_id,
+                    idempotency_key=(
+                        f"author-team-audit-compensation:{actual_sha256}:"
+                        f"{current.snapshot_id}"
+                    ),
+                    reason=(
+                        "Archive author team because its post-registration "
+                        "Project Truth audit failed."
+                    ),
+                    resources=tuple(
+                        ResourceChange(
+                            key=f"agents.manifest.{manifest.id}",
+                            content=registry.get(manifest.id)
+                            .evolve(status="archived")
+                            .to_dict(),
+                        )
+                        for manifest in manifests
+                    ),
+                ),
+            )
+            compensation_succeeded = True
+        finally:
+            if compensation_succeeded:
+                knowledge_store.retire_spaces(
+                    namespace
+                    for namespace in namespaces
+                    if namespace not in preexisting_namespaces
+                )
+        raise ValueError(
+            "author-team registration compensated after failed truth audit"
+        ) from audit_error
     return {
         "schema_version": "narrative-author-team-registration-receipt/v1",
         "status": "registered",
         "project_id": project,
         "proposal_sha256": actual_sha256,
+        "atomic_registration": True,
+        "registration_mode": registration_mode,
         "registered_roles": list(REQUIRED_AUTHOR_ROLES),
-        "canonical_receipt": receipt.to_dict(),
+        "knowledge_spaces": [
+            {
+                "role_id": role_id,
+                "namespace": namespace,
+                "path": path.relative_to(root).as_posix(),
+            }
+            for role_id, namespace, path in zip(
+                REQUIRED_AUTHOR_ROLES,
+                namespaces,
+                knowledge_paths,
+            )
+        ],
+        "dependency_dag_audit": validation["dependency_dag"],
+        "project_truth_audit": truth_audit,
+        "pre_registration_truth_audit": pre_registration_audit,
+        "canonical_receipt": receipt_document,
     }

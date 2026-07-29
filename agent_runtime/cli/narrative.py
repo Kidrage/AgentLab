@@ -21,6 +21,7 @@ from agent_runtime.narrative.acceptance_ladder import (
 from agent_runtime.narrative.authorial_audit import (
     build_authorial_audit_plan,
     compile_senior_editor_revision_contracts,
+    execute_authorial_reviews,
 )
 from agent_runtime.narrative.author_team import (
     load_author_team_contract as resolve_author_team_contract,
@@ -44,6 +45,9 @@ from agent_runtime.narrative.state_store import (
     NarrativeStateError,
     NarrativeStateStore,
 )
+from agent_runtime.narrative.user_acceptance import (
+    record_candidate_acceptance,
+)
 from agent_runtime.narrative.planning_window import (
     PlanningWindowError,
     activate_planning_window,
@@ -51,11 +55,20 @@ from agent_runtime.narrative.planning_window import (
     propose_planning_window,
     seal_planning_window,
 )
+from agent_runtime.task_runtime_v2.deterministic_executor import (
+    DeterministicToolExecutor,
+)
 from agent_runtime.narrative.role_context import compile_role_context_pack
 from agent_runtime.narrative.preferences import (
     CROWN_AUTHORIAL_PRIOR,
     PreferenceStore,
     classify_feedback,
+)
+from agent_runtime.narrative.quality.live_editor_preflight import (
+    preflight_literary_ab_review,
+)
+from agent_runtime.narrative.quality.live_editor_runtime import (
+    run_literary_ab_review,
 )
 from agent_runtime.narrative.task_packet import (
     append_narrative_instruction,
@@ -87,6 +100,10 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         help="Verify evidence-bound P0-P5 narrative acceptance.",
         no_args_is_help=True,
     )
+    candidate_app = typer.Typer(
+        help="Govern Candidate Set user acceptance.",
+        no_args_is_help=True,
+    )
     feedback_app = typer.Typer(
         help="Append, inspect, and rollback authorial preference events.",
         no_args_is_help=True,
@@ -95,6 +112,32 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     def active_project_root() -> Path:
         configured = os.environ.get("AGENTLAB_ROOT")
         return resolve_agentlab_root(configured) if configured else project_root
+
+    @candidate_app.command("accept")
+    def accept_candidate_set_command(
+        project: str = typer.Option(..., "--project"),
+        manifest_path: Path = typer.Option(..., "--manifest-path"),
+        actor_id: str = typer.Option(..., "--actor-id"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+        approved_at: str = typer.Option(..., "--approved-at"),
+        signature_path: Path = typer.Option(..., "--signature-path"),
+    ) -> None:
+        """Append one authenticated local-user Candidate Set acceptance."""
+
+        try:
+            result = record_candidate_acceptance(
+                active_project_root() / "projects" / project,
+                manifest_path=manifest_path,
+                actor_id=actor_id,
+                idempotency_key=idempotency_key,
+                approved_at=approved_at,
+                signature_path=signature_path,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     def blueprint_schema(project: str) -> str:
         authority = (
@@ -591,7 +634,10 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             raise typer.BadParameter("unsupported context request schema")
 
         try:
-            source_root = Path(str(value["source_root"])).resolve()
+            root = active_project_root()
+            project = str(value["project"])
+            task_id = str(value["task_id"])
+            source_root = root / "projects" / project
 
             def source_path(field: str) -> Path:
                 path = Path(str(value[field]))
@@ -613,16 +659,26 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 )
                 normalized_candidates.append(normalized)
             result = compile_role_context_pack(
-                active_project_root(),
+                root,
+                project=project,
+                task_id=task_id,
                 role_id=str(value["role_id"]),
-                source_root=source_root,
                 context_bundle_manifest=source_path("context_bundle_manifest"),
                 evidence_candidates=normalized_candidates,
                 token_budget=int(value["token_budget"]),
                 minimum_evidence_items=int(
                     value.get("minimum_evidence_items", 1)
                 ),
-                output_dir=source_path("output_dir"),
+                audit_chapter_id=(
+                    int(value["audit_chapter_id"])
+                    if value.get("audit_chapter_id") is not None
+                    else None
+                ),
+                audit_candidate_path=(
+                    source_path("audit_candidate_path")
+                    if value.get("audit_candidate_path") is not None
+                    else None
+                ),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise typer.BadParameter(f"invalid context request: {exc}") from exc
@@ -648,21 +704,61 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         if value.get("schema_version") != "authorial-audit-request/v1":
             raise typer.BadParameter("unsupported audit request schema")
         try:
-            candidate = Path(str(value["candidate_path"]))
-            if not candidate.is_absolute():
-                candidate = request.resolve().parent / candidate
+            root = active_project_root()
+            project = str(value["project"])
+            task_id = str(value["task_id"])
+            project_dir = root / "projects" / project
             action = str(value["action"])
             if action == "plan":
+                candidate = Path(str(value["candidate_path"]))
+                if not candidate.is_absolute():
+                    candidate = project_dir / candidate
                 risks = value.get("risk_flags", [])
                 if not isinstance(risks, list):
                     raise ValueError("risk_flags must be a list")
                 result = build_authorial_audit_plan(
-                    active_project_root(),
+                    root,
+                    project=project,
+                    task_id=task_id,
                     chapter_id=int(value["chapter_id"]),
                     candidate_path=candidate,
                     risk_flags=[str(item) for item in risks],
                 )
+            elif action == "execute_reviews":
+                candidate = Path(str(value["candidate_path"]))
+                if not candidate.is_absolute():
+                    candidate = project_dir / candidate
+                risks = value.get("risk_flags", [])
+                if not isinstance(risks, list):
+                    raise ValueError("risk_flags must be a list")
+                raw_context_packs = value.get("context_pack_paths")
+                if not isinstance(raw_context_packs, dict):
+                    raise ValueError("context_pack_paths must be a mapping")
+                context_pack_paths = {}
+                for role_id, path_value in raw_context_packs.items():
+                    pack_path = Path(str(path_value))
+                    if not pack_path.is_absolute():
+                        pack_path = project_dir / pack_path
+                    context_pack_paths[str(role_id)] = pack_path
+                result = execute_authorial_reviews(
+                    root,
+                    project=project,
+                    task_id=task_id,
+                    chapter_id=int(value["chapter_id"]),
+                    candidate_path=candidate,
+                    risk_flags=[str(item) for item in risks],
+                    context_pack_paths=context_pack_paths,
+                    outbound_expires_at=str(
+                        value.get("outbound_expires_at") or ""
+                    ),
+                    execution_ordinal=int(
+                        value.get("execution_ordinal", 1)
+                    ),
+                )
             elif action == "compile_revision":
+                candidate = Path(str(value["candidate_path"]))
+                if not candidate.is_absolute():
+                    candidate = project_dir / candidate
                 findings = value.get("findings")
                 constraints = value.get("constraints")
                 if not isinstance(findings, list) or not all(
@@ -673,9 +769,39 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                     raise ValueError("constraints must be a mapping")
                 result = compile_senior_editor_revision_contracts(
                     findings,
+                    agentlab_root=root,
+                    project=project,
+                    task_id=task_id,
                     candidate_path=candidate,
                     constraints=constraints,
                 )
+            elif action == "execute_blind_ab":
+                spec = Path(str(value["spec_path"]))
+                if not spec.is_absolute():
+                    spec = project_dir / spec
+                preflight = preflight_literary_ab_review(
+                    spec,
+                    repository_root=root,
+                )
+                if (
+                    preflight.get("project") != project
+                    or preflight.get("task_id") != task_id
+                    or preflight.get("status") != "ready"
+                ):
+                    raise ValueError("blind A/B preflight identity mismatch")
+                review = run_literary_ab_review(
+                    root,
+                    project=project,
+                    task_id=task_id,
+                )
+                result = {
+                    "schema_version": "authorial-blind-ab-execution/v1",
+                    "status": review.get("status"),
+                    "project": project,
+                    "task_id": task_id,
+                    "preflight": preflight,
+                    "review": review,
+                }
             else:
                 raise ValueError(f"unsupported audit action: {action}")
         except (KeyError, TypeError, ValueError) as exc:
@@ -713,6 +839,35 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         )
         if result["status"] == "blocked":
             raise typer.Exit(code=1)
+
+    @acceptance_app.command("project-metric-universe")
+    def project_metric_universe_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        attempt_id: str = typer.Option(..., "--attempt-id"),
+        metric_id: str = typer.Option(..., "--metric-id"),
+        work_item_id: str = typer.Option(..., "--work-item-id"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        """Execute the allowlisted projector as a real TaskRuntime Attempt."""
+
+        try:
+            result = DeterministicToolExecutor(
+                active_project_root(),
+                project=project,
+            ).execute_metric_universe(
+                task_id=task_id,
+                work_item_id=work_item_id,
+                attempt_id=attempt_id,
+                metric_id=metric_id,
+                idempotency_key=idempotency_key,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip(),
+            soft_wrap=True,
+        )
 
     def preference_store(project: str) -> PreferenceStore:
         store = PreferenceStore(
@@ -810,6 +965,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
 
     narrative_app.add_typer(author_team_app, name="author-team")
     narrative_app.add_typer(acceptance_app, name="acceptance")
+    narrative_app.add_typer(candidate_app, name="candidate")
     narrative_app.add_typer(context_app, name="context")
     narrative_app.add_typer(feedback_app, name="feedback")
     narrative_app.add_typer(planning_window_app, name="planning-window")

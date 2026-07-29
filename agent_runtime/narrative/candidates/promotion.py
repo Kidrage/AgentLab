@@ -12,6 +12,9 @@ from typing import Any, Mapping
 
 from agent_runtime.atomic_io import atomic_write_yaml, safe_read_yaml
 from agent_runtime.narrative.candidates.manifest import validate_candidate_set
+from agent_runtime.narrative.user_acceptance import (
+    validate_candidate_acceptance,
+)
 
 
 _PASS = {"pass", "passed", "completed", "accepted"}
@@ -65,7 +68,7 @@ def _validate_receipt(
     candidate_set_sha256: str,
     artifact_sha256: str,
     label: str,
-) -> None:
+) -> dict[str, Any]:
     root = Path(project_root).resolve()
     path = (root / path_value).resolve()
     path.relative_to(root)
@@ -78,6 +81,96 @@ def _validate_receipt(
         raise ValueError(f"{label} artifact hash mismatch")
     if int(receipt.get("blocking_count") or 0) != 0:
         raise ValueError(f"{label} contains blocking findings")
+    return receipt
+
+
+def _validate_crown_runtime_receipt(
+    project_root: Path,
+    receipt_path: str,
+    receipt: Mapping[str, Any],
+    *,
+    field: str,
+    chapter_id: int,
+) -> None:
+    """Require Crown promotion evidence to originate from verified runtime work."""
+
+    from agent_runtime.task_runtime_v2 import TaskRuntime
+
+    contracts = {
+        "generation_receipt": (
+            "narrative-generation-receipt/v1",
+            "narrative-generation",
+            "writer",
+            "Writer",
+        ),
+        "correctness_audit": (
+            "narrative-correctness-audit-receipt/v1",
+            "narrative-correctness-audit",
+            "canon_timeline_steward",
+            "Reviewer",
+        ),
+        "literary_audit": (
+            "narrative-literary-audit-receipt/v1",
+            "narrative-literary-audit",
+            "senior_editor",
+            "Reviewer",
+        ),
+        "cost_receipt": (
+            "narrative-cost-receipt/v1",
+            "narrative-cost-audit",
+            "authorial_director",
+            "Supervisor",
+        ),
+    }
+    schema_version, work_kind, agent_id, runtime_role = contracts[field]
+    task_id = str(receipt.get("task_id") or "")
+    attempt_id = str(receipt.get("attempt_id") or "")
+    work_item_id = str(receipt.get("work_item_id") or "")
+    if (
+        receipt.get("schema_version") != schema_version
+        or receipt.get("project") != project_root.name
+        or receipt.get("chapter_id") != chapter_id
+        or not task_id
+        or not attempt_id
+        or not work_item_id
+    ):
+        raise ValueError(f"{field} chapter {chapter_id} contract is invalid")
+    runtime = TaskRuntime(
+        project_root.parent.parent,
+        project=project_root.name,
+    )
+    verification = runtime.verify_attempt_execution_receipt(
+        task_id,
+        attempt_id,
+    )
+    projection = runtime.load_task(task_id)
+    attempt = (projection.get("attempts") or {}).get(attempt_id)
+    work_item = (projection.get("work_items") or {}).get(work_item_id)
+    execution_contract = (
+        attempt.get("execution_contract")
+        if isinstance(attempt, Mapping)
+        else None
+    )
+    receipt_file = (project_root / receipt_path).resolve(strict=True)
+    if (
+        verification.get("ok") is not True
+        or verification.get("output_sha256")
+        != hashlib.sha256(receipt_file.read_bytes()).hexdigest()
+        or receipt.get("execution_receipt_sha256")
+        != verification.get("receipt_sha256")
+        or receipt.get("provider") != verification.get("runtime_provider")
+        or receipt.get("model_id") != verification.get("model_id")
+        or not isinstance(attempt, Mapping)
+        or attempt.get("work_item_id") != work_item_id
+        or not isinstance(work_item, Mapping)
+        or work_item.get("kind") != work_kind
+        or work_item.get("assigned_agent_id") != agent_id
+        or not isinstance(execution_contract, Mapping)
+        or execution_contract.get("role") != runtime_role
+    ):
+        raise ValueError(
+            f"{field} chapter {chapter_id} runtime evidence is invalid"
+        )
 
 
 def evidence_bundle_sha256(
@@ -183,10 +276,27 @@ def promote_candidate_set(
         raise ValueError("user acceptance evidence hash is missing")
     if approved_evidence_sha256 != current_evidence_sha256:
         raise ValueError("stale user acceptance evidence")
+    validate_candidate_acceptance(
+        root,
+        Path(user_acceptance_receipt),
+        candidate_set_id=candidate_set_id,
+        candidate_set_sha256=candidate_set_sha256,
+        evidence_bundle_sha256=current_evidence_sha256,
+    )
 
     chapters = manifest.get("chapters")
     if not isinstance(chapters, list) or not chapters:
         raise ValueError("candidate set chapters are missing")
+    artifact_sha256_values = [
+        str(record.get("artifact_sha256") or "")
+        for record in chapters
+        if isinstance(record, Mapping)
+    ]
+    if (
+        len(artifact_sha256_values) != len(chapters)
+        or len(set(artifact_sha256_values)) != len(artifact_sha256_values)
+    ):
+        raise ValueError("candidate chapters must have unique content hashes")
     for record in chapters:
         if not isinstance(record, Mapping):
             raise ValueError("candidate chapter record is invalid")
@@ -198,13 +308,21 @@ def promote_candidate_set(
             ("literary_audit", "literary audit"),
             ("cost_receipt", "cost receipt"),
         ):
-            _validate_receipt(
+            receipt = _validate_receipt(
                 root,
                 str(record.get(field) or ""),
                 candidate_set_sha256=candidate_set_sha256,
                 artifact_sha256=str(record.get("artifact_sha256") or ""),
                 label=f"{label} chapter {record.get('chapter_id')}",
             )
+            if root.name == "Crown_of_Ash":
+                _validate_crown_runtime_receipt(
+                    root,
+                    str(record.get(field) or ""),
+                    receipt,
+                    field=field,
+                    chapter_id=int(record["chapter_id"]),
+                )
 
     index_path = root / "project_artifact_index.yml"
     index = safe_read_yaml(index_path, default={}) or {}
@@ -292,10 +410,14 @@ def promote_candidate_set(
         expected_receipt=promotion_receipt,
     ):
         raise FileExistsError(staging)
+    staging_preexisting = staging.exists()
+    staging_created = False
+    target_installed = False
     try:
         if not resumed_target:
             if not staging.exists():
                 staging.mkdir(parents=True)
+                staging_created = True
                 for record in chapters:
                     source = (root / str(record["artifact_path"])).resolve()
                     destination = staging / f"chapter_{int(record['chapter_id']):03d}.md"
@@ -305,6 +427,7 @@ def promote_candidate_set(
                 atomic_write_yaml(staging / "promotion_receipt.yml", promotion_receipt)
             target.parent.mkdir(parents=True, exist_ok=True)
             os.replace(staging, target)
+            target_installed = True
         release_record = {
             "release_slot": release_slot,
             "edition_id": edition_id,
@@ -321,9 +444,12 @@ def promote_candidate_set(
         updated_index["current_release"] = release_record
         atomic_write_yaml(index_path, updated_index)
     except Exception:
-        if target.exists():
-            shutil.rmtree(target)
-        if staging.exists():
+        if target_installed and target.exists():
+            if staging_preexisting:
+                os.replace(target, staging)
+            else:
+                shutil.rmtree(target)
+        if staging_created and staging.exists():
             shutil.rmtree(staging)
         raise
     result = {

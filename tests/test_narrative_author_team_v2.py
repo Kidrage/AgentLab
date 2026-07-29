@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -14,7 +15,8 @@ from agent_runtime.narrative.author_team import (
     select_author_team,
     validate_author_team_contract,
 )
-from agent_runtime.project_agents import ProjectAgentRegistry
+from agent_runtime.knowledge_system.storage import KnowledgeStore
+from agent_runtime.project_agents import AgentRegistryError, ProjectAgentRegistry
 from agent_runtime.project_truth import ProjectTruthStore
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +75,25 @@ def test_missing_professional_contract_field_blocks_team() -> None:
         "relationship_director:knowledge_namespaces_required"
         in result["issues"]
     )
+
+
+def test_author_team_dependency_graph_rejects_unknown_and_cyclic_roles() -> None:
+    unknown = _contract()
+    unknown["roles"]["writer"]["dependencies"] = ["invented_role"]
+    unknown_result = validate_author_team_contract(unknown)
+    assert unknown_result["status"] == "blocked"
+    assert "writer:unknown_dependency:invented_role" in unknown_result["issues"]
+    assert unknown_result["dependency_dag"]["status"] == "blocked"
+
+    cyclic = _contract()
+    cyclic["roles"]["authorial_director"]["dependencies"] = ["writer"]
+    cyclic_result = validate_author_team_contract(cyclic)
+    assert cyclic_result["status"] == "blocked"
+    assert any(
+        issue.startswith("dependency_cycle:")
+        for issue in cyclic_result["issues"]
+    )
+    assert cyclic_result["dependency_dag"]["status"] == "blocked"
 
 
 def test_writer_cannot_self_review_approve_or_commit_state() -> None:
@@ -246,6 +267,18 @@ def test_approved_proposal_atomically_registers_canonical_project_agents(
     )
     assert len(build_author_team_manifests(_contract())) == 13
     assert truth.audit()["status"] == "pass"
+    assert registered["dependency_dag_audit"]["status"] == "pass"
+    assert registered["project_truth_audit"]["status"] == "pass"
+    assert len(registered["knowledge_spaces"]) == 13
+    assert len(
+        {item["namespace"] for item in registered["knowledge_spaces"]}
+    ) == 13
+    knowledge_store = KnowledgeStore(tmp_path)
+    for item in registered["knowledge_spaces"]:
+        assert item["namespace"] == (
+            f"agent.Example_Novel.{item['role_id']}"
+        )
+        assert knowledge_store.space_exists(item["namespace"])
 
 
 def test_materialization_rejects_project_path_escape(tmp_path: Path) -> None:
@@ -261,3 +294,358 @@ def test_materialization_rejects_project_path_escape(tmp_path: Path) -> None:
         assert "project" in str(exc)
     else:  # pragma: no cover - explicit assertion branch
         raise AssertionError("path escape was accepted")
+
+
+def test_registration_cas_failure_retires_new_private_spaces(
+    tmp_path: Path,
+) -> None:
+    template = _copy_authority_configs(tmp_path)
+    project = tmp_path / "projects" / "Example_Novel"
+    project.mkdir(parents=True)
+    (project / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Example_Novel",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project)
+    truth.initialize("Example_Novel")
+    proposed = materialize_author_team_contract(
+        tmp_path,
+        project="Example_Novel",
+        task_id="task_author_team",
+        template_path=template,
+    )
+    proposal_path = tmp_path / proposed["proposal_path"]
+
+    try:
+        register_author_team_proposal(
+            tmp_path,
+            project="Example_Novel",
+            proposal_path=proposal_path,
+            expected_proposal_sha256=proposed["proposal_sha256"],
+            expected_snapshot_id="stale-snapshot",
+            actor_id="user",
+            approved=True,
+        )
+    except AgentRegistryError:
+        pass
+    else:  # pragma: no cover - explicit assertion branch
+        raise AssertionError("stale CAS unexpectedly registered author team")
+
+    knowledge_store = KnowledgeStore(tmp_path)
+    assert all(
+        not knowledge_store.space_exists(
+            f"agent.Example_Novel.{role_id}"
+        )
+        for role_id in REQUIRED_AUTHOR_ROLES
+    )
+    assert ProjectAgentRegistry(truth).list() == []
+
+
+def test_concurrent_registration_cannot_retire_active_team_spaces(
+    tmp_path: Path,
+) -> None:
+    template = _copy_authority_configs(tmp_path)
+    project = tmp_path / "projects" / "Example_Novel"
+    project.mkdir(parents=True)
+    (project / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Example_Novel",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project)
+    pointer = truth.initialize("Example_Novel")
+    proposed = materialize_author_team_contract(
+        tmp_path,
+        project="Example_Novel",
+        task_id="task_author_team",
+        template_path=template,
+    )
+
+    def register_once() -> str:
+        try:
+            receipt = register_author_team_proposal(
+                tmp_path,
+                project="Example_Novel",
+                proposal_path=tmp_path / proposed["proposal_path"],
+                expected_proposal_sha256=proposed["proposal_sha256"],
+                expected_snapshot_id=pointer.current_snapshot_id,
+                actor_id="user",
+                approved=True,
+            )
+        except (RuntimeError, ValueError):
+            return "stale"
+        return str(receipt["status"])
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(lambda _index: register_once(), range(2)))
+
+    assert outcomes == ["registered", "registered"]
+    assert {
+        manifest.status for manifest in ProjectAgentRegistry(truth).list()
+    } == {"active"}
+    knowledge_store = KnowledgeStore(tmp_path)
+    assert all(
+        knowledge_store.space_exists(f"agent.Example_Novel.{role_id}")
+        for role_id in REQUIRED_AUTHOR_ROLES
+    )
+    assert knowledge_store.inactive_spaces(
+        [
+            f"agent.Example_Novel.{role_id}"
+            for role_id in REQUIRED_AUTHOR_ROLES
+        ]
+    ) == ()
+
+
+def test_partial_knowledge_space_creation_is_rolled_back(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    template = _copy_authority_configs(tmp_path)
+    project = tmp_path / "projects" / "Example_Novel"
+    project.mkdir(parents=True)
+    (project / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Example_Novel",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project)
+    pointer = truth.initialize("Example_Novel")
+    proposed = materialize_author_team_contract(
+        tmp_path,
+        project="Example_Novel",
+        task_id="task_author_team",
+        template_path=template,
+    )
+    original_ensure = KnowledgeStore.ensure_space
+    calls = 0
+
+    def fail_third_space(store: KnowledgeStore, namespace: str) -> Path:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise OSError("simulated knowledge storage failure")
+        return original_ensure(store, namespace)
+
+    monkeypatch.setattr(KnowledgeStore, "ensure_space", fail_third_space)
+    try:
+        register_author_team_proposal(
+            tmp_path,
+            project="Example_Novel",
+            proposal_path=tmp_path / proposed["proposal_path"],
+            expected_proposal_sha256=proposed["proposal_sha256"],
+            expected_snapshot_id=pointer.current_snapshot_id,
+            actor_id="user",
+            approved=True,
+        )
+    except OSError as exc:
+        assert "knowledge storage failure" in str(exc)
+    else:  # pragma: no cover - explicit assertion branch
+        raise AssertionError("partial knowledge creation was accepted")
+
+    knowledge_store = KnowledgeStore(tmp_path)
+    assert all(
+        not knowledge_store.space_exists(
+            f"agent.Example_Novel.{role_id}"
+        )
+        for role_id in REQUIRED_AUTHOR_ROLES
+    )
+    assert ProjectAgentRegistry(truth).list() == []
+
+
+def test_failed_post_registration_audit_archives_team_and_retires_spaces(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    template = _copy_authority_configs(tmp_path)
+    project = tmp_path / "projects" / "Example_Novel"
+    project.mkdir(parents=True)
+    (project / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Example_Novel",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project)
+    pointer = truth.initialize("Example_Novel")
+    proposed = materialize_author_team_contract(
+        tmp_path,
+        project="Example_Novel",
+        task_id="task_author_team",
+        template_path=template,
+    )
+    proposal_path = tmp_path / proposed["proposal_path"]
+    original_audit = ProjectTruthStore.audit
+    calls = 0
+
+    def fail_second_audit(store: ProjectTruthStore) -> dict:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            return {"status": "fail"}
+        return original_audit(store)
+
+    monkeypatch.setattr(ProjectTruthStore, "audit", fail_second_audit)
+    try:
+        register_author_team_proposal(
+            tmp_path,
+            project="Example_Novel",
+            proposal_path=proposal_path,
+            expected_proposal_sha256=proposed["proposal_sha256"],
+            expected_snapshot_id=pointer.current_snapshot_id,
+            actor_id="user",
+            approved=True,
+        )
+    except ValueError as exc:
+        assert "compensated" in str(exc)
+    else:  # pragma: no cover - explicit assertion branch
+        raise AssertionError("failed post-registration audit was accepted")
+
+    manifests = ProjectAgentRegistry(truth).list()
+    assert len(manifests) == 13
+    assert {manifest.status for manifest in manifests} == {"archived"}
+    knowledge_store = KnowledgeStore(tmp_path)
+    assert all(
+        not knowledge_store.space_exists(
+            f"agent.Example_Novel.{role_id}"
+        )
+        for role_id in REQUIRED_AUTHOR_ROLES
+    )
+
+    monkeypatch.setattr(ProjectTruthStore, "audit", original_audit)
+    retried = register_author_team_proposal(
+        tmp_path,
+        project="Example_Novel",
+        proposal_path=proposal_path,
+        expected_proposal_sha256=proposed["proposal_sha256"],
+        expected_snapshot_id=truth.current().snapshot_id,
+        actor_id="user",
+        approved=True,
+    )
+
+    assert retried["status"] == "registered"
+    assert retried["registration_mode"] == "reactivated_compensated_team"
+    assert {manifest.status for manifest in ProjectAgentRegistry(truth).list()} == {
+        "active"
+    }
+    assert all(
+        knowledge_store.space_exists(f"agent.Example_Novel.{role_id}")
+        for role_id in REQUIRED_AUTHOR_ROLES
+    )
+
+
+def test_failed_compensation_keeps_active_team_recoverable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    template = _copy_authority_configs(tmp_path)
+    project = tmp_path / "projects" / "Example_Novel"
+    project.mkdir(parents=True)
+    (project / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Example_Novel",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project)
+    pointer = truth.initialize("Example_Novel")
+    proposed = materialize_author_team_contract(
+        tmp_path,
+        project="Example_Novel",
+        task_id="task_author_team",
+        template_path=template,
+    )
+    proposal_path = tmp_path / proposed["proposal_path"]
+    original_audit = ProjectTruthStore.audit
+    original_commit = ProjectTruthStore.commit
+    audit_calls = 0
+
+    def fail_second_audit(store: ProjectTruthStore) -> dict:
+        nonlocal audit_calls
+        audit_calls += 1
+        if audit_calls == 2:
+            return {"status": "fail"}
+        return original_audit(store)
+
+    def fail_compensation(store: ProjectTruthStore, change_set):
+        if str(change_set.idempotency_key).startswith(
+            "author-team-audit-compensation:"
+        ):
+            raise RuntimeError("simulated compensation storage failure")
+        return original_commit(store, change_set)
+
+    monkeypatch.setattr(ProjectTruthStore, "audit", fail_second_audit)
+    monkeypatch.setattr(ProjectTruthStore, "commit", fail_compensation)
+    try:
+        register_author_team_proposal(
+            tmp_path,
+            project="Example_Novel",
+            proposal_path=proposal_path,
+            expected_proposal_sha256=proposed["proposal_sha256"],
+            expected_snapshot_id=pointer.current_snapshot_id,
+            actor_id="user",
+            approved=True,
+        )
+    except RuntimeError as exc:
+        assert "compensation storage failure" in str(exc)
+    else:  # pragma: no cover - explicit assertion branch
+        raise AssertionError("failed compensation was silently accepted")
+
+    knowledge_store = KnowledgeStore(tmp_path)
+    assert all(
+        knowledge_store.space_exists(f"agent.Example_Novel.{role_id}")
+        for role_id in REQUIRED_AUTHOR_ROLES
+    )
+    assert {
+        manifest.status for manifest in ProjectAgentRegistry(truth).list()
+    } == {"active"}
+
+    recovered = register_author_team_proposal(
+        tmp_path,
+        project="Example_Novel",
+        proposal_path=proposal_path,
+        expected_proposal_sha256=proposed["proposal_sha256"],
+        expected_snapshot_id=truth.current().snapshot_id,
+        actor_id="user",
+        approved=True,
+    )
+    assert recovered["registration_mode"] == "existing_active_team"
+    assert recovered["project_truth_audit"]["status"] == "pass"

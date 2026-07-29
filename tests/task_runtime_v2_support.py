@@ -115,6 +115,11 @@ def execute_role_with_output(
         attempt_id=attempt_id,
         role=role,
         messages=[{"role": "user", "content": "Execute the governed test role."}],
+        external_context_request={
+            "purpose": "Execute one bounded governed test role.",
+            "minimal_fragment": "Execute the governed test role.",
+            "expires_at": "2999-01-01T00:00:00Z",
+        },
         idempotency_key=attempt_id,
     )
     return result["projection"]["attempts"][attempt_id]["outcome"]
@@ -132,9 +137,17 @@ def _write_role_config(tmp_path: Path) -> None:
         }
         for role in _ROLES.values()
     }
+    profiles["canon_timeline_steward"] = dict(profiles["reviewer"])
     (config / "agent_model_profiles.yml").write_text(
         yaml.safe_dump(
             {
+                "professional_role_profiles": {
+                    "canon_timeline_steward": {
+                        "execution_kind": "cli_agent",
+                        "base_role_key": "reviewer",
+                        "execution_tier": "performance",
+                    }
+                },
                 "modes": {
                     "full_cli": {"tiers": {"performance": profiles}}
                 }

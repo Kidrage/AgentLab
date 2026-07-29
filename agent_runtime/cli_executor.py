@@ -1838,6 +1838,32 @@ def narrative_approval_policy(
         "scope_contract_valid": True,
         "expected_scope_sha256": None,
     }
+    execution_policy = dict(getattr(plan, "execution_policy", {}) or {})
+    if execution_policy.get("external_context_approval_required") is True:
+        scope_sha256 = str(
+            execution_policy.get("external_context_scope_sha256") or ""
+        ).strip()
+        policy["payload_sha256_required"] = (
+            execution_policy.get(
+                "external_context_payload_sha256_required"
+            )
+            is True
+        )
+        policy["scope_sha256_required"] = (
+            execution_policy.get(
+                "external_context_scope_sha256_required"
+            )
+            is True
+        )
+        policy["scope_contract_valid"] = (
+            execution_policy.get(
+                "external_context_scope_contract_valid"
+            )
+            is True
+            and re.fullmatch(r"[0-9a-f]{64}", scope_sha256) is not None
+        )
+        policy["expected_scope_sha256"] = scope_sha256 or None
+        return policy
     route_key = str(getattr(plan.route, "route_key", "") or "")
     if route_key == "narrative_heavy_audit":
         policy["payload_sha256_required"] = agent_name == "Reviewer"
@@ -4088,6 +4114,76 @@ def run_cli_agent(
             narrative_approval["payload_sha256_required"]
             or narrative_approval["scope_sha256_required"]
         )
+        execution_policy = dict(
+            getattr(plan, "execution_policy", {}) or {}
+        )
+        external_context_approval = (
+            execution_policy.get("external_context_approval_required") is True
+        )
+        explicit_approval_granted: bool | None = None
+        explicit_payload_sha256: str | None = None
+        explicit_scope_sha256: str | None = None
+        if external_context_approval:
+            from agent_runtime.approval_signature import (
+                narrative_outbound_approval_payload,
+                pinned_approval_public_key,
+                verify_detached_approval,
+            )
+
+            transfer = execution_policy.get("external_context_transfer")
+            transfer = transfer if isinstance(transfer, dict) else {}
+            expected_scope = str(
+                narrative_approval.get("expected_scope_sha256") or ""
+            )
+            packet_sha256 = hashlib.sha256(
+                packet_text.encode("utf-8")
+            ).hexdigest()
+            approval_payload = narrative_outbound_approval_payload(
+                project=str(plan.project),
+                task_id=str(plan.task_id),
+                recipient=str(transfer.get("recipient") or ""),
+                purpose=str(transfer.get("purpose") or ""),
+                packet_payload_sha256=packet_sha256,
+                scope_sha256=expected_scope,
+                expires_at=str(transfer.get("expires_at") or ""),
+            )
+            try:
+                expires_at = datetime.fromisoformat(
+                    approval_payload["expires_at"].replace("Z", "+00:00")
+                )
+                if (
+                    expires_at.tzinfo is None
+                    or expires_at <= datetime.now(timezone.utc)
+                ):
+                    raise ValueError("external context approval expired")
+                verify_detached_approval(
+                    approval_payload,
+                    signature_path=Path(
+                        str(
+                            execution_policy.get(
+                                "external_context_approval_signature_path"
+                            )
+                            or ""
+                        )
+                    ),
+                    public_key_path=Path(
+                        pinned_approval_public_key(
+                            Path(plan.agentlab_root),
+                            section="external_context_approval_authority",
+                        )
+                    ),
+                    forbidden_root=Path(plan.agentlab_root),
+                )
+            except (OSError, RuntimeError, ValueError):
+                explicit_approval_granted = False
+            else:
+                explicit_approval_granted = True
+                explicit_payload_sha256 = packet_sha256
+                explicit_scope_sha256 = expected_scope
+        elif approval_required:
+            # Environment variables are inherited by the executing Agent and
+            # therefore cannot constitute an independent user action.
+            explicit_approval_granted = False
         manifest = write_outbound_context_manifest(
             Path(plan.agentlab_root),
             manifest_path,
@@ -4106,10 +4202,12 @@ def run_cli_agent(
             sealed_context=True,
             execution_workspace_isolated=True,
             approval_required=approval_required,
+            approval_granted=explicit_approval_granted,
             approval_env_name=approval_env_name,
             approval_payload_sha256_required=(
                 narrative_approval["payload_sha256_required"]
             ),
+            approved_payload_sha256=explicit_payload_sha256,
             approval_scope_sha256_required=(
                 narrative_approval["scope_sha256_required"]
             ),
@@ -4119,6 +4217,7 @@ def run_cli_agent(
             expected_scope_sha256=(
                 narrative_approval["expected_scope_sha256"]
             ),
+            approved_scope_sha256=explicit_scope_sha256,
             provider_shell_or_browser_requested=agent_name == "Researcher",
             source_inventory_required=(
                 production_pack_session

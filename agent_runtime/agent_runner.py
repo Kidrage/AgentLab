@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
 from typing import Any
@@ -3545,12 +3547,14 @@ def run_agent_model(
         except ModuleNotFoundError:  # pragma: no cover - direct script path
             from outbound_context import write_outbound_context_manifest
 
+        execution_policy = dict(
+            getattr(plan, "execution_policy", {}) or {}
+        )
+        external_context_approval = (
+            execution_policy.get("external_context_approval_required") is True
+        )
         approval_required = (
-            bool(
-                (getattr(plan, "execution_policy", {}) or {}).get(
-                    "external_context_approval_required"
-                )
-            )
+            external_context_approval
             or
             str(plan.task_id).startswith("task_narrative_eval_")
             or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
@@ -3558,6 +3562,72 @@ def run_agent_model(
         narrative_context_manifest_path = (
             Path(plan.run_dir) / "outbound_context_manifest_writer.yml"
         )
+        payload_text = json.dumps(
+            messages,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        explicit_approval_granted: bool | None = None
+        explicit_payload_sha256: str | None = None
+        explicit_scope_sha256: str | None = None
+        if external_context_approval:
+            from agent_runtime.approval_signature import (
+                narrative_outbound_approval_payload,
+                pinned_approval_public_key,
+                verify_detached_approval,
+            )
+
+            transfer = execution_policy.get("external_context_transfer")
+            transfer = transfer if isinstance(transfer, dict) else {}
+            expected_recipient = f"direct_api:{settings.provider}"
+            scope_sha256 = str(
+                execution_policy.get("external_context_scope_sha256") or ""
+            )
+            packet_sha256 = hashlib.sha256(
+                payload_text.encode("utf-8")
+            ).hexdigest()
+            signed_payload = narrative_outbound_approval_payload(
+                project=str(plan.project),
+                task_id=str(plan.task_id),
+                recipient=expected_recipient,
+                purpose=str(transfer.get("purpose") or ""),
+                packet_payload_sha256=packet_sha256,
+                scope_sha256=scope_sha256,
+                expires_at=str(transfer.get("expires_at") or ""),
+            )
+            try:
+                expiry = datetime.fromisoformat(
+                    signed_payload["expires_at"].replace("Z", "+00:00")
+                )
+                if (
+                    transfer.get("recipient") != expected_recipient
+                    or expiry.tzinfo is None
+                    or expiry <= datetime.now(timezone.utc)
+                ):
+                    raise ValueError("direct API approval route mismatch")
+                verify_detached_approval(
+                    signed_payload,
+                    signature_path=Path(
+                        str(
+                            execution_policy.get(
+                                "external_context_approval_signature_path"
+                            )
+                            or ""
+                        )
+                    ),
+                    public_key_path=pinned_approval_public_key(
+                        agentlab_root,
+                        section="external_context_approval_authority",
+                    ),
+                    forbidden_root=agentlab_root,
+                )
+            except (OSError, RuntimeError, ValueError):
+                explicit_approval_granted = False
+            else:
+                explicit_approval_granted = True
+                explicit_payload_sha256 = packet_sha256
+                explicit_scope_sha256 = scope_sha256
         manifest = write_outbound_context_manifest(
             agentlab_root,
             narrative_context_manifest_path,
@@ -3565,7 +3635,7 @@ def run_agent_model(
             role="Writer",
             provider_surface=f"direct_api:{settings.provider}",
             payload_kind="writer_direct_api_messages",
-            payload_text=json.dumps(messages, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            payload_text=payload_text,
             source_paths=(
                 live_writer_session.source_paths
                 if live_writer_session is not None
@@ -3576,6 +3646,17 @@ def run_agent_model(
             sealed_context=True,
             execution_workspace_isolated=True,
             approval_required=approval_required,
+            approval_granted=explicit_approval_granted,
+            approval_payload_sha256_required=external_context_approval,
+            approved_payload_sha256=explicit_payload_sha256,
+            approval_scope_sha256_required=external_context_approval,
+            approval_scope_contract_valid=bool(scope_sha256)
+            if external_context_approval
+            else True,
+            expected_scope_sha256=scope_sha256
+            if external_context_approval
+            else None,
+            approved_scope_sha256=explicit_scope_sha256,
         )
         if not manifest.get("execution_allowed"):
             return LLMCallResult(
@@ -3635,6 +3716,7 @@ def run_agent_model(
             sealed_context=True,
             execution_workspace_isolated=True,
             approval_required=True,
+            approval_granted=False,
             approval_env_name=PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME,
             provider_shell_or_browser_requested=agent_name == "Researcher",
             source_inventory_required=True,

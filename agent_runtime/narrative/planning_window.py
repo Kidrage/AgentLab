@@ -294,6 +294,92 @@ def _register_current_artifact(project_root: Path) -> None:
     )
 
 
+def validate_current_planning_window(
+    agentlab_root: Path,
+    *,
+    project: str,
+) -> dict[str, Any]:
+    """Deterministically verify the sole current window and seal lifecycle."""
+
+    project_root = _project_root(agentlab_root, project)
+    issues: list[str] = []
+    try:
+        current = _current(project_root)
+    except (OSError, PlanningWindowError, ValueError, yaml.YAMLError):
+        current = None
+    if current is None:
+        return {
+            "schema_version": "narrative-planning-window-validation/v1",
+            "status": "blocked",
+            "project": project,
+            "current_count": 0,
+            "double_current_count": 0,
+            "legacy_seal_status": None,
+            "issues": ["current_planning_window_missing"],
+        }
+    try:
+        proposal_view = dict(current)
+        proposal_view["status"] = "proposed"
+        _validate_proposal(project_root, proposal_view)
+    except (OSError, PlanningWindowError, ValueError) as exc:
+        issues.append(f"current_window_contract_invalid:{exc}")
+    if current.get("status") not in {"sealed", "active"}:
+        issues.append("current_window_status_invalid")
+    seal = current.get("seal")
+    if (
+        not isinstance(seal, Mapping)
+        or seal.get("algorithm") != "sha256"
+        or seal.get("proposal_sha256")
+        != _mapping_sha256(_seal_payload(current))
+    ):
+        issues.append("current_window_seal_invalid")
+    history_files = sorted((project_root / HISTORY_ROOT).glob("*.yml"))
+    non_superseded_history = 0
+    for path in history_files:
+        try:
+            historical = _read_mapping(path, label="planning window history")
+        except (OSError, PlanningWindowError, ValueError, yaml.YAMLError):
+            issues.append(f"history_unreadable:{path.name}")
+            continue
+        if historical.get("status") != "superseded":
+            non_superseded_history += 1
+            issues.append(f"history_not_superseded:{path.name}")
+    current_count = 1 + non_superseded_history
+    legacy = current.get("superseded_blueprint_seal")
+    legacy_status = (
+        "superseded"
+        if isinstance(legacy, Mapping)
+        and legacy.get("disposition") == "superseded_evidence"
+        else None
+    )
+    if legacy_status != "superseded":
+        issues.append("legacy_blueprint_seal_not_superseded")
+    try:
+        locked_chapters = _queue_chapters(
+            current.get("locked_queue"),
+            label="locked_queue",
+        )
+        horizon_chapters = _queue_chapters(
+            current.get("adjustable_horizon"),
+            label="adjustable_horizon",
+        )
+    except (PlanningWindowError, TypeError, ValueError) as exc:
+        issues.append(f"planning_window_queue_invalid:{exc}")
+        locked_chapters = []
+        horizon_chapters = []
+    return {
+        "schema_version": "narrative-planning-window-validation/v1",
+        "status": "pass" if not issues else "blocked",
+        "project": project,
+        "current_count": current_count,
+        "double_current_count": max(0, current_count - 1),
+        "legacy_seal_status": legacy_status,
+        "locked_chapters": locked_chapters,
+        "horizon_chapters": horizon_chapters,
+        "issues": issues,
+    }
+
+
 def seal_planning_window(
     agentlab_root: Path,
     *,
