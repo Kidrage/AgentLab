@@ -15,6 +15,10 @@ from agent_runtime.narrative.assembly import (
     NarrativeAssemblyError,
     assemble_candidate_chapters,
 )
+from agent_runtime.narrative.authorial_audit import (
+    build_authorial_audit_plan,
+    compile_senior_editor_revision_contracts,
+)
 from agent_runtime.narrative.author_team import (
     load_author_team_contract as resolve_author_team_contract,
     materialize_author_team_contract,
@@ -615,6 +619,60 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise typer.BadParameter(f"invalid context request: {exc}") from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip(),
+            soft_wrap=True,
+        )
+        if result["status"] == "blocked":
+            raise typer.Exit(code=1)
+
+    @narrative_app.command("audit")
+    def authorial_audit_command(
+        request: Path = typer.Option(..., "--request"),
+    ) -> None:
+        """Plan authorial review or compile strict findings into revisions."""
+
+        try:
+            value = yaml.safe_load(request.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(f"cannot read audit request: {exc}") from exc
+        if not isinstance(value, dict):
+            raise typer.BadParameter("audit request must be a mapping")
+        if value.get("schema_version") != "authorial-audit-request/v1":
+            raise typer.BadParameter("unsupported audit request schema")
+        try:
+            candidate = Path(str(value["candidate_path"]))
+            if not candidate.is_absolute():
+                candidate = request.resolve().parent / candidate
+            action = str(value["action"])
+            if action == "plan":
+                risks = value.get("risk_flags", [])
+                if not isinstance(risks, list):
+                    raise ValueError("risk_flags must be a list")
+                result = build_authorial_audit_plan(
+                    active_project_root(),
+                    chapter_id=int(value["chapter_id"]),
+                    candidate_path=candidate,
+                    risk_flags=[str(item) for item in risks],
+                )
+            elif action == "compile_revision":
+                findings = value.get("findings")
+                constraints = value.get("constraints")
+                if not isinstance(findings, list) or not all(
+                    isinstance(item, dict) for item in findings
+                ):
+                    raise ValueError("findings must be a list of mappings")
+                if not isinstance(constraints, dict):
+                    raise ValueError("constraints must be a mapping")
+                result = compile_senior_editor_revision_contracts(
+                    findings,
+                    candidate_path=candidate,
+                    constraints=constraints,
+                )
+            else:
+                raise ValueError(f"unsupported audit action: {action}")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise typer.BadParameter(f"invalid audit request: {exc}") from exc
         console.print(
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip(),
             soft_wrap=True,

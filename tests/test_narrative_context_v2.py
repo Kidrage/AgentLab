@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 
 import yaml
 from typer.testing import CliRunner
 
+from agent_runtime.narrative.authorial_audit import (
+    build_authorial_audit_plan,
+    compile_senior_editor_revision_contracts,
+    validate_authorial_review_finding,
+)
 from agent_runtime.narrative.craft_cards import validate_craft_card
+from agent_runtime.narrative.production.live_revision import (
+    revision_contract_issues,
+)
 from agent_runtime.narrative.role_context import compile_role_context_pack
 from agent_runtime.run_task import app
 
@@ -313,3 +322,203 @@ def test_narrative_context_compile_cli_uses_request_contract(
     assert payload["schema_version"] == "role-context-pack/v1"
     assert payload["status"] == "pass"
     assert Path(payload["pack_path"]).is_file()
+
+
+def test_authorial_audit_plan_always_runs_hard_gates_and_risk_reviewers(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "chapter-001.md"
+    candidate.write_text("Candidate prose.", encoding="utf-8")
+
+    plan = build_authorial_audit_plan(
+        ROOT,
+        chapter_id=1,
+        candidate_path=candidate,
+        risk_flags=["relationship_progression"],
+    )
+
+    assert plan["status"] == "pass"
+    assert plan["candidate"]["sha256"]
+    assert plan["hard_audit"]["reviewer_role"] == "canon_timeline_steward"
+    assert plan["revision_attempt_limit"] == 2
+    assert plan["escalation_role"] == "authorial_director"
+    assert plan["blind_review"] == {
+        "required_after_revision": True,
+        "anonymous": True,
+        "order": "hash_randomized",
+        "reviewer_role": "reader_simulation_panel",
+    }
+    assert set(plan["hard_audit"]["checks"]) == {
+        "timeline",
+        "age",
+        "life_status",
+        "location",
+        "item",
+        "ability_source",
+        "character_knowledge_boundary",
+        "canon_source_hash",
+        "adult_consent_exit_right",
+        "promise_payoff_state",
+        "state_commit_idempotency",
+    }
+    assert plan["soft_reviews"] == [
+        {
+            "reviewer_role": "relationship_director",
+            "dimensions": ["relationship_progression", "consent_and_agency"],
+        },
+        {
+            "reviewer_role": "reader_simulation_panel",
+            "dimensions": ["reader_promise", "emotional_effect", "position_bias_check"],
+        },
+    ]
+
+
+def test_authorial_review_finding_requires_evidence_and_counterinterpretation() -> None:
+    finding = {
+        "schema_version": "authorial-review-finding/v1",
+        "finding_id": "finding-relationship-001",
+        "reviewer_role": "relationship_director",
+        "chapter_id": 1,
+        "target_scene": "scene-2",
+        "classification": "aesthetic_disagreement",
+        "problem_type": "unearned_trust",
+        "evidence_locator": "chapter-001.md:L42",
+        "evidence": "Trust rises without an intervening costly choice.",
+        "confidence": 0.82,
+        "counterinterpretation": (
+            "Shared danger could explain a temporary tactical alignment."
+        ),
+        "revision_target": "Add one bounded action that earns limited trust.",
+        "minimal_revision_scope": "scene",
+        "preserve_strengths": ["Keep the scene's brisk threat escalation."],
+        "candidate_sha256": "a" * 64,
+    }
+
+    assert validate_authorial_review_finding(finding) == []
+
+    incomplete = dict(finding)
+    incomplete["reviewer_role"] = "writer"
+    incomplete["counterinterpretation"] = ""
+    incomplete["preserve_strengths"] = []
+    assert validate_authorial_review_finding(incomplete) == [
+        "reviewer_role_not_allowed:writer",
+        "counterinterpretation_required",
+        "preserve_strengths_required",
+    ]
+
+
+def test_senior_editor_merges_reviewers_into_hash_bound_scene_contract(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "chapter-001.md"
+    candidate.write_text("Candidate prose.", encoding="utf-8")
+    candidate_sha256 = hashlib.sha256(candidate.read_bytes()).hexdigest()
+    base = {
+        "schema_version": "authorial-review-finding/v1",
+        "chapter_id": 1,
+        "target_scene": "scene-2",
+        "classification": "aesthetic_disagreement",
+        "evidence_locator": "chapter-001.md:L42",
+        "confidence": 0.82,
+        "counterinterpretation": "The current reading has a plausible defense.",
+        "minimal_revision_scope": "scene",
+        "candidate_sha256": candidate_sha256,
+    }
+    findings = [
+        {
+            **base,
+            "finding_id": "finding-relationship-001",
+            "reviewer_role": "relationship_director",
+            "problem_type": "unearned_trust",
+            "evidence": "Trust rises without an intervening costly choice.",
+            "revision_target": "Earn limited trust through one costly action.",
+            "preserve_strengths": ["Keep the brisk threat escalation."],
+        },
+        {
+            **base,
+            "finding_id": "finding-reader-001",
+            "reviewer_role": "reader_simulation_panel",
+            "problem_type": "promise_clarity",
+            "evidence": "The reader cannot tell which promise changed.",
+            "revision_target": "Clarify the changed promise without explaining it.",
+            "preserve_strengths": ["Keep the final image ambiguous."],
+        },
+    ]
+
+    result = compile_senior_editor_revision_contracts(
+        findings,
+        candidate_path=candidate,
+        constraints={
+            "must_preserve": ["Do not change the scene outcome."],
+            "allowed_freedom": "Local action, staging, and sentence-level choices.",
+            "causal_requirements": ["The costly action must precede the trust delta."],
+            "character_knowledge_before": ["A suspects B."],
+            "character_knowledge_after": ["A trusts B only tactically."],
+            "decision_cost": "A exposes one weakness.",
+            "new_information": "B chooses not to exploit the weakness.",
+            "forbidden_regressions": ["Do not convert suspicion into intimacy."],
+        },
+    )
+
+    assert result["status"] == "pass"
+    assert result["candidate"]["sha256"] == candidate_sha256
+    assert len(result["contracts"]) == 1
+    contract = result["contracts"][0]
+    assert contract["compiled_by"] == "senior_editor"
+    assert contract["rewrite_scope"] == "scene"
+    assert contract["must_change"] == [
+        "Earn limited trust through one costly action.",
+        "Clarify the changed promise without explaining it.",
+    ]
+    assert contract["must_preserve"] == [
+        "Do not change the scene outcome.",
+        "Keep the brisk threat escalation.",
+        "Keep the final image ambiguous.",
+    ]
+    assert [item["reviewer_role"] for item in contract["review_evidence"]] == [
+        "relationship_director",
+        "reader_simulation_panel",
+    ]
+    assert (
+        revision_contract_issues(
+            contract,
+            chapter_id=1,
+            source_candidate_sha256=candidate_sha256,
+            triggering_audit_sha256=result["triggering_audit_sha256"],
+        )
+        == []
+    )
+
+
+def test_narrative_audit_cli_builds_hash_bound_plan(tmp_path: Path) -> None:
+    candidate = tmp_path / "chapter-001.md"
+    candidate.write_text("Candidate prose.", encoding="utf-8")
+    request = tmp_path / "audit-request.yml"
+    request.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "authorial-audit-request/v1",
+                "action": "plan",
+                "chapter_id": 1,
+                "candidate_path": str(candidate),
+                "risk_flags": ["foreshadow_payoff"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["narrative", "audit", "--request", str(request)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = yaml.safe_load(result.stdout)
+    assert payload["schema_version"] == "authorial-audit-plan/v1"
+    assert payload["status"] == "pass"
+    assert payload["hard_audit"]["checks"]
+    assert [item["reviewer_role"] for item in payload["soft_reviews"]] == [
+        "foreshadow_mystery_keeper",
+        "reader_simulation_panel",
+    ]
