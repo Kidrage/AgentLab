@@ -16,10 +16,13 @@ from agent_runtime.narrative.assembly import (
     assemble_candidate_chapters,
 )
 from agent_runtime.narrative.author_team import (
+    load_author_team_contract as resolve_author_team_contract,
     materialize_author_team_contract,
+    register_author_team_proposal,
     select_author_team,
     validate_author_team_contract,
 )
+from agent_runtime.project_agents.registry import AgentRegistryError
 from agent_runtime.narrative.blueprint_validation import (
     materialize_crown_blueprint,
     seal_crown_blueprint,
@@ -460,14 +463,24 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
 
     def load_author_team_contract(path: Path | None) -> dict:
-        selected = path or project_root / "config" / "narrative_author_team.yml"
+        selected = path or (
+            project_root / "config" / "narrative_author_team.yml"
+        )
         try:
             value = yaml.safe_load(selected.read_text(encoding="utf-8")) or {}
         except (OSError, UnicodeError, yaml.YAMLError) as exc:
             raise typer.BadParameter(f"cannot read author-team contract: {exc}") from exc
         if not isinstance(value, dict):
             raise typer.BadParameter("author-team contract must be a mapping")
-        return value
+        if value.get("schema_version") == "narrative-author-team/v2":
+            return value
+        try:
+            return resolve_author_team_contract(
+                project_root,
+                composition_path=selected,
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
 
     @author_team_app.command("validate")
     def validate_author_team_command(
@@ -502,14 +515,45 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     @author_team_app.command("initialize")
     def initialize_author_team_command(
         project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
     ) -> None:
-        """Materialize the validated generic team contract into one project."""
+        """Write a run-local author-team registration proposal."""
         try:
             result = materialize_author_team_contract(
                 project_root,
                 project=project,
+                task_id=task_id,
             )
         except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @author_team_app.command("register")
+    def register_author_team_command(
+        project: str = typer.Option(..., "--project"),
+        proposal: Path = typer.Option(..., "--proposal"),
+        proposal_sha256: str = typer.Option(..., "--proposal-sha256"),
+        expected_snapshot_id: str = typer.Option(
+            ...,
+            "--expected-snapshot-id",
+        ),
+        actor_id: str = typer.Option(..., "--actor-id"),
+        approved: bool = typer.Option(False, "--approved"),
+    ) -> None:
+        """Atomically register one explicitly approved run-local proposal."""
+        try:
+            result = register_author_team_proposal(
+                project_root,
+                project=project,
+                proposal_path=proposal,
+                expected_proposal_sha256=proposal_sha256,
+                expected_snapshot_id=expected_snapshot_id,
+                actor_id=actor_id,
+                approved=approved,
+            )
+        except (AgentRegistryError, OSError, ValueError, yaml.YAMLError) as exc:
             raise typer.BadParameter(str(exc)) from exc
         console.print(
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()

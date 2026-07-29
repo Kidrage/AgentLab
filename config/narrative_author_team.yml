@@ -1,259 +1,44 @@
-schema_version: narrative-author-team/v2
+schema_version: narrative-author-team-composition/v1
 contract_id: professional-longform-author-team
 description: >
-  Versioned professional roles for long-running narrative projects. The full
-  registry is always available, while each chapter activates only the
-  risk-relevant role subgraph.
-
+  Project-neutral composition and activation policy for professional longform
+  roles. Role manifests are owned by config/agent_registry.yml and execution
+  tiers are owned by config/agent_model_profiles.yml.
+authorities:
+  role_manifests: config/agent_registry.yml#professional_profiles
+  model_profiles: config/agent_model_profiles.yml#professional_role_profiles
 roles:
-  authorial_director:
-    manifest_version: 2
-    extends_agent_role: Supervisor
-    professional_duties:
-      - Hold the authorial thesis, ending, part structure, and non-negotiable promises.
-      - Resolve escalations after two bounded revision cycles.
-    knowledge_namespaces: [canon, outline, promises, authorial_preferences]
-    input_schema: narrative-director-input/v1
-    output_schema: narrative-director-decision/v1
-    tools: [context_retrieval, planning_window_read]
-    runtime: {model_tier: frontier, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/authorial_director_decision.yml]
-    forbidden_actions: [draft_chapter_prose, self_execute_state_projection]
-    dependencies: []
-    acceptance_rules:
-      - Decisions cite current canon, planning-window, and promise evidence.
-
-  canon_timeline_steward:
-    manifest_version: 2
-    extends_agent_role: Reviewer
-    professional_duties:
-      - Audit time, age, life status, location, objects, abilities, and source lineage.
-      - Keep system truth separate from character knowledge and reader inference.
-    knowledge_namespaces: [canon, timeline, exact_name_index, character_knowledge]
-    input_schema: canon-timeline-audit-input/v1
-    output_schema: canon-timeline-audit/v1
-    tools: [exact_fact_lookup, graph_neighbor_lookup]
-    runtime: {model_tier: reasoning, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/canon_timeline_audit.yml]
-    forbidden_actions: [draft_chapter_prose, mutate_canon, approve_own_changes]
-    dependencies: [authorial_director]
-    acceptance_rules:
-      - Every hard finding includes an exact evidence locator and confidence.
-
-  plot_causality_architect:
-    manifest_version: 2
-    extends_agent_role: NarrativePlanner
-    professional_duties:
-      - Maintain cause, consequence, constraint, and irreversible-choice chains.
-      - Reject outcomes whose enabling causes are absent from authoritative state.
-    knowledge_namespaces: [event_graph, causality_graph, outline]
-    input_schema: plot-causality-input/v1
-    output_schema: plot-causality-review/v1
-    tools: [graph_neighbor_lookup, context_retrieval]
-    runtime: {model_tier: reasoning, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/plot_causality_review.yml]
-    forbidden_actions: [draft_chapter_prose, commit_narrative_state]
-    dependencies: [canon_timeline_steward]
-    acceptance_rules:
-      - Causal claims identify antecedent and consequence evidence.
-
-  character_ensemble_director:
-    manifest_version: 2
-    extends_agent_role: NarrativePlanner
-    professional_duties:
-      - Preserve distinct motives, knowledge, false beliefs, plans, and moral thresholds.
-      - Project relevant off-stage actions before chapter planning.
-    knowledge_namespaces: [character_minds, character_private_memory, event_graph]
-    input_schema: character-ensemble-input/v1
-    output_schema: character-ensemble-review/v1
-    tools: [character_memory_lookup, graph_neighbor_lookup]
-    runtime: {model_tier: reasoning, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/character_ensemble_review.yml]
-    forbidden_actions: [draft_chapter_prose, merge_character_voices]
-    dependencies: [canon_timeline_steward]
-    acceptance_rules:
-      - Character decisions cite knowledge, motive, and threshold evidence.
-
-  relationship_director:
-    manifest_version: 2
-    extends_agent_role: Reviewer
-    professional_duties:
-      - Track multi-axis relationship changes, injuries, expectations, and power differences.
-      - Block unearned intimacy, trust, sacrifice, or rupture.
-    knowledge_namespaces: [relationship_graph, character_minds, consent_boundaries]
-    input_schema: relationship-review-input/v1
-    output_schema: relationship-review/v1
-    tools: [relationship_graph_lookup, context_retrieval]
-    runtime: {model_tier: reasoning, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/relationship_review.yml]
-    forbidden_actions: [draft_chapter_prose, waive_adult_consent_gate]
-    dependencies: [character_ensemble_director]
-    acceptance_rules:
-      - Every relationship delta cites a scene cause and prior edge state.
-
-  world_archaeologist:
-    manifest_version: 2
-    extends_agent_role: Researcher
-    professional_duties:
-      - Treat places, objects, rituals, battles, and terrain as historical narrative entities.
-      - Separate public explanations, hidden explanations, symbols, and causal links.
-    knowledge_namespaces: [narrative_entities, world_history, causality_graph]
-    input_schema: world-archaeology-input/v1
-    output_schema: world-archaeology-review/v1
-    tools: [entity_lookup, research_card_lookup]
-    runtime: {model_tier: reasoning, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/world_archaeology_review.yml]
-    forbidden_actions: [draft_chapter_prose, import_unlicensed_source_text]
-    dependencies: [canon_timeline_steward]
-    acceptance_rules:
-      - World claims retain source rights and evidence provenance.
-
-  foreshadow_mystery_keeper:
-    manifest_version: 2
-    extends_agent_role: NarrativePlanner
-    professional_duties:
-      - Evolve promises through declared states and due windows.
-      - Distinguish system truth, character interpretation, and reader hypothesis.
-    knowledge_namespaces: [promise_graph, reader_questions, outline]
-    input_schema: promise-graph-input/v1
-    output_schema: promise-graph-review/v1
-    tools: [promise_graph_lookup, context_retrieval]
-    runtime: {model_tier: reasoning, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/promise_graph_review.yml]
-    forbidden_actions: [draft_chapter_prose, silently_retire_due_promise]
-    dependencies: [plot_causality_architect]
-    acceptance_rules:
-      - Due promises are paid off, transformed, explicitly deferred, or retired.
-
-  arc_scene_planner:
-    manifest_version: 2
-    extends_agent_role: NarrativePlanner
-    professional_duties:
-      - Compile the active planning window into chapter and scene-level contracts.
-      - Preserve locked chapter intent while leaving prose choices to Writer.
-    knowledge_namespaces: [outline, planning_windows, causality_graph, promise_graph]
-    input_schema: arc-scene-plan-input/v1
-    output_schema: scene-plan/v1
-    tools: [planning_window_read, context_retrieval]
-    runtime: {model_tier: reasoning, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/scene_plan.yml]
-    forbidden_actions: [draft_chapter_prose, supersede_locked_window]
-    dependencies: [authorial_director, canon_timeline_steward]
-    acceptance_rules:
-      - Scene contracts identify purpose, causal change, and must-preserve elements.
-
-  research_style_curator:
-    manifest_version: 2
-    extends_agent_role: Researcher
-    professional_duties:
-      - Curate source-rights-bound craft cards rather than imitation corpora.
-      - Admit only public-domain, licensed, user-provided, interview, criticism, or accepted-project sources.
-    knowledge_namespaces: [craft_cards, source_rights, accepted_prose]
-    input_schema: research-style-input/v1
-    output_schema: craft-card-set/v1
-    tools: [research_card_lookup, source_rights_check]
-    runtime: {model_tier: standard, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/craft_cards.yml]
-    forbidden_actions: [draft_chapter_prose, store_unlicensed_fulltext, style_imitation]
-    dependencies: [authorial_director]
-    acceptance_rules:
-      - Every craft card declares rights, locator, mechanism, and originality constraints.
-
-  writer:
-    manifest_version: 2
-    extends_agent_role: Writer
-    professional_duties:
-      - Draft or revise only the contracted prose while preserving evidence-bound constraints.
-      - Return candidate prose and observations without approving or committing state.
-    knowledge_namespaces: [writer_context_pack]
-    input_schema: writer-context-pack/v2
-    output_schema: prose-candidate/v2
-    tools: [candidate_output_write]
-    runtime: {model_tier: frontier, deterministic: false}
-    authority:
-      read: [runs/**/writer_context_pack/**]
-      write: [runs/**/candidates/**]
-    forbidden_actions:
-      - self_review
-      - approve_own_work
-      - commit_narrative_state
-      - modify_canon
-      - read_other_role_private_context
-    dependencies: [arc_scene_planner]
-    acceptance_rules:
-      - Candidate prose remains hash-bound to its exact context pack and scene contract.
-
-  senior_editor:
-    manifest_version: 2
-    extends_agent_role: Reviewer
-    professional_duties:
-      - Merge hard and risk-triggered soft reviews into a minimal scene revision contract.
-      - Preserve identified strengths and escalate after two failed revision rounds.
-    knowledge_namespaces: [audit_findings, revision_history, authorial_preferences]
-    input_schema: senior-editor-input/v1
-    output_schema: scene-revision-contract/v1
-    tools: [audit_evidence_lookup, blind_review_compare]
-    runtime: {model_tier: frontier, deterministic: false}
-    authority:
-      read: [production/**, project_brain/**, runs/**]
-      write: [runs/**/scene_revision_contract.yml]
-    forbidden_actions: [draft_chapter_prose, approve_own_edit, commit_narrative_state]
-    dependencies: [writer, canon_timeline_steward]
-    acceptance_rules:
-      - Findings name evidence, confidence, counter-reading, and minimum revision scope.
-
-  reader_simulation_panel:
-    manifest_version: 2
-    extends_agent_role: Reviewer
-    professional_duties:
-      - Simulate distinct reader expectations without claiming canon authority.
-      - Report confusion, promise salience, emotional effect, and plausible counter-readings.
-    knowledge_namespaces: [reader_questions, promise_graph, authorial_preferences]
-    input_schema: reader-panel-input/v1
-    output_schema: reader-panel-review/v1
-    tools: [blind_review_compare]
-    runtime: {model_tier: standard, deterministic: false}
-    authority:
-      read: [runs/**/anonymous_candidates/**, runs/**/reader_context_pack/**]
-      write: [runs/**/reader_panel_review.yml]
-    forbidden_actions: [identify_candidate_order, mutate_canon, commit_narrative_state]
-    dependencies: [writer]
-    acceptance_rules:
-      - Reader reactions remain hypotheses with confidence and counter-interpretation.
-
-  state_projector:
-    manifest_version: 2
-    extends_agent_role: Scribe
-    professional_duties:
-      - Deterministically project accepted prose evidence into append-only state events.
-      - Reject unhashed prose, duplicate idempotency keys, and unauthorized state kinds.
-    knowledge_namespaces: [accepted_prose, narrative_state_events]
-    input_schema: accepted-prose-state-input/v1
-    output_schema: narrative-state-delta/v2
-    tools: [deterministic_state_projection]
-    runtime: {model_tier: deterministic, deterministic: true}
-    authority:
-      read: [runs/**/accepted/**, project_brain/narrative_state_snapshot.yml]
-      write: [project_brain/narrative_state_events.jsonl]
-    forbidden_actions: [draft_chapter_prose, infer_unstated_fact, approve_prose]
-    dependencies: [senior_editor]
-    acceptance_rules:
-      - Every event is idempotent and cites exact accepted-prose evidence.
+  - authorial_director
+  - canon_timeline_steward
+  - plot_causality_architect
+  - character_ensemble_director
+  - relationship_director
+  - world_archaeologist
+  - foreshadow_mystery_keeper
+  - arc_scene_planner
+  - research_style_curator
+  - writer
+  - senior_editor
+  - reader_simulation_panel
+  - state_projector
+base_chapter_roles:
+  - authorial_director
+  - canon_timeline_steward
+  - arc_scene_planner
+  - writer
+  - senior_editor
+  - state_projector
+full_team_risks:
+  - battle
+  - death
+  - relationship_turn
+  - major_reveal
+  - volume_finale
+risk_role_map:
+  causality: [plot_causality_architect]
+  character_decision: [character_ensemble_director]
+  relationship_progression: [relationship_director, reader_simulation_panel]
+  world_semantics: [world_archaeologist]
+  foreshadow_payoff: [foreshadow_mystery_keeper, reader_simulation_panel]
+  research_or_style: [research_style_curator]
+  reader_promise: [reader_simulation_panel]
