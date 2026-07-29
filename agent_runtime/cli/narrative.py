@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import typer
@@ -9,6 +10,7 @@ import yaml
 from rich.console import Console
 
 from atomic_io import atomic_write_yaml
+from agent_runtime.policies import resolve_agentlab_root
 from agent_runtime.narrative.assembly import (
     NarrativeAssemblyError,
     assemble_candidate_chapters,
@@ -71,9 +73,13 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         no_args_is_help=True,
     )
 
+    def active_project_root() -> Path:
+        configured = os.environ.get("AGENTLAB_ROOT")
+        return resolve_agentlab_root(configured) if configured else project_root
+
     def blueprint_schema(project: str) -> str:
         authority = (
-            project_root
+            active_project_root()
             / "projects"
             / project
             / "production"
@@ -87,7 +93,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
 
     def crown_blueprint_range(project: str) -> tuple[int, int]:
         authority = (
-            project_root
+            active_project_root()
             / "projects"
             / project
             / "production"
@@ -184,9 +190,10 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         chapter_end: int | None = typer.Option(None, "--chapter-end", min=1),
     ) -> None:
         """Validate the selected Crown or project-specific narrative blueprint."""
+        runtime_root = active_project_root()
         if blueprint_schema(project) == "narrative-blueprint-authority/v1":
             result = validate_project_blueprint(
-                project_root,
+                runtime_root,
                 project=project,
             )
         else:
@@ -203,7 +210,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                     "--chapter-start must not be greater than --chapter-end"
                 )
             result = validate_crown_blueprint(
-                project_root,
+                runtime_root,
                 project=project,
                 chapter_start=selected_start,
                 chapter_end=selected_end,

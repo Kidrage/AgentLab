@@ -1010,6 +1010,8 @@ def test_validate_blueprint_cli_uses_authoritative_range_when_omitted(
     tmp_path: Path,
 ) -> None:
     _valid_blueprint(tmp_path, chapter_end=25)
+    (tmp_path / "agentlab.sh").touch()
+    (tmp_path / "agent_runtime").mkdir()
     root = Path(__file__).resolve().parents[1]
 
     result = subprocess.run(

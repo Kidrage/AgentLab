@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import re
 import subprocess
 
 from agent_runtime.frontdesk_intent import compile_frontdesk_intent
@@ -85,5 +86,6 @@ def test_frontdesk_route_cli_is_registered() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "--explain" in result.stdout
-    assert "--adapter" in result.stdout
+    stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
+    assert "--explain" in stdout
+    assert "--adapter" in stdout
