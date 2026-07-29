@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 import yaml
 from rich.console import Console
 
 from agent_runtime.frontdesk_intent import compile_frontdesk_intent
+from agent_runtime.frontdesk_service import serve_frontdesk
 
 
 def register_frontdesk_commands(
     app: typer.Typer,
+    agentlab_root: Path,
     console: Console,
 ) -> None:
     frontdesk_app = typer.Typer(
@@ -45,5 +49,25 @@ def register_frontdesk_commands(
             )
         else:
             console.print(result["route_tier"])
+
+    @frontdesk_app.command("serve")
+    def serve(
+        adapter: str = typer.Option(..., "--adapter"),
+        socket_path: Path = typer.Option(..., "--socket"),
+        state: Path = typer.Option(..., "--state"),
+    ) -> None:
+        """Serve Frontdesk intents over one private local Unix socket."""
+        if adapter not in {"openclaw", "hermes", "qwen", "generic"}:
+            raise typer.BadParameter("unsupported Frontdesk adapter")
+        try:
+            serve_frontdesk(
+                socket_path=socket_path,
+                state_path=state,
+                agentlab_root=agentlab_root,
+                adapter=adapter,
+                version="frontdesk-intent/v2",
+            )
+        except (OSError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
 
     app.add_typer(frontdesk_app, name="frontdesk")
