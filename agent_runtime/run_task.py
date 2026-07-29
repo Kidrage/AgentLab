@@ -215,6 +215,9 @@ register_model_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.governance import register_governance_commands
 register_governance_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.frontdesk import register_frontdesk_commands
+register_frontdesk_commands(app, console)
+
 from agent_runtime.cli.narrative import register_narrative_commands
 register_narrative_commands(app, _PROJECT_ROOT, console)
 
