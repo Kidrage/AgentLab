@@ -10,3 +10,11 @@ private_topology:
   cloud_workspace_path: "<CLOUD_WORKSPACE>"     # e.g. /home/user/AgentLab
   relay_ssh_user: "<RELAY_SSH_USER>"            # e.g. agent
   cloud_ssh_user: "<CLOUD_SSH_USER>"            # e.g. deploy
+
+# Private Capability Vault. Keep the metadata/ directory as a private Git
+# repository; objects/ is content-addressed storage and never executes packages.
+capability_vault:
+  driver: "ssh_filesystem"  # local_filesystem | ssh_filesystem
+  ssh_alias: "<PRIVATE_VAULT_SSH_ALIAS>"
+  root: "<PRIVATE_CAPABILITY_VAULT_ROOT>"
+  runtime_endpoint: "<PRIVATE_RUNTIME_ENDPOINT>"
