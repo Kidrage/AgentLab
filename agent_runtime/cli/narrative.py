@@ -39,6 +39,11 @@ from agent_runtime.narrative.planning_window import (
     propose_planning_window,
     seal_planning_window,
 )
+from agent_runtime.narrative.preferences import (
+    CROWN_AUTHORIAL_PRIOR,
+    PreferenceStore,
+    classify_feedback,
+)
 from agent_runtime.narrative.task_packet import (
     append_narrative_instruction,
     compile_narrative_task_packet,
@@ -59,6 +64,10 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     )
     author_team_app = typer.Typer(
         help="Validate and select professional narrative author roles.",
+        no_args_is_help=True,
+    )
+    feedback_app = typer.Typer(
+        help="Append, inspect, and rollback authorial preference events.",
         no_args_is_help=True,
     )
 
@@ -492,6 +501,101 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
         )
 
+    def preference_store(project: str) -> PreferenceStore:
+        store = PreferenceStore(
+            project_root / "projects" / project / "project_brain",
+            project=project,
+        )
+        store.initialize(CROWN_AUTHORIAL_PRIOR)
+        return store
+
+    @feedback_app.command("intake")
+    def intake_feedback_command(
+        project: str = typer.Option(..., "--project"),
+        text: str = typer.Option(..., "--text"),
+        scope: str = typer.Option(..., "--scope"),
+        scope_id: str = typer.Option(..., "--scope-id"),
+        source: str = typer.Option("user", "--source"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+        expires_after_chapter: int | None = typer.Option(
+            None,
+            "--expires-after-chapter",
+            min=1,
+        ),
+        polarity: int | None = typer.Option(None, "--polarity"),
+    ) -> None:
+        """Classify feedback and append one reversible preference event."""
+        try:
+            classified = classify_feedback(text, polarity=polarity)
+            if classified["supervisor_review_required"]:
+                result = {
+                    **classified,
+                    "status": "needs_supervisor_review",
+                    "feedback_recorded": False,
+                }
+                console.print(
+                    yaml.safe_dump(
+                        result,
+                        sort_keys=False,
+                        allow_unicode=True,
+                    ).rstrip()
+                )
+                raise typer.Exit(code=2)
+            result = preference_store(project).intake(
+                source=source,
+                scope_level=scope,
+                scope_id=scope_id,
+                classifications=classified["classifications"],
+                idempotency_key=idempotency_key,
+                expires_after_chapter=expires_after_chapter,
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @feedback_app.command("profile")
+    def preference_profile_command(
+        project: str = typer.Option(..., "--project"),
+        chapter: int | None = typer.Option(None, "--chapter", min=1),
+        arc: str | None = typer.Option(None, "--arc"),
+        window: str | None = typer.Option(None, "--window"),
+        chapter_scope: str | None = typer.Option(None, "--chapter-scope"),
+    ) -> None:
+        """Show the effective profile and its active/retired overlays."""
+        try:
+            result = preference_store(project).profile(
+                chapter=chapter,
+                arc=arc,
+                window=window,
+                chapter_scope=chapter_scope,
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @feedback_app.command("rollback")
+    def rollback_feedback_command(
+        project: str = typer.Option(..., "--project"),
+        event_id: str = typer.Option(..., "--event-id"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        """Append a rollback for the latest event in one preference scope."""
+        try:
+            result = preference_store(project).rollback(
+                event_id=event_id,
+                idempotency_key=idempotency_key,
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
     narrative_app.add_typer(author_team_app, name="author-team")
+    narrative_app.add_typer(feedback_app, name="feedback")
     narrative_app.add_typer(planning_window_app, name="planning-window")
     app.add_typer(narrative_app, name="narrative")
