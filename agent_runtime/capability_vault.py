@@ -317,6 +317,7 @@ class CapabilityVault:
             "issues": issues,
             "private_locations_redacted": True,
         }
+
     def register(
         self,
         manifest: Mapping[str, Any],
@@ -379,6 +380,67 @@ class CapabilityVault:
             "source_digest": actual_digest,
             "driver": self._adapter.driver_name,
             "user_approval_required": package.requires_user_approval,
+            "private_locations_redacted": True,
+        }
+
+    def record_lifecycle_decision(
+        self,
+        decision: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Append one approved promotion/rollback decision and update its pointer."""
+
+        if decision.get("status") != "approved":
+            raise CapabilityVaultError("only approved lifecycle decisions may be recorded")
+        package_id = str(decision.get("package_id") or "")
+        if not _PACKAGE_ID.fullmatch(package_id):
+            raise CapabilityVaultError("lifecycle decision package_id is invalid")
+        schema = str(decision.get("schema_version") or "")
+        if schema not in {
+            "capability-promotion-decision/v1",
+            "capability-rollback-decision/v1",
+        }:
+            raise CapabilityVaultError("unsupported lifecycle decision schema")
+        decided_at = str(decision.get("decided_at") or _utc_now())
+        serialized = yaml.safe_dump(
+            dict(decision),
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        event_digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        event_name = re.sub(r"[^0-9A-Za-z._-]", "_", decided_at)
+        relative = (
+            PurePosixPath("lifecycle_events")
+            / package_id
+            / f"{event_name}-{event_digest[:12]}.yml"
+        )
+        self._adapter.put_metadata(relative, serialized)
+        pointer = {
+            "schema_version": "capability-lifecycle-pointer/v1",
+            "package_id": package_id,
+            "decision_schema": schema,
+            "decision_sha256": event_digest,
+            "decision_event": relative.as_posix(),
+            "updated_at": decided_at,
+        }
+        if schema == "capability-promotion-decision/v1":
+            pointer["status"] = decision.get("transition", {}).get("to")
+            pointer["version"] = decision.get("version")
+            pointer["source_digest"] = decision.get("source_digest")
+        else:
+            pointer["status"] = decision.get("rollback", {}).get(
+                "resulting_status"
+            )
+            pointer["version"] = decision.get("rollback", {}).get("to_version")
+            pointer["source_digest"] = None
+        self._adapter.put_metadata(
+            PurePosixPath("lifecycle_pointers") / f"{package_id}.yml",
+            yaml.safe_dump(pointer, sort_keys=False, allow_unicode=True),
+        )
+        return {
+            "schema_version": "capability-lifecycle-record/v1",
+            "status": "recorded",
+            "package_id": package_id,
+            "decision_sha256": event_digest,
             "private_locations_redacted": True,
         }
 
