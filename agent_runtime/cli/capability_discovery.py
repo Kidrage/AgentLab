@@ -142,6 +142,11 @@ def register_capability_discovery_commands(
     def radar(
         profile: str = typer.Option(..., "--profile"),
         source: str = typer.Option("all", "--source"),
+        output: Path | None = typer.Option(None, "--output"),
+        record_vault: bool = typer.Option(
+            False,
+            "--record-vault/--no-record-vault",
+        ),
     ) -> None:
         """Run one profile scan; scheduling belongs to the configured Runtime."""
         query = RADAR_QUERIES.get(profile)
@@ -155,6 +160,23 @@ def register_capability_discovery_commands(
             raise typer.BadParameter(str(exc)) from exc
         result["mode"] = "radar"
         result["profile"] = profile
+        if record_vault:
+            try:
+                result["vault_evidence"] = load_private_capability_vault(
+                    agentlab_root
+                ).record_evidence(
+                    evidence_kind=f"radar-{profile}",
+                    payload=result,
+                )
+            except CapabilityVaultError as exc:
+                result["status"] = "partial"
+                result["vault_evidence"] = {
+                    "status": "blocked",
+                    "issues": [str(exc)],
+                    "private_locations_redacted": True,
+                }
+        if output is not None:
+            atomic_write_yaml(output, result)
         console.print(
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
         )

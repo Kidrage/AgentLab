@@ -444,6 +444,46 @@ class CapabilityVault:
             "private_locations_redacted": True,
         }
 
+    def record_evidence(
+        self,
+        *,
+        evidence_kind: str,
+        payload: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Store one private evidence document without exposing its location."""
+
+        if not _PACKAGE_ID.fullmatch(evidence_kind):
+            raise CapabilityVaultError("evidence_kind is invalid")
+        if not isinstance(payload, Mapping):
+            raise CapabilityVaultError("evidence payload must be a mapping")
+        recorded_at = _utc_now()
+        document = {
+            "schema_version": "capability-vault-evidence/v1",
+            "evidence_kind": evidence_kind,
+            "recorded_at": recorded_at,
+            "payload": dict(payload),
+        }
+        serialized = yaml.safe_dump(
+            document,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        event_name = re.sub(r"[^0-9A-Za-z._-]", "_", recorded_at)
+        self._adapter.put_metadata(
+            PurePosixPath("evidence")
+            / evidence_kind
+            / f"{event_name}-{digest[:12]}.yml",
+            serialized,
+        )
+        return {
+            "schema_version": "capability-vault-evidence-record/v1",
+            "status": "recorded",
+            "evidence_kind": evidence_kind,
+            "evidence_sha256": digest,
+            "private_locations_redacted": True,
+        }
+
 
 def load_private_capability_vault(
     agentlab_root: Path,

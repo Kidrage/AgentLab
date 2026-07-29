@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AgentLab capability radar weekly
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=6h
+Unit=agentlab-capability-radar.service
+
+[Install]
+WantedBy=timers.target

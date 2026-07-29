@@ -156,3 +156,51 @@ def test_capability_vault_cli_exposes_register_and_doctor() -> None:
     assert result.returncode == 0, result.stderr
     assert "register" in result.stdout
     assert "doctor" in result.stdout
+
+
+def test_vault_records_private_radar_evidence_by_digest(tmp_path: Path) -> None:
+    vault_root = tmp_path / "private-vault"
+    (vault_root / "metadata" / ".git").mkdir(parents=True)
+    vault = CapabilityVault.from_config(
+        {"driver": "local_filesystem", "root": str(vault_root)}
+    )
+
+    receipt = vault.record_evidence(
+        evidence_kind="radar-narrative",
+        payload={
+            "schema_version": "capability-discovery-result/v1",
+            "status": "pass",
+            "candidates": [],
+        },
+    )
+
+    assert receipt["status"] == "recorded"
+    assert receipt["private_locations_redacted"] is True
+    evidence = list(
+        (
+            vault_root / "metadata" / "evidence" / "radar-narrative"
+        ).glob("*.yml")
+    )
+    assert len(evidence) == 1
+    document = yaml.safe_load(evidence[0].read_text(encoding="utf-8"))
+    assert document["payload"]["candidates"] == []
+
+
+def test_radar_timer_is_weekly_persistent_and_private() -> None:
+    root = Path(__file__).resolve().parents[1]
+    timer = (
+        root / "deploy" / "systemd" / "agentlab-capability-radar.timer"
+    ).read_text(encoding="utf-8")
+    service = (
+        root / "deploy" / "systemd" / "agentlab-capability-radar.service"
+    ).read_text(encoding="utf-8")
+    script = (root / "scripts" / "run_capability_radar.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "OnCalendar=weekly" in timer
+    assert "Persistent=true" in timer
+    assert "--record-vault" in script
+    assert ".agentlab_runtime/capability_radar" in script
+    assert "User=root" not in service
+    assert "10.147." not in service + script
