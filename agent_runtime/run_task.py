@@ -200,6 +200,9 @@ register_capability_acceptance_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.capability_vault import register_capability_vault_commands
 register_capability_vault_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.capability_discovery import register_capability_discovery_commands
+register_capability_discovery_commands(app, _PROJECT_ROOT, console)
+
 from agent_runtime.cli.runtime_hygiene import register_runtime_hygiene_commands
 register_runtime_hygiene_commands(app, lambda: _PROJECT_ROOT, console)
 
