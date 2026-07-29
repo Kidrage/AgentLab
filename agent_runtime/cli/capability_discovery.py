@@ -9,6 +9,11 @@ import typer
 import yaml
 from rich.console import Console
 
+from atomic_io import atomic_write_yaml
+from agent_runtime.capability_audit import (
+    audit_capability_archive,
+    audition_capability_archive,
+)
 from agent_runtime.capability_discovery import (
     CapabilityDiscoveryError,
     GitHubSourceAdapter,
@@ -78,6 +83,15 @@ def register_capability_discovery_commands(
             "promotion_performed": False,
         }
 
+    def load_manifest(path: Path) -> dict:
+        try:
+            value = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise CapabilityDiscoveryError("capability manifest is unreadable") from exc
+        if not isinstance(value, dict):
+            raise CapabilityDiscoveryError("capability manifest must be a mapping")
+        return value
+
     @capability_app.command("search")
     def search(
         mode: str = typer.Option("task", "--mode"),
@@ -118,5 +132,49 @@ def register_capability_discovery_commands(
         console.print(
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
         )
+
+    @capability_app.command("audit")
+    def audit(
+        manifest: Path = typer.Option(..., "--manifest"),
+        source_archive: Path = typer.Option(..., "--source-archive"),
+        output: Path | None = typer.Option(None, "--output"),
+    ) -> None:
+        """Perform static archive, SBOM, boundary, and injection checks."""
+        try:
+            result = audit_capability_archive(
+                load_manifest(manifest),
+                source_archive=source_archive,
+            )
+        except CapabilityDiscoveryError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        if output is not None:
+            atomic_write_yaml(output, result)
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+        if result["status"] != "pass":
+            raise typer.Exit(code=1)
+
+    @capability_app.command("audition")
+    def audition(
+        manifest: Path = typer.Option(..., "--manifest"),
+        source_archive: Path = typer.Option(..., "--source-archive"),
+        output: Path | None = typer.Option(None, "--output"),
+    ) -> None:
+        """Run the declared probe in a one-shot network-denied OS sandbox."""
+        try:
+            result = audition_capability_archive(
+                load_manifest(manifest),
+                source_archive=source_archive,
+            )
+        except CapabilityDiscoveryError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        if output is not None:
+            atomic_write_yaml(output, result)
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+        if result["status"] != "pass":
+            raise typer.Exit(code=1)
 
     app.add_typer(capability_app, name="capability")

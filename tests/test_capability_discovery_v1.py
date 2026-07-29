@@ -119,5 +119,5 @@ def test_capability_cli_exposes_task_search_and_radar() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "search" in result.stdout
-    assert "radar" in result.stdout
+    for command in ("search", "radar", "audit", "audition"):
+        assert command in result.stdout
