@@ -8,6 +8,7 @@ import typer
 import yaml
 from rich.console import Console
 
+from atomic_io import atomic_write_yaml
 from agent_runtime.narrative.assembly import (
     NarrativeAssemblyError,
     assemble_candidate_chapters,
@@ -26,6 +27,13 @@ from agent_runtime.narrative.state_store import (
     NarrativeStateError,
     NarrativeStateStore,
 )
+from agent_runtime.narrative.planning_window import (
+    PlanningWindowError,
+    activate_planning_window,
+    complete_planning_window_chapter,
+    propose_planning_window,
+    seal_planning_window,
+)
 from agent_runtime.narrative.task_packet import (
     append_narrative_instruction,
     compile_narrative_task_packet,
@@ -40,6 +48,10 @@ from agent_runtime.narrative_delivery import (
 
 def register_narrative_commands(app: typer.Typer, project_root: Path, console: Console) -> None:
     narrative_app = typer.Typer(help="Longform narrative delivery commands.", no_args_is_help=True)
+    planning_window_app = typer.Typer(
+        help="Governed rolling narrative planning-window lifecycle.",
+        no_args_is_help=True,
+    )
 
     def blueprint_schema(project: str) -> str:
         authority = (
@@ -348,4 +360,72 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             raise typer.BadParameter(str(exc)) from exc
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
 
+    @planning_window_app.command("propose")
+    def propose_planning_window_command(
+        project: str = typer.Option(..., "--project"),
+        output: Path = typer.Option(..., "--output"),
+        locked_size: int = typer.Option(10, "--locked-size", min=8, max=10),
+    ) -> None:
+        """Build a candidate window from current hash-bound chapter contracts."""
+        try:
+            result = propose_planning_window(
+                project_root,
+                project=project,
+                locked_size=locked_size,
+            )
+            atomic_write_yaml(output, result)
+        except (OSError, PlanningWindowError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @planning_window_app.command("seal")
+    def seal_planning_window_command(
+        proposal: Path = typer.Option(..., "--proposal"),
+        supersede_reason: str | None = typer.Option(
+            None,
+            "--supersede-reason",
+        ),
+    ) -> None:
+        """Seal a proposal as the sole current planning window."""
+        try:
+            raw = yaml.safe_load(proposal.read_text(encoding="utf-8")) or {}
+            if not isinstance(raw, dict):
+                raise PlanningWindowError("proposal must be a mapping")
+            result = seal_planning_window(
+                project_root,
+                proposal=raw,
+                supersede_reason=supersede_reason,
+            )
+        except (OSError, UnicodeError, yaml.YAMLError, PlanningWindowError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @planning_window_app.command("activate")
+    def activate_planning_window_command(
+        project: str = typer.Option(..., "--project"),
+    ) -> None:
+        """Activate the sole sealed planning window."""
+        try:
+            result = activate_planning_window(project_root, project=project)
+        except PlanningWindowError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @planning_window_app.command("complete")
+    def complete_planning_window_command(
+        project: str = typer.Option(..., "--project"),
+        chapter: int = typer.Option(..., "--chapter", min=1),
+    ) -> None:
+        """Accept the next locked chapter and roll the window forward."""
+        try:
+            result = complete_planning_window_chapter(
+                project_root,
+                project=project,
+                chapter=chapter,
+            )
+        except PlanningWindowError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    narrative_app.add_typer(planning_window_app, name="planning-window")
     app.add_typer(narrative_app, name="narrative")
