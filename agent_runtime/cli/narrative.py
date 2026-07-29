@@ -13,6 +13,11 @@ from agent_runtime.narrative.assembly import (
     NarrativeAssemblyError,
     assemble_candidate_chapters,
 )
+from agent_runtime.narrative.author_team import (
+    materialize_author_team_contract,
+    select_author_team,
+    validate_author_team_contract,
+)
 from agent_runtime.narrative.blueprint_validation import (
     materialize_crown_blueprint,
     seal_crown_blueprint,
@@ -50,6 +55,10 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     narrative_app = typer.Typer(help="Longform narrative delivery commands.", no_args_is_help=True)
     planning_window_app = typer.Typer(
         help="Governed rolling narrative planning-window lifecycle.",
+        no_args_is_help=True,
+    )
+    author_team_app = typer.Typer(
+        help="Validate and select professional narrative author roles.",
         no_args_is_help=True,
     )
 
@@ -427,5 +436,62 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             raise typer.BadParameter(str(exc)) from exc
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
 
+    def load_author_team_contract(path: Path | None) -> dict:
+        selected = path or project_root / "config" / "narrative_author_team.yml"
+        try:
+            value = yaml.safe_load(selected.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(f"cannot read author-team contract: {exc}") from exc
+        if not isinstance(value, dict):
+            raise typer.BadParameter("author-team contract must be a mapping")
+        return value
+
+    @author_team_app.command("validate")
+    def validate_author_team_command(
+        contract: Path | None = typer.Option(None, "--contract"),
+    ) -> None:
+        """Validate all v2 professional roles and separation-of-duty gates."""
+        result = validate_author_team_contract(
+            load_author_team_contract(contract)
+        )
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+        if result["status"] != "pass":
+            raise typer.Exit(code=1)
+
+    @author_team_app.command("select")
+    def select_author_team_command(
+        contract: Path | None = typer.Option(None, "--contract"),
+        risk: list[str] | None = typer.Option(None, "--risk"),
+    ) -> None:
+        """Select the smallest role subgraph for declared chapter risks."""
+        result = select_author_team(
+            load_author_team_contract(contract),
+            risk_flags=risk or [],
+        )
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+        if result["status"] != "pass":
+            raise typer.Exit(code=1)
+
+    @author_team_app.command("initialize")
+    def initialize_author_team_command(
+        project: str = typer.Option(..., "--project"),
+    ) -> None:
+        """Materialize the validated generic team contract into one project."""
+        try:
+            result = materialize_author_team_contract(
+                project_root,
+                project=project,
+            )
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    narrative_app.add_typer(author_team_app, name="author-team")
     narrative_app.add_typer(planning_window_app, name="planning-window")
     app.add_typer(narrative_app, name="narrative")
