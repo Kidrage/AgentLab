@@ -44,6 +44,7 @@ from agent_runtime.narrative.planning_window import (
     propose_planning_window,
     seal_planning_window,
 )
+from agent_runtime.narrative.role_context import compile_role_context_pack
 from agent_runtime.narrative.preferences import (
     CROWN_AUTHORIAL_PRIOR,
     PreferenceStore,
@@ -69,6 +70,10 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     )
     author_team_app = typer.Typer(
         help="Validate and select professional narrative author roles.",
+        no_args_is_help=True,
+    )
+    context_app = typer.Typer(
+        help="Compile role-scoped, evidence-bound narrative context.",
         no_args_is_help=True,
     )
     feedback_app = typer.Typer(
@@ -559,6 +564,64 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
         )
 
+    @context_app.command("compile")
+    def compile_role_context_command(
+        request: Path = typer.Option(..., "--request"),
+    ) -> None:
+        """Compile one role context pack from a v1 YAML request."""
+
+        try:
+            value = yaml.safe_load(request.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(f"cannot read context request: {exc}") from exc
+        if not isinstance(value, dict):
+            raise typer.BadParameter("context request must be a mapping")
+        if value.get("schema_version") != "role-context-compile-request/v1":
+            raise typer.BadParameter("unsupported context request schema")
+
+        try:
+            source_root = Path(str(value["source_root"])).resolve()
+
+            def source_path(field: str) -> Path:
+                path = Path(str(value[field]))
+                return path.resolve() if path.is_absolute() else source_root / path
+
+            candidates = value.get("evidence_candidates")
+            if not isinstance(candidates, list):
+                raise ValueError("evidence_candidates must be a list")
+            normalized_candidates: list[dict] = []
+            for item in candidates:
+                if not isinstance(item, dict):
+                    raise ValueError("each evidence candidate must be a mapping")
+                normalized = dict(item)
+                candidate_path = Path(str(normalized.get("path") or ""))
+                normalized["path"] = (
+                    candidate_path.resolve()
+                    if candidate_path.is_absolute()
+                    else source_root / candidate_path
+                )
+                normalized_candidates.append(normalized)
+            result = compile_role_context_pack(
+                active_project_root(),
+                role_id=str(value["role_id"]),
+                source_root=source_root,
+                context_bundle_manifest=source_path("context_bundle_manifest"),
+                evidence_candidates=normalized_candidates,
+                token_budget=int(value["token_budget"]),
+                minimum_evidence_items=int(
+                    value.get("minimum_evidence_items", 1)
+                ),
+                output_dir=source_path("output_dir"),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise typer.BadParameter(f"invalid context request: {exc}") from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip(),
+            soft_wrap=True,
+        )
+        if result["status"] == "blocked":
+            raise typer.Exit(code=1)
+
     def preference_store(project: str) -> PreferenceStore:
         store = PreferenceStore(
             project_root / "projects" / project / "project_brain",
@@ -654,6 +717,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         )
 
     narrative_app.add_typer(author_team_app, name="author-team")
+    narrative_app.add_typer(context_app, name="context")
     narrative_app.add_typer(feedback_app, name="feedback")
     narrative_app.add_typer(planning_window_app, name="planning-window")
     app.add_typer(narrative_app, name="narrative")
