@@ -55,6 +55,40 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             return ""
         return str(value.get("schema_version") or "") if isinstance(value, dict) else ""
 
+    def crown_blueprint_range(project: str) -> tuple[int, int]:
+        authority = (
+            project_root
+            / "projects"
+            / project
+            / "production"
+            / "blueprint_authority.yml"
+        )
+        try:
+            value = yaml.safe_load(authority.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise ValueError(
+                "cannot resolve chapter range from production/blueprint_authority.yml"
+            ) from exc
+        scope = value.get("scope") if isinstance(value, dict) else None
+        chapter_range = (
+            scope.get("detailed_chapter_contract_range")
+            if isinstance(scope, dict)
+            else None
+        )
+        if (
+            not isinstance(chapter_range, list)
+            or len(chapter_range) != 2
+            or any(
+                isinstance(item, bool) or not isinstance(item, int) or item < 1
+                for item in chapter_range
+            )
+            or chapter_range[0] > chapter_range[1]
+        ):
+            raise ValueError(
+                "production/blueprint_authority.yml has no valid detailed chapter range"
+            )
+        return chapter_range[0], chapter_range[1]
+
     @narrative_app.command("doctor")
     def doctor(
         project: str = typer.Option(..., "--project", help="Project name under projects/."),
@@ -116,8 +150,8 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     @narrative_app.command("validate-blueprint")
     def validate_blueprint(
         project: str = typer.Option("Crown_of_Ash", "--project"),
-        chapter_start: int = typer.Option(1, "--chapter-start", min=1),
-        chapter_end: int = typer.Option(20, "--chapter-end", min=1),
+        chapter_start: int | None = typer.Option(None, "--chapter-start", min=1),
+        chapter_end: int | None = typer.Option(None, "--chapter-end", min=1),
     ) -> None:
         """Validate the selected Crown or project-specific narrative blueprint."""
         if blueprint_schema(project) == "narrative-blueprint-authority/v1":
@@ -126,11 +160,23 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 project=project,
             )
         else:
+            try:
+                authority_start, authority_end = crown_blueprint_range(project)
+            except ValueError as exc:
+                raise typer.BadParameter(str(exc)) from exc
+            selected_start = (
+                authority_start if chapter_start is None else chapter_start
+            )
+            selected_end = authority_end if chapter_end is None else chapter_end
+            if selected_start > selected_end:
+                raise typer.BadParameter(
+                    "--chapter-start must not be greater than --chapter-end"
+                )
             result = validate_crown_blueprint(
                 project_root,
                 project=project,
-                chapter_start=chapter_start,
-                chapter_end=chapter_end,
+                chapter_start=selected_start,
+                chapter_end=selected_end,
             )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result["status"] != "pass":

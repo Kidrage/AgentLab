@@ -29,7 +29,11 @@ def _write_yaml(path: Path, value: object) -> None:
     )
 
 
-def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
+def _valid_blueprint(
+    root: Path,
+    *,
+    chapter_end: int = 20,
+) -> tuple[Path, list[dict]]:
     project = root / "projects" / "Crown_of_Ash"
     evidence = [
         {
@@ -360,8 +364,8 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
             "status": "candidate",
             "candidate_only": True,
             "production_modified": False,
-            "chapter_range": [1, 20],
-            "chapters": list(range(1, 21)),
+            "chapter_range": [1, chapter_end],
+            "chapters": list(range(1, chapter_end + 1)),
             "target_character_range": [2100, 3400],
             "hard_character_range": [1800, 3800],
             "chapter_state_plan": [
@@ -381,10 +385,10 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                     "closing_state": f"closing state {chapter}",
                     "must_not_repeat": f"climax pattern {chapter}",
                 }
-                for chapter in range(1, 21)
+                for chapter in range(1, chapter_end + 1)
             ],
             "validation_contract": {
-                "exact_chapter_count": 20,
+                "exact_chapter_count": chapter_end,
                 "ordered_unique_chapters": True,
                 "unique_scene_goals": True,
                 "unique_irreversible_plot_changes": True,
@@ -392,7 +396,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
             },
         },
     )
-    for chapter in range(1, 21):
+    for chapter in range(1, chapter_end + 1):
         _write_yaml(
             project / "production" / "chapter_cards" / f"ch{chapter:03d}.yml",
             {
@@ -424,7 +428,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
             "conflict_action": "fail_closed_before_context_compilation",
             "scope": {
                 "planned_total_chapters": 1920,
-                "detailed_chapter_contract_range": [1, 20],
+                "detailed_chapter_contract_range": [1, chapter_end],
             },
             "components": [
                 {
@@ -1000,6 +1004,33 @@ def test_validate_blueprint_cli_is_registered() -> None:
         )
         for option in expected_options:
             assert option in command_stdout
+
+
+def test_validate_blueprint_cli_uses_authoritative_range_when_omitted(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path, chapter_end=25)
+    root = Path(__file__).resolve().parents[1]
+
+    result = subprocess.run(
+        [
+            str(root / "agentlab.sh"),
+            "narrative",
+            "validate-blueprint",
+            "--project",
+            "Crown_of_Ash",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "AGENTLAB_ROOT": str(tmp_path), "NO_COLOR": "1"},
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    receipt = yaml.safe_load(result.stdout)
+    assert receipt["chapter_range"] == [1, 25]
+    assert receipt["chapter_card_count"] == 25
 
 
 def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_roots(
