@@ -733,3 +733,77 @@ def test_fact_authority_revision_continues_directly_from_bootstrap_metadata(
             "event_id": receipt["event_id"],
         }
     }
+
+
+def test_verified_commit_projects_long_term_state_into_event_snapshot(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "canon.yml"
+    source.write_text("project: Crown_of_Ash\n", encoding="utf-8")
+    store = NarrativeStateStore(tmp_path / "brain", project="Crown_of_Ash")
+    store.bootstrap(
+        {
+            "schema_version": "narrative-bootstrap/v1",
+            "project": "Crown_of_Ash",
+            "precedence": ["canonical"],
+            "sources": [_source(source)],
+            "base_state": {},
+        }
+    )
+    delta = {
+        "long_term_schema": "narrative-long-term-delta/v1",
+        "character_mind_updates": [
+            {
+                "id": "char_arya",
+                "goals": ["protect the archive"],
+                "needs": ["accept help"],
+                "plans": ["enter through the cistern"],
+                "known_facts": ["fact_gate_locked"],
+                "false_beliefs": [],
+                "secrets": [],
+                "fears": [],
+                "resources": ["bronze key"],
+                "moral_boundaries": ["will not abandon a child"],
+                "offstage_actions": [],
+                "next_decision_threshold": "the bell rings twice",
+                "evidence_location": "chapter:1:lines:1-8",
+            }
+        ],
+        "relationship_edge_updates": [],
+        "narrative_entity_updates": [],
+        "promise_updates": [],
+        "truth_updates": [],
+        "active_supporting_characters": [],
+        "offstage_action_updates": [],
+        "outline_update": {
+            "book": "book_1",
+            "part": "part_1",
+            "volume": "volume_1",
+            "arc": "arc_archive",
+            "window": "window_1_25",
+            "chapter": 1,
+            "scenes": ["scene_cistern"],
+        },
+        "summary_updates": [],
+        "exact_name_updates": [],
+    }
+
+    receipt = store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=store.read()["state_sha256"],
+            state_delta=delta,
+        )
+    )
+    snapshot = store.read()
+
+    assert receipt["status"] == "committed"
+    assert snapshot["character_minds"]["char_arya"]["resources"] == [
+        "bronze key"
+    ]
+    assert snapshot["outline_tree"]["current"]["chapter"] == 1
+    assert snapshot["last_projection"] == {
+        "chapter": 1,
+        "prose_sha256": "a" * 64,
+        "schema_version": "narrative-long-term-delta/v1",
+    }

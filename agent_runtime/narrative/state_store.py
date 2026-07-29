@@ -25,6 +25,10 @@ from agent_runtime.narrative.fact_authority import (
     load_fact_authority,
     verify_registered_fact_authority,
 )
+from agent_runtime.narrative.long_term_state import (
+    apply_long_term_delta,
+    validate_long_term_delta,
+)
 
 
 EVENT_SCHEMA = "narrative-state-event/v3"
@@ -81,6 +85,15 @@ def _empty_snapshot(project: str) -> dict[str, Any]:
         "fact_authorities": {},
         "chapters": {},
         "style_memory": [],
+        "character_minds": {},
+        "relationship_edges": {},
+        "narrative_entities": {},
+        "promise_graph": {},
+        "offstage_actions": {},
+        "truth_layers": {},
+        "outline_tree": {},
+        "summary_tree": {},
+        "exact_name_index": {},
         "event_count": 0,
         "last_event_id": None,
         "last_event_sequence": 0,
@@ -205,6 +218,15 @@ class NarrativeStateStore:
                 "fact_authorities",
                 "chapters",
                 "style_memory",
+                "character_minds",
+                "relationship_edges",
+                "narrative_entities",
+                "promise_graph",
+                "offstage_actions",
+                "truth_layers",
+                "outline_tree",
+                "summary_tree",
+                "exact_name_index",
             ):
                 if key in base_state:
                     snapshot[key] = deepcopy(base_state[key])
@@ -258,6 +280,26 @@ class NarrativeStateStore:
                             "source_artifact_sha256": payload["artifact_sha256"],
                         }
                     )
+            if "long_term_schema" in delta:
+                projected = apply_long_term_delta(
+                    snapshot,
+                    delta,
+                    chapter=chapter,
+                    prose_sha256=str(payload["artifact_sha256"]),
+                )
+                for key in (
+                    "character_minds",
+                    "relationship_edges",
+                    "narrative_entities",
+                    "promise_graph",
+                    "offstage_actions",
+                    "truth_layers",
+                    "outline_tree",
+                    "summary_tree",
+                    "exact_name_index",
+                    "last_projection",
+                ):
+                    snapshot[key] = projected[key]
         elif event.get("event_type") == "EDITORIAL_MEMORY_RECORDED":
             polarity = (
                 "negative"
@@ -826,6 +868,15 @@ class NarrativeStateStore:
             current = self._project(events)
             if verified_commit.get("previous_state_sha256") != current["state_sha256"]:
                 raise NarrativeStateConflict("previous narrative state hash is stale")
+            long_term_issues = validate_long_term_delta(
+                state_delta,
+                current_state=current,
+            )
+            if long_term_issues:
+                raise NarrativeStateConflict(
+                    "long-term narrative delta is invalid: "
+                    + ",".join(long_term_issues)
+                )
             payload = deepcopy(dict(verified_commit))
             payload["commit_sha256"] = commit_sha256
             event = self._new_event(
