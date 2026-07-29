@@ -15,6 +15,9 @@ from agent_runtime.narrative.assembly import (
     NarrativeAssemblyError,
     assemble_candidate_chapters,
 )
+from agent_runtime.narrative.acceptance_ladder import (
+    build_narrative_acceptance_status,
+)
 from agent_runtime.narrative.authorial_audit import (
     build_authorial_audit_plan,
     compile_senior_editor_revision_contracts,
@@ -78,6 +81,10 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     )
     context_app = typer.Typer(
         help="Compile role-scoped, evidence-bound narrative context.",
+        no_args_is_help=True,
+    )
+    acceptance_app = typer.Typer(
+        help="Verify evidence-bound P0-P5 narrative acceptance.",
         no_args_is_help=True,
     )
     feedback_app = typer.Typer(
@@ -680,6 +687,33 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         if result["status"] == "blocked":
             raise typer.Exit(code=1)
 
+    @acceptance_app.command("status")
+    def narrative_acceptance_status_command(
+        project: str = typer.Option(..., "--project"),
+        evidence_dir: Path | None = typer.Option(None, "--evidence-dir"),
+    ) -> None:
+        """Report the highest verified stage without inferring missing proof."""
+
+        root = active_project_root()
+        selected_project = root / "projects" / project
+        selected_evidence = (
+            evidence_dir
+            if evidence_dir is not None
+            else selected_project / "acceptance" / "narrative"
+        )
+        result = build_narrative_acceptance_status(
+            root,
+            project=project,
+            project_root=selected_project,
+            evidence_dir=selected_evidence,
+        )
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip(),
+            soft_wrap=True,
+        )
+        if result["status"] == "blocked":
+            raise typer.Exit(code=1)
+
     def preference_store(project: str) -> PreferenceStore:
         store = PreferenceStore(
             project_root / "projects" / project / "project_brain",
@@ -775,6 +809,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         )
 
     narrative_app.add_typer(author_team_app, name="author-team")
+    narrative_app.add_typer(acceptance_app, name="acceptance")
     narrative_app.add_typer(context_app, name="context")
     narrative_app.add_typer(feedback_app, name="feedback")
     narrative_app.add_typer(planning_window_app, name="planning-window")
