@@ -440,13 +440,20 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     def complete_planning_window_command(
         project: str = typer.Option(..., "--project"),
         chapter: int = typer.Option(..., "--chapter", min=1),
+        horizon_chapter: int = typer.Option(
+            ...,
+            "--horizon-chapter",
+            min=1,
+            help="New far-horizon chapter contract already produced by planning.",
+        ),
     ) -> None:
-        """Accept the next locked chapter and roll the window forward."""
+        """Accept the next locked chapter and extend the planning horizon."""
         try:
             result = complete_planning_window_chapter(
                 project_root,
                 project=project,
                 chapter=chapter,
+                horizon_chapter=horizon_chapter,
             )
         except PlanningWindowError as exc:
             raise typer.BadParameter(str(exc)) from exc

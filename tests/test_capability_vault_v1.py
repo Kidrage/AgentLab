@@ -68,7 +68,12 @@ def test_local_vault_registers_hash_bound_object_and_private_git_metadata(
     bundle.write_bytes(b"immutable capability bundle")
     digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
     vault_root = tmp_path / "private-vault"
-    (vault_root / "metadata" / ".git").mkdir(parents=True)
+    metadata_root = vault_root / "metadata"
+    metadata_root.mkdir(parents=True)
+    subprocess.run(
+        ["git", "init", "-q", str(metadata_root)],
+        check=True,
+    )
     vault = CapabilityVault.from_config(
         {
             "driver": "local_filesystem",
@@ -96,13 +101,31 @@ def test_local_vault_registers_hash_bound_object_and_private_git_metadata(
     assert metadata["lifecycle"]["status"] == "discovered"
     assert metadata["source"]["digest"] == digest
     assert vault.doctor()["status"] == "pass"
+    assert subprocess.run(
+        ["git", "-C", str(metadata_root), "rev-list", "--count", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "1"
+    assert vault.register(_manifest(digest), source_archive=bundle)["status"] == (
+        "discovered"
+    )
+    changed = _manifest(digest)
+    changed["capability_tags"] = ["different-capability"]
+    with pytest.raises(
+        CapabilityVaultError,
+        match="immutable capability metadata collision",
+    ):
+        vault.register(changed, source_archive=bundle)
 
 
 def test_vault_rejects_source_substitution_before_writing(tmp_path: Path) -> None:
     bundle = tmp_path / "bundle.tar"
     bundle.write_bytes(b"substituted")
     vault_root = tmp_path / "private-vault"
-    (vault_root / "metadata" / ".git").mkdir(parents=True)
+    metadata_root = vault_root / "metadata"
+    metadata_root.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(metadata_root)], check=True)
     vault = CapabilityVault.from_config(
         {"driver": "local_filesystem", "root": str(vault_root)}
     )
@@ -119,8 +142,19 @@ def test_ssh_vault_adapter_only_issues_storage_commands(tmp_path: Path) -> None:
     digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
     commands: list[list[str]] = []
 
-    def runner(command: list[str]) -> None:
+    def runner(command: list[str]) -> subprocess.CompletedProcess[str] | None:
         commands.append(command)
+        if (
+            command[:3] == ["ssh", "private-vault", "sha256sum"]
+            and "/objects/" in command[-1]
+        ):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=f"{digest}  {command[-1]}\n",
+                stderr="",
+            )
+        return None
 
     vault = CapabilityVault.from_config(
         {
@@ -135,10 +169,81 @@ def test_ssh_vault_adapter_only_issues_storage_commands(tmp_path: Path) -> None:
 
     assert receipt["driver"] == "ssh_filesystem"
     assert any(command[0] == "rsync" for command in commands)
+    object_copy = next(command for command in commands if command[0] == "rsync")
+    assert "--ignore-existing" in object_copy
+    assert any(
+        command[:4] == ["ssh", "private-vault", "git", "-C"]
+        and "commit" in command
+        for command in commands
+    )
     assert all(
         not any(token in {"python", "python3", "bash", "sh", "zsh"} for token in command)
         for command in commands
     )
+
+
+def test_ssh_vault_rejects_invalid_git_and_metadata_collision(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "bundle.tar"
+    bundle.write_bytes(b"remote object")
+    digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+
+    def invalid_git(
+        command: list[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if "rev-parse" in command:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="false\n",
+                stderr="",
+            )
+        return None
+
+    invalid = CapabilityVault.from_config(
+        {
+            "driver": "ssh_filesystem",
+            "ssh_alias": "private-vault",
+            "root": "/srv/private/capability-vault",
+        },
+        command_runner=invalid_git,
+    )
+    assert invalid.doctor()["status"] == "blocked"
+
+    def collision(
+        command: list[str],
+    ) -> subprocess.CompletedProcess[str] | None:
+        if "rev-parse" in command:
+            stdout = "true\n"
+        elif command[:3] == ["ssh", "private-vault", "sha256sum"]:
+            stdout = (
+                f"{digest}\n"
+                if "/objects/" in command[-1]
+                else f"{'f' * 64}\n"
+            )
+        else:
+            return None
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=stdout,
+            stderr="",
+        )
+
+    colliding = CapabilityVault.from_config(
+        {
+            "driver": "ssh_filesystem",
+            "ssh_alias": "private-vault",
+            "root": "/srv/private/capability-vault",
+        },
+        command_runner=collision,
+    )
+    with pytest.raises(
+        CapabilityVaultError,
+        match="immutable capability metadata collision",
+    ):
+        colliding.register(_manifest(digest), source_archive=bundle)
 
 
 def test_capability_vault_cli_exposes_register_and_doctor() -> None:
@@ -160,7 +265,9 @@ def test_capability_vault_cli_exposes_register_and_doctor() -> None:
 
 def test_vault_records_private_radar_evidence_by_digest(tmp_path: Path) -> None:
     vault_root = tmp_path / "private-vault"
-    (vault_root / "metadata" / ".git").mkdir(parents=True)
+    metadata_root = vault_root / "metadata"
+    metadata_root.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(metadata_root)], check=True)
     vault = CapabilityVault.from_config(
         {"driver": "local_filesystem", "root": str(vault_root)}
     )

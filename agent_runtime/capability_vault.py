@@ -162,11 +162,14 @@ class CapabilityPackage:
         )
 
 
-CommandRunner = Callable[[list[str]], None]
+CommandRunner = Callable[
+    [list[str]],
+    subprocess.CompletedProcess[str] | None,
+]
 
 
-def _run_command(command: list[str]) -> None:
-    subprocess.run(
+def _run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         command,
         check=True,
         capture_output=True,
@@ -181,10 +184,27 @@ class _LocalFilesystemAdapter:
         self.root = root.resolve()
 
     def doctor(self) -> list[str]:
-        issues: list[str] = []
-        if not (self.root / "metadata" / ".git").is_dir():
-            issues.append("metadata_not_private_git")
-        return issues
+        metadata_root = self.root / "metadata"
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(metadata_root),
+                    "rev-parse",
+                    "--is-inside-work-tree",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return ["metadata_not_private_git"]
+        return (
+            []
+            if result.stdout.strip() == "true"
+            else ["metadata_not_private_git"]
+        )
 
     def put_object(self, digest: str, source: Path) -> None:
         target = self.root / "objects" / "sha256" / digest[:2] / digest
@@ -195,13 +215,69 @@ class _LocalFilesystemAdapter:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
 
-    def put_metadata(self, relative: PurePosixPath, content: str) -> None:
-        target = (self.root / "metadata" / Path(relative.as_posix())).resolve()
+    def put_metadata(
+        self,
+        relative: PurePosixPath,
+        content: str,
+        *,
+        immutable: bool = False,
+    ) -> None:
+        metadata_root = (self.root / "metadata").resolve()
+        target = (metadata_root / Path(relative.as_posix())).resolve()
         try:
-            target.relative_to((self.root / "metadata").resolve())
+            target.relative_to(metadata_root)
         except ValueError as exc:
             raise CapabilityVaultError("metadata path escapes private vault") from exc
+        if immutable and target.exists():
+            if (
+                not target.is_file()
+                or target.read_text(encoding="utf-8") != content
+            ):
+                raise CapabilityVaultError("immutable capability metadata collision")
+            return
         atomic_write_text(target, content)
+        relative_path = target.relative_to(metadata_root).as_posix()
+        subprocess.run(
+            ["git", "-C", str(metadata_root), "add", "--", relative_path],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        changed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(metadata_root),
+                "diff",
+                "--cached",
+                "--quiet",
+                "--",
+                relative_path,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if changed.returncode == 1:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(metadata_root),
+                    "-c",
+                    "user.name=AgentLab-Vault",
+                    "-c",
+                    "user.email=agentlab-vault@localhost",
+                    "commit",
+                    "-m",
+                    "vault-metadata-update",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        elif changed.returncode != 0:
+            raise CapabilityVaultError("private metadata Git diff failed")
 
 
 class _SshFilesystemAdapter:
@@ -227,20 +303,33 @@ class _SshFilesystemAdapter:
 
     def doctor(self) -> list[str]:
         try:
-            self.run(
+            result = self.run(
                 [
                     "ssh",
                     self.ssh_alias,
-                    "test",
-                    "-d",
-                    (self.root / "metadata" / ".git").as_posix(),
+                    "git",
+                    "-C",
+                    (self.root / "metadata").as_posix(),
+                    "rev-parse",
+                    "--is-inside-work-tree",
                 ]
             )
         except (OSError, subprocess.SubprocessError):
             return ["metadata_not_private_git_or_unreachable"]
+        if (
+            isinstance(result, subprocess.CompletedProcess)
+            and str(result.stdout or "").strip() != "true"
+        ):
+            return ["metadata_not_private_git_or_unreachable"]
         return []
 
-    def _put_file(self, source: Path, target: PurePosixPath) -> None:
+    def _put_file(
+        self,
+        source: Path,
+        target: PurePosixPath,
+        *,
+        immutable: bool,
+    ) -> subprocess.CompletedProcess[str] | None:
         self.run(
             [
                 "ssh",
@@ -250,22 +339,40 @@ class _SshFilesystemAdapter:
                 target.parent.as_posix(),
             ]
         )
-        self.run(
+        command = ["rsync", "-a"]
+        if immutable:
+            command.append("--ignore-existing")
+        command.extend(
             [
-                "rsync",
-                "-a",
                 str(source),
                 f"{self.ssh_alias}:{target.as_posix()}",
             ]
         )
+        return self.run(command)
 
     def put_object(self, digest: str, source: Path) -> None:
+        target = self.root / "objects" / "sha256" / digest[:2] / digest
         self._put_file(
             source,
-            self.root / "objects" / "sha256" / digest[:2] / digest,
+            target,
+            immutable=True,
         )
+        result = self.run(
+            ["ssh", self.ssh_alias, "sha256sum", target.as_posix()]
+        )
+        if (
+            isinstance(result, subprocess.CompletedProcess)
+            and str(result.stdout or "").split(maxsplit=1)[0] != digest
+        ):
+            raise CapabilityVaultError("remote content-addressed object collision")
 
-    def put_metadata(self, relative: PurePosixPath, content: str) -> None:
+    def put_metadata(
+        self,
+        relative: PurePosixPath,
+        content: str,
+        *,
+        immutable: bool = False,
+    ) -> None:
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
@@ -276,7 +383,51 @@ class _SshFilesystemAdapter:
             self._put_file(
                 Path(temporary.name),
                 self.root / "metadata" / relative,
+                immutable=immutable,
             )
+        metadata_root = self.root / "metadata"
+        target = metadata_root / relative
+        if immutable:
+            result = self.run(
+                ["ssh", self.ssh_alias, "sha256sum", target.as_posix()]
+            )
+            expected = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if (
+                isinstance(result, subprocess.CompletedProcess)
+                and str(result.stdout or "").split(maxsplit=1)[0] != expected
+            ):
+                raise CapabilityVaultError(
+                    "immutable capability metadata collision"
+                )
+        self.run(
+            [
+                "ssh",
+                self.ssh_alias,
+                "git",
+                "-C",
+                metadata_root.as_posix(),
+                "add",
+                "--",
+                relative.as_posix(),
+            ]
+        )
+        self.run(
+            [
+                "ssh",
+                self.ssh_alias,
+                "git",
+                "-C",
+                metadata_root.as_posix(),
+                "-c",
+                "user.name=AgentLab-Vault",
+                "-c",
+                "user.email=agentlab-vault@localhost",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "vault-metadata-update",
+            ]
+        )
 
 
 class CapabilityVault:
@@ -338,7 +489,6 @@ class CapabilityVault:
             **package.document,
             "lifecycle": {
                 "status": "discovered",
-                "registered_at": _utc_now(),
                 "allowed_transitions": sorted(
                     LIFECYCLE_STATUSES - {"discovered"}
                 ),
@@ -370,6 +520,7 @@ class CapabilityVault:
             / package.package_id
             / f"{package.version}.yml",
             metadata_body,
+            immutable=True,
         )
         return {
             "schema_version": "capability-vault-registration/v1",

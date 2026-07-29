@@ -416,7 +416,11 @@ class PreferenceStore:
             sequence = len(events) + 1
             event = {
                 "schema_version": "narrative-preference-event/v1",
-                "event_type": "PREFERENCE_FEEDBACK_APPLIED",
+                "event_type": (
+                    "PREFERENCE_FEEDBACK_CANDIDATE"
+                    if source == "reviewer"
+                    else "PREFERENCE_FEEDBACK_APPLIED"
+                ),
                 "event_id": f"preference-event-{sequence:06d}",
                 "sequence": sequence,
                 "project": self.project,

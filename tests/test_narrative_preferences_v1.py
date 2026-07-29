@@ -159,6 +159,35 @@ def test_reviewer_cannot_change_book_prior_or_canon_dimension(
         raise AssertionError("canon entered soft preference weights")
 
 
+def test_reviewer_feedback_is_recorded_as_unapplied_local_candidate(
+    tmp_path: Path,
+) -> None:
+    store = PreferenceStore(tmp_path, project="Crown_of_Ash")
+    store.initialize(CROWN_AUTHORIAL_PRIOR)
+
+    event = store.intake(
+        source="reviewer",
+        scope_level="chapter",
+        scope_id="chapter_1",
+        classifications=[
+            {
+                "dimension": "pacing",
+                "polarity": -1,
+                "confidence": 0.8,
+                "recurrence": 1,
+            }
+        ],
+        idempotency_key="reviewer-chapter-1",
+        expires_after_chapter=1,
+    )
+
+    assert event["event_type"] == "PREFERENCE_FEEDBACK_CANDIDATE"
+    assert event["after_weights"]["pacing"] < event["before_weights"]["pacing"]
+    profile = store.profile(chapter=1, chapter_scope="chapter_1")
+    assert profile["effective_weights"]["pacing"] == CROWN_AUTHORIAL_PRIOR["pacing"]
+    assert "chapter:chapter_1" not in profile["scopes"]
+
+
 def test_rollback_is_append_only_and_restores_latest_scope_snapshot(
     tmp_path: Path,
 ) -> None:

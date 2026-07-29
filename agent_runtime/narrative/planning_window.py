@@ -385,8 +385,9 @@ def complete_planning_window_chapter(
     *,
     project: str,
     chapter: int,
+    horizon_chapter: int,
 ) -> dict[str, Any]:
-    """Accept the next locked chapter and roll one horizon contract into the queue."""
+    """Accept one locked chapter and extend the far horizon atomically."""
 
     project_root = _project_root(agentlab_root, project)
     current = _current(project_root)
@@ -402,9 +403,24 @@ def complete_planning_window_chapter(
     completed = list(current.get("completed_chapters") or [])
     if chapter in completed:
         return current
+    visible_chapters = _queue_chapters(locked, label="locked_queue") + (
+        _queue_chapters(horizon, label="adjustable_horizon")
+    )
+    expected_horizon = max(visible_chapters) + 1
+    if horizon_chapter != expected_horizon:
+        raise PlanningWindowError(
+            f"horizon chapter must extend the visible range with {expected_horizon}"
+        )
+    try:
+        horizon_replacement = _card_entry(project_root, horizon_chapter)
+    except PlanningWindowError as exc:
+        raise PlanningWindowError(
+            f"new far-horizon contract is unavailable: chapter {horizon_chapter}"
+        ) from exc
     locked.pop(0)
     if horizon:
         locked.append(horizon.pop(0))
+    horizon.append(horizon_replacement)
     _archive_current(
         project_root,
         current,

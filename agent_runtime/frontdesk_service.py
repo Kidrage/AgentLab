@@ -15,7 +15,10 @@ from typing import Any, Iterator, Mapping
 import yaml
 
 from atomic_io import atomic_write_yaml
-from agent_runtime.frontdesk_intent import compile_frontdesk_intent
+from agent_runtime.frontdesk_intent import (
+    compile_frontdesk_intent,
+    load_frontdesk_intent_policy,
+)
 
 MAX_REQUEST_BYTES = 1024 * 1024
 
@@ -103,6 +106,7 @@ def process_frontdesk_request(
     state: FrontdeskServiceState | None,
     config_sha256: str,
     version: str,
+    intent_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Route one request and persist it exactly once when state is configured."""
 
@@ -126,6 +130,7 @@ def process_frontdesk_request(
                 payload.get("project_contract_exists") is True
             ),
             adapter=str(payload.get("adapter") or ""),
+            policy=intent_policy,
         )
         return {
             "schema_version": "frontdesk-service-response/v1",
@@ -238,6 +243,7 @@ def serve_frontdesk(
         endpoint.unlink()
     state = FrontdeskServiceState(state_path)
     config_sha256 = frontdesk_config_sha256(agentlab_root)
+    intent_policy = load_frontdesk_intent_policy(agentlab_root)
 
     class Handler(socketserver.StreamRequestHandler):
         def handle(self) -> None:
@@ -263,6 +269,7 @@ def serve_frontdesk(
                             state=state,
                             config_sha256=config_sha256,
                             version=version,
+                            intent_policy=intent_policy,
                         )
                 except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
                     response = {

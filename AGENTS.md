@@ -24,6 +24,9 @@ Before deep repository reads, use the canonical handoff:
 ## Configuration Authorities
 
 - `config/agent_registry.yml`: role contracts and active templates.
+- `config/frontdesk_policy.yml`: Frontdesk F0-F4 intent classification,
+  required-capability labels, and approval signals. It does not select
+  execution agents.
 - `config/routing_rules.yml`: route membership and order.
 - `config/production_packs.yml`: domain lifecycle, outputs, memory, and gates.
 - `config/execution_modes.yml`: active AgentLab workflow drivers.

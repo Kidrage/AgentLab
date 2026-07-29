@@ -8,7 +8,10 @@ import typer
 import yaml
 from rich.console import Console
 
-from agent_runtime.frontdesk_intent import compile_frontdesk_intent
+from agent_runtime.frontdesk_intent import (
+    compile_frontdesk_intent,
+    load_frontdesk_intent_policy,
+)
 from agent_runtime.frontdesk_service import serve_frontdesk
 
 
@@ -40,6 +43,7 @@ def register_frontdesk_commands(
                 project=project,
                 adapter=adapter,
                 project_contract_exists=project_contract_exists,
+                policy=load_frontdesk_intent_policy(agentlab_root),
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc

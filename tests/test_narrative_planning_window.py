@@ -83,6 +83,14 @@ def test_seal_activate_and_complete_rolls_locked_queue_atomically(
     tmp_path: Path,
 ) -> None:
     project = _blueprint(tmp_path)
+    _write_yaml(
+        project / "production" / "chapter_cards" / "ch026.yml",
+        {
+            "schema_version": 1,
+            "chapter": 26,
+            "scene_goal": "goal 26",
+        },
+    )
     proposal = propose_planning_window(tmp_path, project="Crown_of_Ash")
 
     sealed = seal_planning_window(tmp_path, proposal=proposal)
@@ -91,6 +99,7 @@ def test_seal_activate_and_complete_rolls_locked_queue_atomically(
         tmp_path,
         project="Crown_of_Ash",
         chapter=1,
+        horizon_chapter=26,
     )
 
     assert sealed["status"] == "sealed"
@@ -100,8 +109,9 @@ def test_seal_activate_and_complete_rolls_locked_queue_atomically(
         range(2, 12)
     )
     assert [item["chapter"] for item in completed["adjustable_horizon"]] == list(
-        range(12, 26)
+        range(12, 27)
     )
+    assert completed["horizon_replan_required"] is False
     current = yaml.safe_load(
         (
             project / "production" / "narrative_planning_window.yml"
@@ -131,6 +141,23 @@ def test_seal_activate_and_complete_rolls_locked_queue_atomically(
         yaml.safe_load(path.read_text(encoding="utf-8"))["status"] == "superseded"
         for path in history
     )
+
+
+def test_completion_requires_next_contiguous_horizon_contract(
+    tmp_path: Path,
+) -> None:
+    _blueprint(tmp_path)
+    proposal = propose_planning_window(tmp_path, project="Crown_of_Ash")
+    seal_planning_window(tmp_path, proposal=proposal)
+    activate_planning_window(tmp_path, project="Crown_of_Ash")
+
+    with pytest.raises(PlanningWindowError, match="horizon"):
+        complete_planning_window_chapter(
+            tmp_path,
+            project="Crown_of_Ash",
+            chapter=1,
+            horizon_chapter=26,
+        )
 
 
 def test_replacing_a_locked_queue_requires_supersede_reason(tmp_path: Path) -> None:

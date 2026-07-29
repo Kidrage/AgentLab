@@ -4,8 +4,12 @@ from pathlib import Path
 import os
 import re
 import subprocess
+import yaml
 
-from agent_runtime.frontdesk_intent import compile_frontdesk_intent
+from agent_runtime.frontdesk_intent import (
+    compile_frontdesk_intent,
+    load_frontdesk_intent_policy,
+)
 
 
 def test_deterministic_status_check_routes_f0() -> None:
@@ -72,6 +76,22 @@ def test_transport_adapter_cannot_change_route_result() -> None:
 
     assert openclaw == hermes
     assert openclaw["route_tier"] == "F3"
+
+
+def test_frontdesk_policy_configuration_controls_intent_vocabulary() -> None:
+    root = Path(__file__).resolve().parents[1]
+    policy = load_frontdesk_intent_policy(root)
+    policy = yaml.safe_load(yaml.safe_dump(policy))
+    policy["vocabularies"]["status"] = ["probe-state"]
+
+    configured = compile_frontdesk_intent(
+        "probe-state AgentLab",
+        project="AgentLab",
+        policy=policy,
+    )
+
+    assert configured["route_tier"] == "F0"
+    assert "config:frontdesk_policy.yml#intent_compiler_v2" in configured["evidence"]
 
 
 def test_frontdesk_route_cli_is_registered() -> None:
