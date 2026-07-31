@@ -353,6 +353,9 @@
 - Initial executed reconciliation completed with `status: synced`, 17 governed
   files, 0 problems, and a verified remote SHA-256 for every file across active
   `AgentLab` and `Crown_of_Ash` project memories.
+- Continuous watcher started under PID `238140`, bound to task event
+  `AgentLab/task_0035`; its verified heartbeat reports `status: watching`,
+  17 watched files, 0 pending paths, and a 60-second policy interval.
 - Validation: 250 focused test `14 passed`; isolated implementation tests
   `36 passed`; full suite `3573 passed, 21 skipped, 2 pre-existing acceptance
   hygiene failures`. Both failures are the pre-existing canonical evidence hash
