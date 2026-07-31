@@ -20,6 +20,52 @@ _CANONICAL_ROOTS = frozenset(
     {"production", "project_brain", "runs", "runtime"}
 )
 _AUTO_APPROVAL_AUTHORITY_KEY = "policies.outbound_context_auto_approval"
+_DETACHED_ACCEPTANCE_MODE = "dual_review_hard_gate_auto_project"
+_DETACHED_REVIEW_ROLES = frozenset(
+    {"senior_editor", "reader_simulation_panel"}
+)
+
+
+def acceptance_boundary_issues(
+    policy: dict[str, Any],
+    authorization: dict[str, Any],
+    constraints: dict[str, Any],
+) -> list[str]:
+    responsibility = authorization.get("user_responsibility")
+    requires_user = constraints.get(
+        "state_projection_requires_user_acceptance"
+    )
+    manual_acceptance = (
+        responsibility == "candidate_acceptance_only"
+        and requires_user is True
+    )
+    detached = policy.get("automatic_acceptance")
+    detached = detached if isinstance(detached, dict) else {}
+    required_roles = detached.get("required_review_roles")
+    detached_acceptance = (
+        responsibility == "final_part_acceptance_only"
+        and requires_user is False
+        and detached.get("mode") == _DETACHED_ACCEPTANCE_MODE
+        and isinstance(required_roles, list)
+        and set(required_roles) == _DETACHED_REVIEW_ROLES
+        and detached.get("require_all_hard_gates") is True
+        and detached.get("exception_action") == "pause"
+        and detached.get("user_acceptance_scope") == "final_part_only"
+    )
+    issues: list[str] = []
+    if (
+        authorization.get("mode") != "policy_auto_approve"
+        or authorization.get("user_authorized") is not True
+        or not (manual_acceptance or detached_acceptance)
+    ):
+        issues.append("auto_approval_user_authorization_invalid")
+    if (
+        constraints.get("candidate_only") is not True
+        or constraints.get("fallback_allowed") is not False
+        or not (manual_acceptance or detached_acceptance)
+    ):
+        issues.append("auto_approval_acceptance_boundary_invalid")
+    return issues
 
 
 def _parse_future_expiry(value: str) -> datetime | None:
@@ -71,19 +117,7 @@ def evaluate_narrative_auto_approval(
         issues.append("auto_approval_schema_invalid")
     if policy.get("status") != "active" or policy.get("project") != project:
         issues.append("auto_approval_policy_inactive_or_project_mismatch")
-    if (
-        authorization.get("mode") != "policy_auto_approve"
-        or authorization.get("user_authorized") is not True
-        or authorization.get("user_responsibility")
-        != "candidate_acceptance_only"
-    ):
-        issues.append("auto_approval_user_authorization_invalid")
-    if (
-        constraints.get("candidate_only") is not True
-        or constraints.get("state_projection_requires_user_acceptance") is not True
-        or constraints.get("fallback_allowed") is not False
-    ):
-        issues.append("auto_approval_acceptance_boundary_invalid")
+    issues.extend(acceptance_boundary_issues(policy, authorization, constraints))
 
     policy_sha256 = (
         hashlib.sha256(policy_bytes).hexdigest() if policy_bytes else None
