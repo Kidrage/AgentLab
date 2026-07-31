@@ -528,7 +528,10 @@ def _sync_project_memory_snapshot(
             sha256=digest,
         )
 
-    changed = any(line.startswith(">f") for line in rsync_result.stdout.splitlines())
+    changed = any(
+        line.startswith(("<f", ">f"))
+        for line in rsync_result.stdout.splitlines()
+    )
     if changed:
         _commit_version_slot(root, remote_relative, version_slot)
     verify_command = _ssh_command(ssh) + [

@@ -110,7 +110,7 @@ def test_execute_verifies_remote_sha256(tmp_path: Path) -> None:
     runner = FakeRunner(
         [
             (0, "", ""),
-            (0, ">f.st...... 07_DEVELOPMENT_LOG.md\n", ""),
+            (0, "<f.st...... 07_DEVELOPMENT_LOG.md\n", ""),
             (0, f"{digest}  remote-file\n", ""),
         ]
     )
@@ -217,7 +217,7 @@ def test_verification_command_failure_is_not_misreported_as_conflict(tmp_path: P
     runner = FakeRunner(
         [
             (0, "", ""),
-            (0, ">f.st...... 07_DEVELOPMENT_LOG.md\n", ""),
+            (0, "<f.st...... 07_DEVELOPMENT_LOG.md\n", ""),
             (1, "", "sha256sum unavailable"),
         ]
     )
