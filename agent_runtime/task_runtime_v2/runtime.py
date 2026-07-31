@@ -2247,8 +2247,10 @@ class TaskRuntime:
         selected_provider = model_receipt.get(
             "selected_provider", model_receipt.get("provider")
         )
-        selected_model = model_receipt.get(
-            "selected_model_id", model_receipt.get("model")
+        selected_model = (
+            model_receipt.get("selected_model_id")
+            or model_receipt.get("requested_model_id")
+            or model_receipt.get("model")
         )
         profile_binding = model_receipt.get(
             "profile_binding_verified", model_receipt.get("profile_state_verified")
@@ -2297,10 +2299,28 @@ class TaskRuntime:
 
     @staticmethod
     def _parse_attempt_output_mapping(content: str) -> dict[str, Any]:
-        candidates = [content]
+        regions = [content]
         marker = "\n## Output\n\n"
         if marker in content:
-            candidates.append(content.split(marker, 1)[1].split("\n\n## stderr", 1)[0])
+            regions.insert(
+                0,
+                content.split(marker, 1)[1].split("\n\n## stderr", 1)[0],
+            )
+        candidates: list[str] = []
+        for region in regions:
+            markers = list(
+                re.finditer(
+                    r"```(?:yaml|yml)?[ \t]*",
+                    region,
+                    flags=re.IGNORECASE,
+                )
+            )
+            fenced = [
+                region[left.end() : right.start()]
+                for left, right in zip(markers, markers[1:])
+            ]
+            candidates.extend(reversed(fenced))
+            candidates.append(region)
         for candidate in candidates:
             stripped = candidate.strip()
             if stripped.startswith("```") and stripped.endswith("```"):

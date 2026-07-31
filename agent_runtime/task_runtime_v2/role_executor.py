@@ -637,7 +637,11 @@ class RoleAttemptExecutor:
         ):
             raise InvalidTransition("model execution receipt escaped the Attempt")
         selected_provider = receipt.get("selected_provider", receipt.get("provider"))
-        selected_model = receipt.get("selected_model_id", receipt.get("model"))
+        selected_model = (
+            receipt.get("selected_model_id")
+            or receipt.get("requested_model_id")
+            or receipt.get("model")
+        )
         profile_binding = receipt.get(
             "profile_binding_verified", receipt.get("profile_state_verified")
         )

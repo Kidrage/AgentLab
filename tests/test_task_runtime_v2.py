@@ -693,6 +693,33 @@ def test_work_item_created_after_dependencies_are_accepted_is_ready(
     assert created["work_items"]["writer"]["status"] == "ready"
 
 
+def test_attempt_output_parser_recovers_final_fenced_yaml_after_reasoning() -> None:
+    content = """# Supervisor Report
+
+## Output
+
+Reasoning before the structured result.
+```yaml
+brain_scope_decision:
+  approved: true
+```yaml
+brain_scope_decision:
+  approved: true
+execution_plan:
+  status: approved
+```
+
+## stderr
+
+none
+"""
+
+    assert TaskRuntime._parse_attempt_output_mapping(content) == {
+        "brain_scope_decision": {"approved": True},
+        "execution_plan": {"status": "approved"},
+    }
+
+
 def test_project_rebuild_and_doctor_trust_ledgers_not_cached_indexes(
     tmp_path: Path,
 ) -> None:

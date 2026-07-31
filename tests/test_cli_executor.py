@@ -2629,6 +2629,7 @@ class TestRunCliAgentSubprocess:
         assert result.raw_usage["sealed_context"] is True
         assert result.raw_usage["execution_workspace_isolated"] is True
         assert observed["workspace"] != Path(plan.agentlab_root)
+        assert observed["workspace"] == observed["workspace"].resolve()
         assert observed["packet_path"].parent == observed["workspace"]
         assert observed["packet"]["context_policy"]["read_scope"] == ["this_task_packet"]
         assert not Path(observed["workspace"]).exists()

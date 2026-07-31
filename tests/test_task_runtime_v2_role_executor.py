@@ -173,7 +173,7 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
                     "invocation_contract": "claude_writer",
                     "selected_provider": "deepseek",
                     "selected_model_key": "writer-model",
-                    "selected_model_id": "deepseek-v4-pro",
+                    "requested_model_id": "deepseek-v4-pro",
                     "profile_binding_verified": True,
                     "command_binding_verified": True,
                     "provider_model_binding_verified": True,

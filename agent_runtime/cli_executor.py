@@ -4558,7 +4558,7 @@ def run_cli_agent(
     try:
         execution_cwd = Path(plan.agentlab_root)
         if workspace_context is not None:
-            execution_cwd = Path(workspace_context.name)
+            execution_cwd = Path(workspace_context.name).resolve()
             if (
                 resolved_invocation_contract.get("structured_output")
                 == "narrative_heavy_audit"
