@@ -23,7 +23,11 @@ from agent_runtime.project_agents import (
     ProjectAgentFactory,
     ProjectAgentRegistry,
 )
-from agent_runtime.project_truth import ProjectTruthStore
+from agent_runtime.project_truth import (
+    ChangeSet,
+    ProjectTruthStore,
+    ResourceChange,
+)
 from agent_runtime.task_runtime_v2 import TaskRuntime
 from task_runtime_v2_support import execute_role_with_output
 
@@ -1694,6 +1698,32 @@ def test_compile_binds_enabled_project_agents_before_creating_task(
     )
     truth = ProjectTruthStore(project_root)
     initial = truth.initialize("Novel")
+    character_policy = {
+        "schema_version": "character-content-policy/v1",
+        "status": "active",
+        "project": "Novel",
+    }
+    _write_yaml(
+        project_root
+        / "production"
+        / "canonical"
+        / "character_content_policy.yml",
+        character_policy,
+    )
+    policy_commit = truth.commit(
+        ChangeSet(
+            project_id="Novel",
+            expected_snapshot_id=initial.current_snapshot_id,
+            actor_id="user",
+            idempotency_key="character-policy-v1",
+            resources=(
+                ResourceChange(
+                    key="governance.character_content_policy.current",
+                    content=character_policy,
+                ),
+            ),
+        )
+    )
     registry = ProjectAgentRegistry(truth)
     created = ProjectAgentFactory().create_team(
         registry,
@@ -1701,7 +1731,7 @@ def test_compile_binds_enabled_project_agents_before_creating_task(
             "Write a long fantasy novel with mystery, world, character, "
             "timeline, and style governance."
         ),
-        expected_snapshot_id=initial.current_snapshot_id,
+        expected_snapshot_id=policy_commit.snapshot_id,
         actor_id="user",
         approved=True,
     )

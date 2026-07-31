@@ -12,6 +12,7 @@ import yaml
 from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
 from agent_runtime.narrative.outbound_transfer import (
     build_narrative_outbound_transfer_contract,
+    evaluate_narrative_auto_approval,
 )
 from agent_runtime.role_keys import canonical_role_name, normalize_role_key
 from agent_runtime.schemas import AgentRoute, WorkflowPlan
@@ -246,6 +247,20 @@ class RoleAttemptExecutor:
                     "request_scope_sha256": scope_sha256,
                 },
             }
+            auto_approval = evaluate_narrative_auto_approval(
+                self.root,
+                project=self.project,
+                task_id=task_id,
+                recipient=recipient,
+                role=str(external_context_request.get("role") or role_name),
+                purpose=str(external_context_request.get("purpose") or ""),
+                source_paths=resolved_sources,
+                expires_at=str(external_context_request.get("expires_at") or ""),
+            )
+            if auto_approval["status"] == "pass":
+                plan.execution_policy[
+                    "external_context_auto_approval"
+                ] = auto_approval
         try:
             result = self._cli_runner(
                 plan,

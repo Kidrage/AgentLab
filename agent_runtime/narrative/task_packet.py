@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
+import json
 import re
 
 import yaml
@@ -14,6 +15,10 @@ from agent_runtime.narrative.blueprint_lifecycle import (
     validate_project_blueprint,
 )
 from agent_runtime.narrative.blueprint_validation import validate_crown_blueprint
+from agent_runtime.narrative.author_team import (
+    load_author_team_contract,
+    select_author_team,
+)
 from agent_runtime.project_agents import (
     AgentContract,
     ProjectAgentRegistry,
@@ -34,6 +39,7 @@ _REQUEST_FIELDS = frozenset(
         "idempotency_key",
     }
 )
+_OPTIONAL_REQUEST_FIELDS = frozenset({"author_team_risk_flags"})
 _SAFE_IDEMPOTENCY_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,96}")
 _CHANGE_PROFILES = {
     "blueprint_change": {
@@ -78,13 +84,31 @@ _CHANGE_PROFILES = {
     },
 }
 
+_PROFESSIONAL_AUTHOR_TEAM = frozenset(
+    {
+        "authorial_director",
+        "canon_timeline_steward",
+        "plot_causality_architect",
+        "character_ensemble_director",
+        "relationship_director",
+        "world_archaeologist",
+        "foreshadow_mystery_keeper",
+        "arc_scene_planner",
+        "research_style_curator",
+        "writer",
+        "senior_editor",
+        "reader_simulation_panel",
+        "state_projector",
+    }
+)
+
 
 def _validated_request(raw: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, Mapping):
         raise ValueError("narrative request must be a mapping")
     request = dict(raw)
     missing = sorted(_REQUEST_FIELDS - set(request))
-    unknown = sorted(set(request) - _REQUEST_FIELDS)
+    unknown = sorted(set(request) - _REQUEST_FIELDS - _OPTIONAL_REQUEST_FIELDS)
     if missing or unknown:
         raise ValueError(
             "narrative request fields mismatch"
@@ -112,9 +136,18 @@ def _validated_request(raw: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError(f"{field} must be a list of non-empty strings")
     if not request["acceptance_rules"]:
         raise ValueError("acceptance_rules must not be empty")
+    author_team_risk_flags = request.get("author_team_risk_flags", [])
+    if not isinstance(author_team_risk_flags, list) or any(
+        not isinstance(item, str) or not item.strip()
+        for item in author_team_risk_flags
+    ):
+        raise ValueError(
+            "author_team_risk_flags must be a list of non-empty strings"
+        )
     request["change_kind"] = change_kind
     request["requested_delta"] = requested_delta
     request["idempotency_key"] = idempotency_key
+    request["author_team_risk_flags"] = author_team_risk_flags
     return request
 
 
@@ -129,7 +162,21 @@ def _target_count(target_scope: Any) -> int:
     return 1
 
 
-def _work_items(profile: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _work_items(
+    profile: Mapping[str, Any],
+    *,
+    professional_team: bool = False,
+    active_professional_roles: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    if professional_team:
+        if active_professional_roles is None:
+            raise ValueError(
+                "professional author team requires an explicit role selection"
+            )
+        return _professional_work_items(
+            profile,
+            active_roles=active_professional_roles,
+        )
     brain_plan = {
         "job_id": "job-main",
         "work_item_id": "brain-plan",
@@ -196,6 +243,182 @@ def _work_items(profile: Mapping[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _professional_work_items(
+    profile: Mapping[str, Any],
+    *,
+    active_roles: list[str],
+) -> list[dict[str, Any]]:
+    """Materialize the v2 literary team without falling back to legacy roles."""
+
+    producer_id = str(profile["producer_id"])
+    if producer_id != "writer":
+        raise ValueError(
+            "professional author teams currently support prose narrative tasks only"
+        )
+    full_items = [
+        {
+            "job_id": "job-main",
+            "work_item_id": "authorial-director",
+            "kind": "planning",
+            "title": "Set opening authorial intent and non-negotiable promises",
+            "depends_on": [],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "brain-plan",
+            "kind": "planning",
+            "title": "Approve the bounded Brain scope and execution plan",
+            "depends_on": ["authorial-director"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "canon-timeline-steward",
+            "kind": "expert-check",
+            "title": "Audit canon, chronology, and knowledge boundaries",
+            "depends_on": ["brain-plan"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "world-archaeologist",
+            "kind": "expert-check",
+            "title": "Audit world, place, object, and ritual constraints",
+            "depends_on": ["canon-timeline-steward"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "plot-causality-architect",
+            "kind": "expert-check",
+            "title": "Audit causal and irreversible-choice chains",
+            "depends_on": ["canon-timeline-steward"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "character-ensemble-director",
+            "kind": "expert-check",
+            "title": "Audit independent character motives and plans",
+            "depends_on": ["canon-timeline-steward"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "relationship-director",
+            "kind": "expert-check",
+            "title": "Audit relationship and consent-state deltas",
+            "depends_on": ["character-ensemble-director"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "foreshadow-mystery-keeper",
+            "kind": "expert-check",
+            "title": "Audit promises, clues, and payoff windows",
+            "depends_on": ["plot-causality-architect"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "research-style-curator",
+            "kind": "expert-check",
+            "title": "Prepare rights-bound craft constraints",
+            "depends_on": ["brain-plan"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "arc-scene-planner",
+            "kind": "planning",
+            "title": "Compile the evidence-bound opening scene contract",
+            "depends_on": [
+                "world-archaeologist",
+                "relationship-director",
+                "foreshadow-mystery-keeper",
+                "research-style-curator",
+            ],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "writer",
+            "kind": str(profile["producer_kind"]),
+            "title": str(profile["producer_title"]),
+            "depends_on": ["arc-scene-planner"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "senior-editor",
+            "kind": "quality-review",
+            "title": "Merge hard reviews into a bounded revision contract",
+            "depends_on": ["writer", "canon-timeline-steward"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "reader-simulation-panel",
+            "kind": "quality-review",
+            "title": "Report reader-facing promise, clarity, and emotion signals",
+            "depends_on": ["writer"],
+        },
+        {
+            "job_id": "job-main",
+            "work_item_id": "state-projector",
+            "kind": "verification",
+            "title": "Verify acceptance evidence before deterministic state projection",
+            "depends_on": ["senior-editor", "reader-simulation-panel"],
+            "requires_user_acceptance": True,
+        },
+    ]
+    selected_ids = {
+        role_id.replace("_", "-") for role_id in active_roles
+    }
+    selected_ids.add("brain-plan")
+    dependencies_by_id = {
+        str(item["work_item_id"]): list(item["depends_on"])
+        for item in full_items
+    }
+
+    def nearest_selected(dependency: str) -> list[str]:
+        if dependency in selected_ids:
+            return [dependency]
+        return [
+            ancestor
+            for parent in dependencies_by_id.get(dependency, [])
+            for ancestor in nearest_selected(parent)
+        ]
+
+    def is_ancestor(ancestor: str, descendant: str) -> bool:
+        pending = list(dependencies_by_id.get(descendant, []))
+        seen: set[str] = set()
+        while pending:
+            candidate = pending.pop()
+            if candidate == ancestor:
+                return True
+            if candidate not in seen:
+                seen.add(candidate)
+                pending.extend(dependencies_by_id.get(candidate, []))
+        return False
+
+    def selected_dependencies(item: Mapping[str, Any]) -> list[str]:
+        collapsed = list(
+            dict.fromkeys(
+                ancestor
+                for dependency in item["depends_on"]
+                for ancestor in nearest_selected(dependency)
+            )
+        )
+        return [
+            dependency
+            for dependency in collapsed
+            if not any(
+                dependency != other
+                and is_ancestor(dependency, other)
+                for other in collapsed
+            )
+        ]
+
+    return [
+        {
+            **item,
+            "depends_on": selected_dependencies(item),
+        }
+        for item in full_items
+        if item["work_item_id"] in selected_ids
+    ]
+
+
 def _bind_project_agents(
     root: Path,
     *,
@@ -227,24 +450,49 @@ def _bind_project_agents(
     registry = ProjectAgentRegistry(truth)
     with truth.current_snapshot_lease() as current:
         manifests = {manifest.id: manifest for manifest in registry.list()}
-        plot_agent_id = (
-            "mystery_keeper" if "mystery_keeper" in manifests else "plot"
-        )
-        producer_agent_id = (
-            "blueprint_producer"
-            if profile["producer_id"] == "artifact-producer"
-            else "writer"
-        )
-        agent_by_work_item = {
-            "brain-plan": "supervisor",
-            "world-architect": "world",
-            "character-keeper": "character",
-            "timeline-keeper": "timeline",
-            "plot-mystery-keeper": plot_agent_id,
-            str(profile["producer_id"]): producer_agent_id,
-            "reviewer": "reviewer",
-            "verifier": "checker",
-        }
+        professional_team = "authorial_director" in manifests
+        if professional_team:
+            missing = sorted(_PROFESSIONAL_AUTHOR_TEAM - set(manifests))
+            if missing:
+                raise ValueError(
+                    "professional project Agent team is incomplete for narrative "
+                    "task: missing " + ", ".join(missing)
+                )
+            agent_by_work_item = {
+                "authorial-director": "authorial_director",
+                "brain-plan": "authorial_director",
+                "canon-timeline-steward": "canon_timeline_steward",
+                "world-archaeologist": "world_archaeologist",
+                "plot-causality-architect": "plot_causality_architect",
+                "character-ensemble-director": "character_ensemble_director",
+                "relationship-director": "relationship_director",
+                "foreshadow-mystery-keeper": "foreshadow_mystery_keeper",
+                "research-style-curator": "research_style_curator",
+                "arc-scene-planner": "arc_scene_planner",
+                "writer": "writer",
+                "senior-editor": "senior_editor",
+                "reader-simulation-panel": "reader_simulation_panel",
+                "state-projector": "state_projector",
+            }
+        else:
+            plot_agent_id = (
+                "mystery_keeper" if "mystery_keeper" in manifests else "plot"
+            )
+            producer_agent_id = (
+                "blueprint_producer"
+                if profile["producer_id"] == "artifact-producer"
+                else "writer"
+            )
+            agent_by_work_item = {
+                "brain-plan": "supervisor",
+                "world-architect": "world",
+                "character-keeper": "character",
+                "timeline-keeper": "timeline",
+                "plot-mystery-keeper": plot_agent_id,
+                str(profile["producer_id"]): producer_agent_id,
+                "reviewer": "reviewer",
+                "verifier": "checker",
+            }
         bound: list[dict[str, Any]] = []
         for item in items:
             work_item_id = str(item["work_item_id"])
@@ -266,6 +514,31 @@ def _bind_project_agents(
                 }
             )
     return bound
+
+
+def _uses_professional_author_team(root: Path, *, project: str) -> bool:
+    """Detect an opted-in professional team before materializing its DAG."""
+
+    project_root = root / "projects" / project
+    manifest_path = project_root / "project.yml"
+    if not manifest_path.is_file() or manifest_path.is_symlink():
+        return False
+    try:
+        project_manifest = yaml.safe_load(
+            manifest_path.read_text(encoding="utf-8")
+        ) or {}
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return False
+    features = (
+        project_manifest.get("features")
+        if isinstance(project_manifest, dict)
+        else {}
+    ) or {}
+    if features.get("enable_project_agents") is not True:
+        return False
+    truth = ProjectTruthStore(project_root)
+    registry = ProjectAgentRegistry(truth)
+    return "authorial_director" in {manifest.id for manifest in registry.list()}
 
 
 def _authoritative_task_packet(
@@ -402,6 +675,8 @@ def _truth_bindings(
         raise ValueError("project knowledge snapshot is missing or stale")
     indexed_hashes = knowledge_snapshot.get("indexed_source_hashes")
     manifest_path = project_root / "project.yml"
+    character_policy_sha256: str | None = None
+    character_policy_truth_revision_id: str | None = None
     try:
         manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
     except (OSError, UnicodeError, yaml.YAMLError):
@@ -411,6 +686,42 @@ def _truth_bindings(
         truth = ProjectTruthStore(project_root)
         truth.audit()
         current = truth.current()
+        character_policy_path = (
+            project_root
+            / "production"
+            / "canonical"
+            / "character_content_policy.yml"
+        )
+        try:
+            character_policy = yaml.safe_load(
+                character_policy_path.read_text(encoding="utf-8")
+            ) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise ValueError(
+                "cannot read canonical character content policy"
+            ) from exc
+        character_policy_revision = current.resources.get(
+            "governance.character_content_policy.current"
+        )
+        if (
+            not isinstance(character_policy, dict)
+            or character_policy_revision is None
+            or character_policy_revision.content
+            != json.loads(
+                json.dumps(
+                    character_policy,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+        ):
+            raise ValueError(
+                "canonical character content policy is not current in Project Truth"
+            )
+        character_policy_sha256 = artifact_sha256(character_policy_path)
+        character_policy_truth_revision_id = (
+            character_policy_revision.revision_id
+        )
         pointer_path = project_root / "project_truth.yml"
         snapshot_path = (
             project_root
@@ -469,6 +780,10 @@ def _truth_bindings(
             knowledge_snapshot_path
         ),
         "knowledge_index_snapshot_id": knowledge_snapshot["index_snapshot"],
+        "character_content_policy_sha256": character_policy_sha256,
+        "character_content_policy_truth_revision_id": (
+            character_policy_truth_revision_id
+        ),
         "manuscript_series_sha256": manuscript.get("sha256"),
     }
 
@@ -488,11 +803,28 @@ def compile_narrative_task_packet(
     runtime = TaskRuntime(root, project=project)
     project = runtime.project
     bindings = _truth_bindings(root, project=project)
+    professional_team = _uses_professional_author_team(root, project=project)
+    active_professional_roles: list[str] | None = None
+    if professional_team:
+        selection = select_author_team(
+            load_author_team_contract(root),
+            risk_flags=normalized["author_team_risk_flags"],
+        )
+        if selection["status"] != "pass":
+            raise ValueError(
+                "professional author-team selection failed: "
+                + ",".join(selection["issues"])
+            )
+        active_professional_roles = list(selection["active_roles"])
     items = _bind_project_agents(
         root,
         project=project,
         profile=profile,
-        items=_work_items(profile),
+        items=_work_items(
+            profile,
+            professional_team=professional_team,
+            active_professional_roles=active_professional_roles,
+        ),
     )
     user_goal = yaml.safe_dump(
         normalized,

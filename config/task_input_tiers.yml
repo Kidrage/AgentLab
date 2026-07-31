@@ -188,6 +188,15 @@ trace_record_contracts:
       status: {type: string, equals: approved}
       route: {type: string, equals: governed_pipeline}
       work_items: {type: list, minimum_items: 2}
+  narrative_user_acceptance:
+    schema_version: narrative-user-acceptance-gate/v1
+    producer_roles: [Runtime]
+    fields:
+      status: {type: string, equals: accepted}
+      receipt_path: {type: string}
+      candidate_set_id: {type: string}
+      candidate_set_sha256: {type: sha256}
+      evidence_bundle_sha256: {type: sha256}
   worker_attempt_receipt:
     schema_version: worker-attempt-receipt/v1
     producer_roles: [Runtime]

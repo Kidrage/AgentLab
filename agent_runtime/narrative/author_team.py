@@ -428,6 +428,15 @@ def select_author_team(
     if not full_team:
         for flag in normalized:
             active.update(risk_role_map.get(flag, ()))
+        pending = list(active)
+        while pending:
+            role_id = pending.pop()
+            raw_role = contract["roles"].get(role_id)
+            raw_role = raw_role if isinstance(raw_role, Mapping) else {}
+            for dependency in raw_role.get("dependencies", ()):
+                if dependency not in active:
+                    active.add(dependency)
+                    pending.append(dependency)
     active_roles = [
         role_id for role_id in REQUIRED_AUTHOR_ROLES if role_id in active
     ]
@@ -624,6 +633,41 @@ def _author_team_provision_lock(project_root: Path) -> Iterator[None]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def _is_migratable_legacy_writer(
+    manifest: AgentManifest,
+    *,
+    project: str,
+) -> bool:
+    """Recognize only the v1 bootstrap Writer that predated author teams."""
+    knowledge = dict(manifest.knowledge_binding)
+    if knowledge.get("documents") in ([], ()):
+        knowledge.pop("documents")
+    if knowledge.get("artifacts") in ([], ()):
+        knowledge.pop("artifacts")
+    reviewed_by = (manifest.collaboration or {}).get("reviewed_by")
+    return (
+        manifest.id == "writer"
+        and manifest.name == "Writer Agent"
+        and manifest.role == "writer"
+        and manifest.description == "Project-scoped writer."
+        and manifest.responsibilities == ("Own writer decisions.",)
+        and manifest.runtime_role == "Writer"
+        and manifest.version == "1.0.0"
+        and manifest.manifest_revision == 1
+        and manifest.read_scope == ("*",)
+        and manifest.write_scope == ("manuscript.*",)
+        and manifest.approval_scope == ("manuscript.*",)
+        and knowledge == {"namespace": f"agent.{project}.writer"}
+        and manifest.model_profile == "balanced"
+        and manifest.tool_permission == ("knowledge.read",)
+        and manifest.budget_profile == "standard"
+        and manifest.status == "active"
+        and manifest.acceptance_rules == ("scope_contract_satisfied",)
+        and tuple(reviewed_by or ()) == ("reviewer",)
+        and set(manifest.collaboration) == {"reviewed_by"}
+    )
+
+
 def register_author_team_proposal(
     agentlab_root: Path,
     *,
@@ -743,70 +787,109 @@ def _register_author_team_proposal_unlocked(
             continue
     try:
         if current_manifests:
-            if len(current_manifests) != len(manifests):
-                raise ValueError(
-                    "author-team registration found a partial existing team"
+            current_by_id = {manifest.id: manifest for manifest in current_manifests}
+            if (
+                set(current_by_id) == {"writer"}
+                and _is_migratable_legacy_writer(
+                    current_by_id["writer"],
+                    project=project,
                 )
-            statuses = {
-                current_manifest.status
-                for current_manifest in current_manifests
-            }
-            for current_manifest, proposed_manifest in zip(
-                current_manifests,
-                manifests,
             ):
-                if (
-                    _manifest_contract_identity(current_manifest)
-                    != _manifest_contract_identity(proposed_manifest)
-                ):
-                    raise ValueError(
-                        "existing author team is not a matching compensated team"
-                    )
-            if statuses == {"archived"}:
-                current_snapshot_id = truth.current().snapshot_id
+                migrated_manifests = tuple(
+                    manifest.evolve() if manifest.id == "writer" else manifest
+                    for manifest in manifests
+                )
+                for manifest in migrated_manifests:
+                    registry._validate_manifest(manifest)
                 receipt = truth.commit(
                     ChangeSet(
                         project_id=truth.current().project_id,
-                        expected_snapshot_id=current_snapshot_id,
+                        expected_snapshot_id=expected_snapshot_id,
                         actor_id=actor_id,
                         idempotency_key=(
-                            f"author-team-reactivate:{actual_sha256}:"
-                            f"{current_snapshot_id}"
+                            "author-team-migrate-legacy-writer:"
+                            f"{actual_sha256}:{expected_snapshot_id}"
                         ),
                         reason=(
-                            "Reactivate an unchanged author team after a "
-                            "compensated post-registration audit failure."
+                            "Upgrade the v1 bootstrap Writer and register the "
+                            "complete professional author team from user approval."
                         ),
                         resources=tuple(
                             ResourceChange(
-                                key=f"agents.manifest.{current_manifest.id}",
-                                content=current_manifest.evolve(
-                                    status="active"
-                                ).to_dict(),
+                                key=f"agents.manifest.{manifest.id}",
+                                content=manifest.to_dict(),
                             )
-                            for current_manifest in current_manifests
+                            for manifest in migrated_manifests
                         ),
                     )
                 )
-                registration_mode = "reactivated_compensated_team"
+                registration_mode = "migrated_legacy_writer"
                 receipt_document = receipt.to_dict()
-            elif statuses == {"active"}:
-                current_snapshot_id = truth.current().snapshot_id
-                registration_mode = "existing_active_team"
-                receipt_document = {
-                    "schema_version": (
-                        "narrative-author-team-existing-registration/v1"
-                    ),
-                    "project_id": project,
-                    "snapshot_id": current_snapshot_id,
-                    "original_expected_snapshot_id": expected_snapshot_id,
-                    "proposal_sha256": actual_sha256,
-                    "status": "current",
-                }
             else:
-                raise ValueError(
-                    "existing author team has mixed lifecycle states"
-                )
+                if len(current_manifests) != len(manifests):
+                    raise ValueError(
+                        "author-team registration found a partial existing team"
+                    )
+                statuses = {
+                    current_manifest.status
+                    for current_manifest in current_manifests
+                }
+                for current_manifest, proposed_manifest in zip(
+                    current_manifests,
+                    manifests,
+                ):
+                    if (
+                        _manifest_contract_identity(current_manifest)
+                        != _manifest_contract_identity(proposed_manifest)
+                    ):
+                        raise ValueError(
+                            "existing author team is not a matching compensated team"
+                        )
+                if statuses == {"archived"}:
+                    current_snapshot_id = truth.current().snapshot_id
+                    receipt = truth.commit(
+                        ChangeSet(
+                            project_id=truth.current().project_id,
+                            expected_snapshot_id=current_snapshot_id,
+                            actor_id=actor_id,
+                            idempotency_key=(
+                                f"author-team-reactivate:{actual_sha256}:"
+                                f"{current_snapshot_id}"
+                            ),
+                            reason=(
+                                "Reactivate an unchanged author team after a "
+                                "compensated post-registration audit failure."
+                            ),
+                            resources=tuple(
+                                ResourceChange(
+                                    key=f"agents.manifest.{current_manifest.id}",
+                                    content=current_manifest.evolve(
+                                        status="active"
+                                    ).to_dict(),
+                                )
+                                for current_manifest in current_manifests
+                            ),
+                        )
+                    )
+                    registration_mode = "reactivated_compensated_team"
+                    receipt_document = receipt.to_dict()
+                elif statuses == {"active"}:
+                    current_snapshot_id = truth.current().snapshot_id
+                    registration_mode = "existing_active_team"
+                    receipt_document = {
+                        "schema_version": (
+                            "narrative-author-team-existing-registration/v1"
+                        ),
+                        "project_id": project,
+                        "snapshot_id": current_snapshot_id,
+                        "original_expected_snapshot_id": expected_snapshot_id,
+                        "proposal_sha256": actual_sha256,
+                        "status": "current",
+                    }
+                else:
+                    raise ValueError(
+                        "existing author team has mixed lifecycle states"
+                    )
         else:
             receipt = registry.register_many(
                 manifests,

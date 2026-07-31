@@ -711,6 +711,7 @@ class TaskRuntime:
         agent_manifest_revision: int | None = None,
         canonical_snapshot_id: str | None = None,
         effective_contract_hash: str | None = None,
+        requires_user_acceptance: bool = False,
     ) -> dict[str, Any]:
         """Create a schedulable unit inside an existing Job and Task."""
 
@@ -730,6 +731,8 @@ class TaskRuntime:
             canonical_snapshot_id=canonical_snapshot_id,
             contract_hash=effective_contract_hash,
         )
+        if not isinstance(requires_user_acceptance, bool):
+            raise ValueError("requires_user_acceptance must be boolean")
 
         def validate(projection: dict[str, Any]) -> None:
             if projection["task"]["status"] in {"completed", "failed", "cancelled"}:
@@ -753,6 +756,7 @@ class TaskRuntime:
                 "kind": kind,
                 "title": title,
                 "depends_on": dependencies,
+                "requires_user_acceptance": requires_user_acceptance,
                 **agent_binding,
             },
             validate_projection=validate,
@@ -801,6 +805,11 @@ class TaskRuntime:
                 canonical_snapshot_id=raw.get("canonical_snapshot_id"),
                 contract_hash=raw.get("effective_contract_hash"),
             )
+            requires_user_acceptance = raw.get(
+                "requires_user_acceptance", False
+            )
+            if not isinstance(requires_user_acceptance, bool):
+                raise ValueError("requires_user_acceptance must be boolean")
             normalized.append(
                 {
                     "work_item_id": work_item_id,
@@ -808,6 +817,7 @@ class TaskRuntime:
                     "kind": kind,
                     "title": title,
                     "depends_on": dependencies,
+                    "requires_user_acceptance": requires_user_acceptance,
                     **agent_binding,
                 }
             )
@@ -986,6 +996,11 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"work item cannot transition from {current!r} to {status!r}"
                 )
+            if status in {"running", "accepted"}:
+                self._validate_user_acceptance_gate(
+                    projection,
+                    work_item=work_item,
+                )
             if status in {"accepted", "failed", "cancelled"} and work_item.get(
                 "active_attempt_id"
             ):
@@ -1003,6 +1018,57 @@ class TaskRuntime:
             idempotency_ignored_payload_keys={"from_status"},
         )
         return self.rebuild_task(task_id)
+
+    def _validate_user_acceptance_gate(
+        self,
+        projection: Mapping[str, Any],
+        *,
+        work_item: Mapping[str, Any],
+    ) -> None:
+        """Require one exact signed candidate acceptance before projection."""
+
+        if work_item.get("requires_user_acceptance") is not True:
+            return
+        records = [
+            record
+            for record in (projection.get("trace_records") or {}).values()
+            if isinstance(record, Mapping)
+            and record.get("record_type") == "narrative_user_acceptance"
+        ]
+        if len(records) != 1:
+            raise InvalidTransition(
+                "work item requires one signed narrative user acceptance record"
+            )
+        data = records[0].get("record_data")
+        if not isinstance(data, Mapping):
+            raise InvalidTransition(
+                "narrative user acceptance record is invalid"
+            )
+        project_root = self.agentlab_root / "projects" / self.project
+        try:
+            from agent_runtime.narrative.user_acceptance import (
+                validate_candidate_acceptance,
+            )
+
+            validation = validate_candidate_acceptance(
+                project_root,
+                project_root / str(data.get("receipt_path") or ""),
+                candidate_set_id=str(data.get("candidate_set_id") or ""),
+                candidate_set_sha256=str(
+                    data.get("candidate_set_sha256") or ""
+                ),
+                evidence_bundle_sha256=str(
+                    data.get("evidence_bundle_sha256") or ""
+                ),
+            )
+        except (OSError, ValueError) as exc:
+            raise InvalidTransition(
+                "narrative user acceptance record is stale or invalid"
+            ) from exc
+        if validation.get("status") != "accepted":
+            raise InvalidTransition(
+                "narrative user acceptance has not accepted this candidate"
+            )
 
     def schedule_attempt(
         self,
@@ -1075,6 +1141,10 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"work item status {work_item['status']!r} cannot schedule an Attempt"
                 )
+            self._validate_user_acceptance_gate(
+                projection,
+                work_item=work_item,
+            )
             classification = projection["task"].get("input_classification") or {}
             if projection["task"].get("legacy_source") is None:
                 role = str(execution_contract.get("role") or "")
@@ -2542,6 +2612,9 @@ class TaskRuntime:
                         "kind": entry["kind"],
                         "title": entry["title"],
                         "depends_on": dependencies,
+                        "requires_user_acceptance": bool(
+                            entry.get("requires_user_acceptance", False)
+                        ),
                         "status": (
                             "ready"
                             if not dependencies

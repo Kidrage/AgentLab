@@ -771,6 +771,59 @@ def _grok_research_fixture(
     )
 
 
+def _grok_native_fixture(tmp_path: Path) -> dict:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "native_grok_model": {
+                        "provider": "grok_cli_oauth",
+                        "runtime_provider": "grok-cli-oauth",
+                        "cli_provider": "grok",
+                        "model_id": "grok-4.5",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "grok_native_high": {
+                        "worker_id": "grok",
+                        "invocation_style": "bounded_role_task_packet",
+                        "template": (
+                            "grok --model {model_id} --reasoning-effort high "
+                            "--permission-mode plan --disable-web-search "
+                            "--no-subagents --no-memory --output-format plain "
+                            '--verbatim --single "Read the bounded AgentLab role '
+                            "task packet at {task_packet_path}; execute only the "
+                            'assigned role contract."'
+                        ),
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "executor_type": "cli_agent",
+        "cli_agent": "grok",
+        "invocation_contract": "grok_native_high",
+        "default": "native_grok_model",
+        "capacity_selected_route": "ProfessionalGrokSupervisor",
+        "capacity_pool": "grok_cli_subscription",
+        "capacity_attempt_id": "native-grok-attempt-1",
+        "capacity_selection_kind": "direct",
+    }
+
+
 def _sample_profiles(executor_type: str = "cli_agent") -> dict:
     """Return a minimal agent_model_profiles dict."""
     return {
@@ -1983,6 +2036,60 @@ class TestRunCliAgentSubprocess:
         )
         assert len(chain["attempts"]) == 1
         assert chain["final"]["receipt_path"] == str(receipt_path)
+
+    def test_native_grok_success_writes_route_verified_model_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        role_profile = _grok_native_fixture(tmp_path)
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/local/bin/grok"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(
+                0,
+                stdout="# Authorial direction\n\nProceed with the locked canon.\n",
+            ),
+        ):
+            result = run_cli_agent(
+                plan,
+                "Supervisor",
+                role_profile,
+                sealed_messages=[
+                    {
+                        "role": "user",
+                        "content": "Return the governed authorial direction.",
+                    }
+                ],
+            )
+
+        assert result.status == "completed"
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["status"] == "pass"
+        assert receipt["role"] == "Supervisor"
+        assert receipt["worker"] == "grok"
+        assert receipt["invocation_contract"] == "grok_native_high"
+        assert receipt["provider"] == "grok-cli-oauth"
+        assert receipt["model"] == "grok-4.5"
+        assert receipt["profile_binding_verified"] is True
+        assert receipt["command_binding_verified"] is True
+        assert receipt["provider_process_started"] is True
+        assert receipt["auth_presence_verified"] is False
+        assert receipt["provider_auth_result_observed"] is True
+        assert receipt["evidence_source"] == (
+            "runtime_verified_argv_profile_workspace_and_process_result"
+        )
+        assert receipt["fallback_detected"] is False
+        assert receipt["issues"] == []
 
     def test_grok_research_missing_oauth_credential_blocks_before_provider_process(
         self,

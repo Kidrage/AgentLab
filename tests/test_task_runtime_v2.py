@@ -146,6 +146,38 @@ def test_create_task_appends_authoritative_event_and_rebuilds_projection(
     assert yaml.safe_load(projection_path.read_text(encoding="utf-8")) == created
 
 
+def test_user_acceptance_work_item_cannot_run_without_signed_gate(
+    tmp_path: Path,
+) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="task-user-gate",
+        title="Project accepted prose",
+        user_goal="Project only the exact user-accepted candidate.",
+        idempotency_key="request-user-gate",
+    )
+    created = runtime.create_work_item(
+        "task-user-gate",
+        job_id="job-main",
+        work_item_id="state-projector",
+        kind="verification",
+        title="Project accepted narrative state",
+        requires_user_acceptance=True,
+        idempotency_key="work-user-gate",
+    )
+
+    assert created["work_items"]["state-projector"][
+        "requires_user_acceptance"
+    ] is True
+    with pytest.raises(InvalidTransition, match="signed narrative user"):
+        runtime.transition_work_item(
+            "task-user-gate",
+            work_item_id="state-projector",
+            status="running",
+            idempotency_key="run-user-gate",
+        )
+
+
 def test_create_task_is_idempotent_and_rejects_key_reuse(tmp_path: Path) -> None:
     runtime = TaskRuntime(tmp_path, project="Demo")
     command = {

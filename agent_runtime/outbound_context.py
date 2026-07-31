@@ -153,6 +153,7 @@ def build_outbound_context_manifest(
     provider_project_scan_requested: bool = False,
     provider_shell_or_browser_requested: bool = False,
     source_inventory_required: bool = False,
+    approval_authority: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a content-free receipt for the exact provider-bound payload."""
     root = root.resolve(strict=False)
@@ -275,6 +276,7 @@ def build_outbound_context_manifest(
             "trusted_runner_env_name": TRUSTED_RUNNER_ENV_NAME,
             "trusted_runner_observed": os.getenv(TRUSTED_RUNNER_ENV_NAME) == "1",
             "env_values_rendered": False,
+            "authority": dict(approval_authority or {}),
         },
         "issues": issues,
     }
