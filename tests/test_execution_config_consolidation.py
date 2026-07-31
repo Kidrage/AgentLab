@@ -827,9 +827,10 @@ def test_writer_uses_agy_with_current_claude_deepseek_route_as_fallback() -> Non
         assert route["capacity_route"] == "WriterAgy"
     agy_writer = contracts["agy_writer"]
     assert agy_writer["worker_id"] == "agy"
-    assert agy_writer["invocation_style"] == "sealed_packet_stdin"
-    assert agy_writer["packet_delivery"] == "stdin"
-    assert agy_writer["required_placeholders"] == ["model_id"]
+    assert agy_writer["invocation_style"] == "bounded_writer_task_packet"
+    assert agy_writer.get("packet_delivery") is None
+    assert agy_writer["required_placeholders"] == ["task_packet_path", "model_id"]
+    assert "{task_packet_path}" in agy_writer["template"]
     assert agy_writer["safe_probe"] == ["agy", "--help"]
     agy_route = capacity["WriterAgy"]
     assert agy_route["worker"] == "agy"

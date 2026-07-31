@@ -3981,6 +3981,25 @@ def _looks_like_cli_usage_error(stderr_text: str) -> bool:
     )
 
 
+def _agy_writer_rejected_sealed_packet(
+    *,
+    agent_name: str,
+    cli_agent_name: str,
+    stdout_text: str,
+) -> bool:
+    """Detect Agy Writer refusals that mean the sealed packet was not consumed."""
+
+    if agent_name != "Writer" or cli_agent_name != "agy":
+        return False
+    lowered = stdout_text.casefold()
+    chinese_refusal = "未在输入" in stdout_text and "封包" in stdout_text
+    english_refusal = (
+        ("did not receive" in lowered or "not received" in lowered)
+        and ("writer packet" in lowered or "task packet" in lowered)
+    )
+    return chinese_refusal or english_refusal
+
+
 def run_cli_agent(
     plan: WorkflowPlan,
     agent_name: str,
@@ -5445,6 +5464,11 @@ def run_cli_agent(
             or artifact_materialization.get("status") != "pass"
         )
     )
+    writer_packet_refused = _agy_writer_rejected_sealed_packet(
+        agent_name=agent_name,
+        cli_agent_name=cli_agent_name,
+        stdout_text=stdout_text,
+    )
     success = (
         proc.returncode == 0
         and bool(stdout_text)
@@ -5453,6 +5477,7 @@ def run_cli_agent(
         and not qwen_provider_model_mismatch
         and not grok_provider_model_mismatch
         and not artifact_materialization_failed
+        and not writer_packet_refused
         and artifact_input_postflight_issue is None
         and staged_input_postflight_issue is None
     )
@@ -5463,6 +5488,7 @@ def run_cli_agent(
             "validation_failed"
             if (
                 artifact_materialization_failed
+                or writer_packet_refused
                 or artifact_input_postflight_issue
                 or staged_input_postflight_issue
             )
@@ -5490,6 +5516,8 @@ def run_cli_agent(
     receipt_failure_issues = (
         [] if success else [f"failure_class:{failure_class or 'unknown'}"]
     )
+    if writer_packet_refused:
+        receipt_failure_issues.append("writer_missing_sealed_packet")
     if staged_input_postflight_issue:
         receipt_failure_issues.append(
             f"staged_input_postflight_failed:{staged_input_postflight_issue}"
@@ -5685,7 +5713,11 @@ def run_cli_agent(
         result_error = None
     else:
         result_status = "blocked_user_decision"
-        result_error = f"CLI agent {failure_class} (exit {proc.returncode})."
+        result_error = (
+            "writer_missing_sealed_packet"
+            if writer_packet_refused
+            else f"CLI agent {failure_class} (exit {proc.returncode})."
+        )
 
     return LLMCallResult(
         provider="agentlab-cli-executor",

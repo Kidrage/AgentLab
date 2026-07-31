@@ -3514,7 +3514,7 @@ class TestRunCliAgentSubprocess:
         assert not any("task_packet_writer.json" in arg for arg in argv)
         assert result.raw_usage["sealed_packet_stdin"] is True
 
-    def test_real_agy_writer_contract_delivers_sealed_packet_on_stdin(
+    def test_real_agy_writer_contract_delivers_sealed_packet_by_explicit_path(
         self,
         tmp_path,
     ):
@@ -3564,6 +3564,15 @@ class TestRunCliAgentSubprocess:
         def fake_run(argv, **kwargs):
             observed["argv"] = list(argv)
             observed["kwargs"] = dict(kwargs)
+            prompt = argv[argv.index("-p") + 1]
+            packet_path = next(
+                Path(part.rstrip(".;,"))
+                for part in prompt.split()
+                if "task_packet_writer.json" in part
+            )
+            observed["packet"] = json.loads(
+                packet_path.read_text(encoding="utf-8")
+            )
             return self._mock_proc(
                 0,
                 stdout="AGENTLAB_EDIT fiction_draft.md\nbounded prose\nAGENTLAB_END_EDIT\n",
@@ -3588,18 +3597,21 @@ class TestRunCliAgentSubprocess:
 
         assert result.status == "completed"
         kwargs = observed["kwargs"]
-        packet = json.loads(kwargs["input"])
-        assert packet["packet_type"] == "agentlab_sealed_role_session"
-        assert packet["messages"] == [
-            {"role": "user", "content": "bounded chapter context"}
-        ]
+        assert "input" not in kwargs
         assert observed["argv"][:4] == [
             "agy",
             "--sandbox",
             "--model",
             "gemini-3.5-flash-high",
         ]
-        assert result.raw_usage["sealed_packet_stdin"] is True
+        prompt = observed["argv"][observed["argv"].index("-p") + 1]
+        assert "task_packet_writer.json" in prompt
+        packet = observed["packet"]
+        assert packet["packet_type"] == "agentlab_sealed_role_session"
+        assert packet["messages"] == [
+            {"role": "user", "content": "bounded chapter context"}
+        ]
+        assert result.raw_usage.get("sealed_packet_stdin") is not True
         receipt = yaml.safe_load(
             Path(result.raw_usage["model_execution_receipt"]).read_text(
                 encoding="utf-8"
@@ -3608,6 +3620,82 @@ class TestRunCliAgentSubprocess:
         assert receipt["worker"] == "agy"
         assert receipt["invocation_contract"] == "agy_writer"
         assert receipt["command_binding_verified"] is True
+
+    def test_agy_writer_missing_packet_refusal_is_not_success(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        repository_root = Path(__file__).parent.parent
+        real_contracts = yaml.safe_load(
+            (repository_root / "config" / "worker_invocation_contracts.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {"contracts": {"agy_writer": real_contracts["contracts"]["agy_writer"]}},
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  gemini_writer:
+    provider: agy_gemini_oauth
+    runtime_provider: agy-gemini-oauth
+    model_id: gemini-3.5-flash-high
+    cli_model_id: gemini-3.5-flash-high
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "invocation_contract": "agy_writer",
+            "default": "gemini_writer",
+            "capacity_selected_route": "WriterAgy",
+            "capacity_pool": "agy_gemini_observer",
+        }
+
+        def fake_run(argv, **kwargs):
+            return self._mock_proc(
+                0,
+                stdout=(
+                    '<AGENTLAB_EDIT candidate="1">\n'
+                    "未在输入（stdin/上下文）中接收到完整的 AgentLab Writer 封包内容。\n"
+                    "</AGENTLAB_EDIT>\n"
+                ),
+                stderr="",
+            )
+
+        with patch(
+            "cli_executor.shutil.which",
+            return_value="/usr/local/bin/agy",
+        ), patch(
+            "cli_executor.subprocess.run",
+            side_effect=fake_run,
+        ):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "bounded chapter context"}
+                ],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["failure_class"] == "validation_failed"
+        assert "writer_missing_sealed_packet" in str(result.error)
 
     def test_claude_supervisor_fallback_writes_approved_fallback_chain(self, tmp_path):
         import sys

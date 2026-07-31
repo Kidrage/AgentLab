@@ -156,10 +156,11 @@ def _internal_writer_route_readiness(root: Path) -> dict[str, Any]:
     contract_ok = (
         contract.get("worker_id") == "agy"
         and contract.get("command") == "agy"
-        and contract.get("invocation_style") == "sealed_packet_stdin"
-        and contract.get("packet_delivery") == "stdin"
-        and set(contract.get("required_placeholders") or []) == {"model_id"}
-        and "{task_packet_path}" not in str(contract.get("template") or "")
+        and contract.get("invocation_style") == "bounded_writer_task_packet"
+        and not contract.get("packet_delivery")
+        and set(contract.get("required_placeholders") or [])
+        == {"task_packet_path", "model_id"}
+        and "{task_packet_path}" in str(contract.get("template") or "")
     )
     capacity_ok = (
         capacity_route.get("role") == "writer"
