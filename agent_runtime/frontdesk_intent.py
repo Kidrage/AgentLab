@@ -93,16 +93,19 @@ def compile_frontdesk_intent(
     normalized = " ".join(raw_request.strip().casefold().split())
     if not normalized:
         raise ValueError("frontdesk request must not be empty")
+    action_text = normalized
+    for pattern in selected_policy.get("negated_action_patterns") or []:
+        action_text = re.sub(str(pattern), " ", action_text)
     has_mutation = _contains(
-        normalized,
+        action_text,
         _vocabulary(selected_policy, "mutation"),
     )
     has_external = _contains(
-        normalized,
+        action_text,
         _vocabulary(selected_policy, "external"),
     )
     has_destructive = _contains(
-        normalized,
+        action_text,
         _vocabulary(selected_policy, "destructive"),
     )
     has_audit = _contains(
@@ -132,6 +135,8 @@ def compile_frontdesk_intent(
     evidence: list[str] = [
         "config:frontdesk_policy.yml#intent_compiler_v2"
     ]
+    if action_text != normalized:
+        evidence.append("rule:negated_action_mask")
     approvals: list[str] = []
     capabilities: list[str] = []
     if status_only:

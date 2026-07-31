@@ -26,6 +26,18 @@ def test_deterministic_status_check_routes_f0() -> None:
     assert len(result["request_sha256"]) == 64
 
 
+def test_negated_mutation_does_not_become_an_execution_request() -> None:
+    for request in (
+        "仅检查 OpenClaw Frontdesk 状态，不修改文件",
+        "Check OpenClaw status without changing or editing files.",
+    ):
+        result = compile_frontdesk_intent(request, project="AgentLab")
+
+        assert result["route_tier"] == "F0"
+        assert result["mutation_scope"] == "none"
+        assert "rule:negated_action_mask" in result["evidence"]
+
+
 def test_scoped_implementation_routes_single_agent_f2() -> None:
     result = compile_frontdesk_intent(
         "Fix the CLI default in one file and run its focused tests.",

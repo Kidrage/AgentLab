@@ -103,6 +103,9 @@ intent_compiler_v2:
   project_signal_threshold: 2
   ambiguous_short_request_words: 6
   single_capability_pattern: '\b(?:use|with)\s+(?:one\s+)?(?:skill|mcp)\b'
+  negated_action_patterns:
+    - '(?:不|不要|无需|禁止)\s*(?:修改|更改|写入|删除|创建|构建|实现|部署|发布|上传|推送)'
+    - '\b(?:without|do not|don''t|no)\s+(?:changing|change|editing|edit|writing|write|deleting|delete|creating|create|implementing|implement|deploying|deploy|publishing|publish|uploading|upload|pushing|push)(?:\s+(?:or|and)\s+(?:changing|change|editing|edit|writing|write|deleting|delete|creating|create|implementing|implement|deploying|deploy|publishing|publish|uploading|upload|pushing|push))*\b'
   vocabularies:
     status: [status, check, inspect, show, list, help, 状态, 检查, 查看, 列出]
     mutation: [fix, implement, change, edit, write, build, create, update, delete, remove, 修复, 实现, 修改, 构建, 创建, 删除]
