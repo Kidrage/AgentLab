@@ -88,6 +88,15 @@ long_project_rules:
 state_grounding:
   must_cite_artifacts: true
   hallucinated_state_is_failure: true
+turn_contract:
+  phases: [INTAKE, CLARIFY, ROUTE, MONITOR, REPORT]
+  one_phase_per_turn: true
+  preserve_user_request_verbatim_before_routing: true
+  deterministic_intent_compiler_required: true
+  tracked_file_evidence_required_for_repository_claims: true
+  grounded_report_required_for_completion_claims: true
+  no_evidence_value: UNKNOWN
+  response_fields: [phase, intent_or_decision, evidence, next_agentlab_action, unknowns, boundary_check]
 intent_compiler_v2:
   schema_version: frontdesk-intent-policy/v1
   route_execution_authority: config/routing_rules.yml
@@ -158,6 +167,9 @@ frontdesk_agents:
   openclaw:
     display_name: OpenClaw Frontdesk
     command: openclaw
+    provider: deepseek
+    model_key: deepseek_v4_flash
+    model_id: deepseek-v4-flash
     launch_hint: openclaw agent --message "$(./agentlab.sh frontdesk-session --agent openclaw)"
   qwen:
     display_name: Qwen Frontdesk

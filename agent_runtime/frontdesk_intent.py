@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Mapping
+import hashlib
 import re
 
 import yaml
@@ -88,7 +89,8 @@ def compile_frontdesk_intent(
         if isinstance(policy, Mapping)
         else load_frontdesk_intent_policy()
     )
-    normalized = " ".join(str(request).strip().casefold().split())
+    raw_request = str(request)
+    normalized = " ".join(raw_request.strip().casefold().split())
     if not normalized:
         raise ValueError("frontdesk request must not be empty")
     has_mutation = _contains(
@@ -225,6 +227,8 @@ def compile_frontdesk_intent(
     )
     return {
         "schema_version": "frontdesk-intent/v2",
+        "request_sha256": hashlib.sha256(raw_request.encode("utf-8")).hexdigest(),
+        "normalized_request": normalized,
         "intent": intent,
         "project": project,
         "task_scope": task_scope,

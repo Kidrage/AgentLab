@@ -20,8 +20,10 @@ agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "$(./agentlab.sh frontdesk-se
 qwen --bare "$(./agentlab.sh frontdesk-session --agent qwen)"
 ```
 
-The canonical internal FrontDesk is Hermes CLI with `deepseek_v4_pro`.
-Codex is an external construction/audit worker, not an AgentLab FrontDesk.
+The canonical routed Frontdesk is OpenClaw. On the 250 runtime its configured
+backend is DeepSeek V4 Flash. Hermes remains an optional operator shell, not the
+default public Frontdesk. Codex is an external construction/audit worker, not an
+AgentLab Frontdesk.
 Declared pipelines may use `direct_closed_loop` and skip FrontDesk entirely;
 role binding, receipts, validation, and promotion gates still apply.
 
@@ -51,6 +53,18 @@ role binding, receipts, validation, and promotion gates still apply.
 Frontdesk answers must cite or rely on AgentLab artifacts such as `state.yml`,
 `task_card.yml`, `lifecycle.yml`, `artifact_manifest.yml`, and the generated
 workspace entry packet. Hallucinated project state is a protocol failure.
+
+Each turn has exactly one phase: `INTAKE`, `CLARIFY`, `ROUTE`, `MONITOR`, or
+`REPORT`. The original request is passed verbatim through `frontdesk route`.
+Repository claims use literal tracked-file evidence from `frontdesk search`;
+completion and validation claims use `frontdesk report`. If those tools have no
+evidence, the only valid value is `UNKNOWN`.
+
+```bash
+./agentlab.sh frontdesk route --adapter openclaw --request "<verbatim>" --explain
+./agentlab.sh frontdesk search --query "<literal>" --path agent_runtime
+./agentlab.sh frontdesk report --project <Project> --task-id <task_id>
+```
 
 ## Verification
 
