@@ -614,6 +614,14 @@ routes:
     pool: agy_gemini_observer
     approved_fallbacks: [Writer]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+  AlterWriterStrict:
+    role: writer
+    worker: agy
+    invocation_contract: agy_writer
+    model_key: gemini_3_6_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    approved_fallbacks: []
+    fallback_on: []
   AlterReviewer:
     role: reviewer
     worker: agy

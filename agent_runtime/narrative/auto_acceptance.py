@@ -727,6 +727,70 @@ def _contract_state_facts(
     ]
 
 
+def _contract_character_updates(
+    contract: Mapping[str, Any],
+    *,
+    current_characters: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    projection = contract.get("state_projection")
+    if projection is None:
+        return []
+    if not isinstance(projection, Mapping):
+        raise ValueError("chapter contract state_projection must be a mapping")
+    updates = projection.get("character_updates")
+    if updates is None:
+        return []
+    if not isinstance(updates, list):
+        raise ValueError("chapter contract character_updates must be a list")
+
+    normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for update in updates:
+        if not isinstance(update, Mapping) or set(update) != {"id", "current_state"}:
+            raise ValueError("chapter contract contains an invalid character update")
+        character_id = str(update.get("id") or "").strip()
+        if not character_id:
+            raise ValueError("chapter contract contains an invalid character update")
+        if character_id in seen:
+            raise ValueError("chapter contract contains a duplicate character update")
+        seen.add(character_id)
+        existing = current_characters.get(character_id)
+        if not isinstance(existing, Mapping):
+            raise ValueError("chapter contract references an unknown character")
+        existing_state = existing.get("current_state")
+        candidate_state = update.get("current_state")
+        if not isinstance(existing_state, Mapping) or not isinstance(
+            candidate_state, Mapping
+        ) or not candidate_state:
+            raise ValueError("chapter contract character current_state must be a mapping")
+        unsupported = sorted(set(candidate_state) - set(existing_state))
+        if unsupported:
+            raise ValueError(
+                "chapter contract contains an unsupported current_state field: "
+                + ",".join(unsupported)
+            )
+        for field, value in candidate_state.items():
+            previous = existing_state[field]
+            if isinstance(previous, list):
+                valid = isinstance(value, list) and all(
+                    isinstance(item, str) and item.strip() for item in value
+                )
+            else:
+                valid = (
+                    not isinstance(value, (Mapping, list))
+                    and type(value) is type(previous)
+                    and (not isinstance(value, str) or bool(value.strip()))
+                )
+            if not valid:
+                raise ValueError(
+                    f"chapter contract character current_state type mismatch: {field}"
+                )
+        normalized.append(
+            {"id": character_id, "current_state": dict(candidate_state)}
+        )
+    return normalized
+
+
 def _commit_authoritative_state(
     *,
     root: Path,
@@ -969,6 +1033,19 @@ def project_detached_candidate_state(
     delta["chapter_contract_path"] = contract_path.relative_to(root).as_posix()
     delta["chapter_contract_sha256"] = _sha256(contract_path)
     delta["acceptance_record_id"] = acceptance_record.get("record_id")
+    current_state = NarrativeStateStore(
+        project_root / "project_brain",
+        project=project,
+    ).read()
+    current_characters = current_state.get("characters")
+    if not isinstance(current_characters, Mapping):
+        raise ValueError("narrative state has no character authority")
+    character_updates = _contract_character_updates(
+        contract,
+        current_characters=current_characters,
+    )
+    if character_updates:
+        delta["character_updates"] = character_updates
     world_delta = contract.get("world_state_delta")
     if isinstance(world_delta, Mapping):
         delta["world_updates"] = [
