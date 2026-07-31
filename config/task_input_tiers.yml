@@ -197,6 +197,28 @@ trace_record_contracts:
       candidate_set_id: {type: string}
       candidate_set_sha256: {type: sha256}
       evidence_bundle_sha256: {type: sha256}
+  narrative_auto_acceptance:
+    schema_version: narrative-auto-acceptance-gate/v1
+    producer_roles: [Runtime]
+    path_list_field: evidence_paths
+    path_hashes_field: content_hashes
+    fields:
+      status: {type: string, equals: accepted}
+      mode: {type: string, equals: detached}
+      project: {type: string}
+      task_id: {type: string}
+      work_item_id: {type: string}
+      chapter_id: {type: integer, minimum: 1}
+      candidate_path: {type: string}
+      candidate_sha256: {type: sha256}
+      senior_editor_review_path: {type: string}
+      reader_panel_review_path: {type: string}
+      policy_sha256: {type: sha256}
+      hard_gate_status: {type: string, equals: pass}
+      fallback_used: {type: boolean, equals: false}
+      exception_count: {type: integer}
+      evidence_paths: {type: list, minimum_items: 5}
+      content_hashes: {type: mapping, minimum_items: 5}
   worker_attempt_receipt:
     schema_version: worker-attempt-receipt/v1
     producer_roles: [Runtime]

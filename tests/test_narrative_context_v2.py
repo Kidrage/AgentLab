@@ -68,6 +68,47 @@ def _context_project(tmp_path: Path) -> tuple[Path, Path, Path]:
     return agentlab, project, bundle
 
 
+def _authorize_auto_approval_policy(
+    project: Path,
+    policy: dict,
+    *,
+    idempotency_key: str,
+) -> tuple[Path, ProjectTruthStore]:
+    policy_path = project / "production" / "outbound_context_policy.yml"
+    policy_path.write_text(
+        yaml.safe_dump(policy, sort_keys=False),
+        encoding="utf-8",
+    )
+    policy_sha256 = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    truth = ProjectTruthStore(project)
+    pointer = truth.initialize(PROJECT)
+    truth.commit(
+        ChangeSet(
+            project_id=PROJECT,
+            expected_snapshot_id=pointer.current_snapshot_id,
+            actor_id="test-user",
+            idempotency_key=idempotency_key,
+            reason="Record the user-approved outbound context policy.",
+            resources=(
+                ResourceChange(
+                    key="policies.outbound_context_auto_approval",
+                    content={
+                        "schema_version": (
+                            "narrative-outbound-auto-approval-authority/v1"
+                        ),
+                        "status": "active",
+                        "project": PROJECT,
+                        "policy_path": "production/outbound_context_policy.yml",
+                        "policy_sha256": policy_sha256,
+                        "authorized_by": "test-user",
+                    },
+                ),
+            ),
+        )
+    )
+    return policy_path, truth
+
+
 def _context_bundle(project: Path, sources: list[Path]) -> Path:
     result = build_context_bundle(
         project / "runs" / TASK_ID / "artifacts" / "context_bundles",
@@ -395,6 +436,73 @@ def test_project_policy_auto_approves_only_scoped_native_grok_context(
     )
     assert stale_policy["status"] == "blocked"
     assert "auto_approval_truth_authority_invalid" in stale_policy["issues"]
+
+
+def test_detached_policy_auto_approves_context_without_chapter_user_gate(
+    tmp_path: Path,
+) -> None:
+    agentlab, project, _ = _context_project(tmp_path)
+    source = project / "production" / "canon.yml"
+    source.write_text("fact: true\n", encoding="utf-8")
+    policy_path, truth = _authorize_auto_approval_policy(
+        project,
+        {
+            "schema_version": "narrative-outbound-auto-approval/v1",
+            "status": "active",
+            "project": PROJECT,
+            "authorization": {
+                "mode": "policy_auto_approve",
+                "user_authorized": True,
+                "user_responsibility": "final_part_acceptance_only",
+            },
+            "constraints": {
+                "allowed_recipients": [
+                    "cli_agent:agy;runtime_provider:agy-gemini-oauth"
+                ],
+                "allowed_roles": ["Writer"],
+                "allowed_task_prefixes": ["task_"],
+                "allowed_source_roots": ["production"],
+                "max_source_files": 4,
+                "max_total_bytes": 4096,
+                "max_expiry_hours": 24,
+                "candidate_only": True,
+                "state_projection_requires_user_acceptance": False,
+                "fallback_allowed": False,
+            },
+            "automatic_acceptance": {
+                "mode": "dual_review_hard_gate_auto_project",
+                "required_review_roles": [
+                    "senior_editor",
+                    "reader_simulation_panel",
+                ],
+                "require_all_hard_gates": True,
+                "exception_action": "pause",
+                "user_acceptance_scope": "final_part_only",
+            },
+        },
+        idempotency_key="authorize-detached-outbound-policy",
+    )
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(hours=1)
+    ).isoformat()
+
+    approved = evaluate_narrative_auto_approval(
+        agentlab,
+        project=PROJECT,
+        task_id=TASK_ID,
+        recipient="cli_agent:agy;runtime_provider:agy-gemini-oauth",
+        role="Writer",
+        purpose="Write one bounded candidate chapter.",
+        source_paths=[source],
+        expires_at=expires_at,
+    )
+
+    assert approved["status"] == "pass"
+    assert approved["execution_allowed"] is True
+    assert approved["policy_sha256"] == hashlib.sha256(
+        policy_path.read_bytes()
+    ).hexdigest()
+    assert approved["truth_snapshot_id"] == truth.current().snapshot_id
 
 
 def test_role_context_pack_is_namespace_scoped_budgeted_and_hash_bound(

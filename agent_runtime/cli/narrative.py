@@ -48,6 +48,9 @@ from agent_runtime.narrative.state_store import (
 from agent_runtime.narrative.user_acceptance import (
     record_candidate_acceptance,
 )
+from agent_runtime.narrative.auto_acceptance import (
+    auto_accept_and_project_candidate,
+)
 from agent_runtime.narrative.planning_window import (
     PlanningWindowError,
     activate_planning_window,
@@ -101,7 +104,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         no_args_is_help=True,
     )
     candidate_app = typer.Typer(
-        help="Govern Candidate Set user acceptance.",
+        help="Govern manual or detached Candidate Set acceptance.",
         no_args_is_help=True,
     )
     feedback_app = typer.Typer(
@@ -132,6 +135,43 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 idempotency_key=idempotency_key,
                 approved_at=approved_at,
                 signature_path=signature_path,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @candidate_app.command("auto-accept")
+    def auto_accept_candidate_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        work_item_id: str = typer.Option(..., "--work-item-id"),
+        chapter_id: int = typer.Option(..., "--chapter-id", min=1),
+        candidate_path: Path = typer.Option(..., "--candidate-path"),
+        senior_editor_review_path: Path = typer.Option(
+            ...,
+            "--senior-editor-review-path",
+        ),
+        reader_panel_review_path: Path = typer.Option(
+            ...,
+            "--reader-panel-review-path",
+        ),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        """Auto-accept, project, and advance one exact dual-reviewed candidate."""
+
+        try:
+            result = auto_accept_and_project_candidate(
+                active_project_root(),
+                project=project,
+                task_id=task_id,
+                work_item_id=work_item_id,
+                chapter_id=chapter_id,
+                candidate_path=candidate_path,
+                senior_editor_review_path=senior_editor_review_path,
+                reader_panel_review_path=reader_panel_review_path,
+                idempotency_key=idempotency_key,
             )
         except (OSError, RuntimeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc

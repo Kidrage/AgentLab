@@ -62,6 +62,10 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
 
 
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def narrative_payload_sha256(value: Any) -> str:
     """Return the canonical hash used to bind narrative contracts."""
 
@@ -410,6 +414,7 @@ class NarrativeStateStore:
         label: str,
         expected_schema: str,
         expected_issuer: str,
+        identity_field: str = "attempt_id",
     ) -> dict[str, Any]:
         reference = str(receipt.get("receipt_path") or "").strip()
         relative = Path(reference)
@@ -439,7 +444,7 @@ class NarrativeStateStore:
             raise NarrativeStateIntegrityError(f"{label} receipt schema mismatch")
         if document.get("issuer") != expected_issuer:
             raise NarrativeStateIntegrityError(f"{label} receipt issuer mismatch")
-        for field in ("attempt_id", "evidence_binding_id"):
+        for field in (identity_field, "evidence_binding_id"):
             value = document.get(field)
             if not isinstance(value, str) or not value.strip():
                 raise NarrativeStateIntegrityError(
@@ -955,11 +960,21 @@ class NarrativeStateStore:
             raise NarrativeStateConflict("delta verification projection binding mismatch")
         if any(seal.get(field) != value for field, value in binding.items()):
             raise NarrativeStateConflict("accepted seal narrative binding mismatch")
+        detached_seal = seal.get("mode") == "detached"
         seal_receipt = self._verified_receipt(
             seal,
             label="accepted seal",
-            expected_schema="narrative-seal-receipt/v1",
-            expected_issuer="AgentLab.Supervisor",
+            expected_schema=(
+                "narrative-detached-auto-seal-receipt/v1"
+                if detached_seal
+                else "narrative-seal-receipt/v1"
+            ),
+            expected_issuer=(
+                "AgentLab.DetachedAcceptance"
+                if detached_seal
+                else "AgentLab.Supervisor"
+            ),
+            identity_field=("decision_id" if detached_seal else "attempt_id"),
         )
         verification_receipt = self._verified_receipt(
             delta_verification,
@@ -972,6 +987,120 @@ class NarrativeStateStore:
             != verification_receipt["evidence_binding_id"]
         ):
             raise NarrativeStateConflict("receipt evidence binding mismatch")
+        if detached_seal and (
+            not str(seal.get("decision_id") or "").strip()
+            or seal_receipt.get("decision_id") != seal.get("decision_id")
+        ):
+            raise NarrativeStateConflict("detached acceptance decision binding mismatch")
+        if detached_seal:
+            task_id = str(seal_receipt.get("task_id") or "")
+            work_item_id = str(seal_receipt.get("work_item_id") or "")
+            decision_id = str(seal_receipt.get("decision_id") or "")
+            acceptance_sha256 = str(
+                seal_receipt.get("acceptance_record_sha256") or ""
+            )
+            if (
+                not task_id
+                or not work_item_id
+                or not decision_id
+                or not _SHA256.fullmatch(acceptance_sha256)
+                or seal.get("task_id") != task_id
+                or seal.get("work_item_id") != work_item_id
+                or seal.get("acceptance_record_sha256") != acceptance_sha256
+            ):
+                raise NarrativeStateConflict(
+                    "detached seal lacks immutable acceptance provenance"
+                )
+            project_root = self.project_brain_dir.parent
+            agentlab_root = project_root.parent.parent
+            from agent_runtime.narrative.auto_acceptance import (
+                validate_detached_candidate_acceptance,
+            )
+            from agent_runtime.task_runtime_v2 import TaskRuntime
+
+            runtime = TaskRuntime(agentlab_root, project=self.project)
+            task_projection = runtime.load_task(task_id)
+            record = (task_projection.get("trace_records") or {}).get(decision_id)
+            if (
+                not isinstance(record, Mapping)
+                or record.get("record_type") != "narrative_auto_acceptance"
+                or record.get("sha256") != acceptance_sha256
+                or (record.get("record_data") or {}).get("work_item_id")
+                != work_item_id
+            ):
+                raise NarrativeStateConflict(
+                    "detached seal does not resolve to immutable acceptance evidence"
+                )
+            try:
+                acceptance = validate_detached_candidate_acceptance(
+                    agentlab_root,
+                    project=self.project,
+                    task_id=task_id,
+                    work_item_id=work_item_id,
+                    data=record.get("record_data") or {},
+                    task_projection=task_projection,
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise NarrativeStateConflict(
+                    "detached acceptance evidence is invalid"
+                ) from exc
+            if acceptance.get("candidate_sha256") != binding["artifact_sha256"]:
+                raise NarrativeStateConflict(
+                    "detached acceptance candidate binding mismatch"
+                )
+            attempt_id = str(delta_verification.get("attempt_id") or "")
+            attempt = (task_projection.get("attempts") or {}).get(attempt_id)
+            execution_contract = (
+                attempt.get("execution_contract")
+                if isinstance(attempt, Mapping)
+                else {}
+            )
+            outcome = attempt.get("outcome") if isinstance(attempt, Mapping) else {}
+            if (
+                not isinstance(attempt, Mapping)
+                or attempt.get("status") != "succeeded"
+                or attempt.get("work_item_id") != work_item_id
+                or execution_contract.get("role") != "Scribe"
+                or execution_contract.get("executor_type") != "deterministic_tool"
+                or (execution_contract.get("deterministic_tool") or {}).get(
+                    "acceptance_record_id"
+                )
+                != decision_id
+                or outcome.get("execution_origin")
+                != "deterministic_tool_executor"
+            ):
+                raise NarrativeStateConflict(
+                    "delta verification is not bound to a succeeded Scribe Attempt"
+                )
+            try:
+                runtime.verify_attempt_execution_receipt(task_id, attempt_id)
+                task_root = project_root / "runtime" / "tasks" / task_id
+                attempt_receipt_path = task_root / str(outcome.get("receipt_path") or "")
+                attempt_receipt = yaml.safe_load(
+                    attempt_receipt_path.read_text(encoding="utf-8")
+                )
+                attempt_output_path = task_root / str(
+                    (attempt_receipt or {}).get("output_path") or ""
+                )
+                attempt_output = yaml.safe_load(
+                    attempt_output_path.read_text(encoding="utf-8")
+                )
+            except (OSError, RuntimeError, ValueError, yaml.YAMLError) as exc:
+                raise NarrativeStateConflict(
+                    "Scribe Attempt output evidence is invalid"
+                ) from exc
+            if (
+                not isinstance(attempt_receipt, Mapping)
+                or not attempt_output_path.resolve().is_relative_to(task_root.resolve())
+                or _sha256_file(attempt_output_path)
+                != attempt_receipt.get("output_sha256")
+                or outcome.get("output_sha256")
+                != attempt_receipt.get("output_sha256")
+                or attempt_output != state_delta
+            ):
+                raise NarrativeStateConflict(
+                    "Scribe Attempt output does not match the committed state delta"
+                )
         if seal_receipt.get("status") != "accepted" or any(
             seal_receipt.get(field) != value for field, value in binding.items()
         ):

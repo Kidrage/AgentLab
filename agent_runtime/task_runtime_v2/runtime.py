@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, Mapping
 import uuid
 import yaml
 
@@ -1025,7 +1025,7 @@ class TaskRuntime:
         *,
         work_item: Mapping[str, Any],
     ) -> None:
-        """Require one exact signed candidate acceptance before projection."""
+        """Require one exact manual or governed automatic candidate acceptance."""
 
         if work_item.get("requires_user_acceptance") is not True:
             return
@@ -1035,7 +1035,44 @@ class TaskRuntime:
             if isinstance(record, Mapping)
             and record.get("record_type") == "narrative_user_acceptance"
         ]
-        if len(records) != 1:
+        auto_records = [
+            record
+            for record in (projection.get("trace_records") or {}).values()
+            if isinstance(record, Mapping)
+            and record.get("record_type") == "narrative_auto_acceptance"
+            and (record.get("record_data") or {}).get("work_item_id")
+            == work_item.get("work_item_id")
+        ]
+        if not records and auto_records:
+            from agent_runtime.narrative.auto_acceptance import (
+                validate_detached_candidate_acceptance,
+            )
+
+            valid_auto_records = []
+            for record in auto_records:
+                try:
+                    validation = validate_detached_candidate_acceptance(
+                        self.agentlab_root,
+                        project=self.project,
+                        task_id=str(projection["task"]["task_id"]),
+                        work_item_id=str(work_item["work_item_id"]),
+                        data=record.get("record_data") or {},
+                        task_projection=projection,
+                    )
+                except (OSError, ValueError, RuntimeError):
+                    continue
+                if validation.get("status") == "accepted":
+                    valid_auto_records.append(record)
+            if len(valid_auto_records) == 1:
+                return
+            if not valid_auto_records:
+                raise InvalidTransition(
+                    "narrative automatic acceptance record is stale or invalid"
+                )
+            raise InvalidTransition(
+                "multiple valid narrative automatic acceptance records are ambiguous"
+            )
+        if len(records) != 1 or auto_records:
             raise InvalidTransition(
                 "work item requires one signed narrative user acceptance record"
             )
