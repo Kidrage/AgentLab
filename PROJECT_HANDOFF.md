@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-31T13:41:30.648319+00:00`
+- Generated at: `2026-07-31T15:05:00+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `de5bddf3`
+- HEAD: `b0de95b6`
 - Indexed paths: 2066
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -255,7 +255,7 @@
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/agentlab/unified-stable [ahead 5]`
+- `## agentlab/unified-stable...origin/agentlab/unified-stable [ahead 8]`
 - `?? config/change_request.yml`
 
 ## Related Repositories
@@ -338,6 +338,33 @@
 ## Agent Notes
 
 <!-- AGENT_NOTES_START -->
+# 2026-07-31 cloud-250 Relay memory delivery
+
+- Scope remained bounded to `/home/admin/AgentLab` on cloud endpoint 250, plus
+  required receipts/recovery artifacts in the Codex Truenas namespace. The
+  user-owned untracked `config/change_request.yml` was preserved.
+- `d81e12d` adds governed project-memory Relay sync with stable source snapshots,
+  remote per-file locks, versioned 10-slot history, atomic SHA-256 receipts,
+  read-only dry runs, fair/rate-limited watching, and durable task events.
+  `b0de95b` fixes Linux outbound rsync updates (`<f`) being mislabeled unchanged.
+- Endpoint-local `backup_policy.local.yml` now targets the nested canonical
+  `/mnt/hdd2/AgentLab_WorkSpace/AgentLab` path and enables endpoint `cloud_250`.
+  TrueNAS status passed with SSH connectivity and a writable probe.
+- Initial executed reconciliation completed with `status: synced`, 17 governed
+  files, 0 problems, and a verified remote SHA-256 for every file across active
+  `AgentLab` and `Crown_of_Ash` project memories.
+- Validation: 250 focused test `14 passed`; isolated implementation tests
+  `36 passed`; full suite `3573 passed, 21 skipped, 2 pre-existing acceptance
+  hygiene failures`. Both failures are the pre-existing canonical evidence hash
+  mismatch for `config/worker_invocation_contracts.yml`, not this change.
+- Recovery artifacts are under
+  `agents/codex/artifacts/relay_memory_sync_250/` on Truenas; the base bundle and
+  follow-up reporting patch were checksum-verified before handoff.
+- Remaining external blockers: installing the 250 proxy requires explicit
+  authorization to transfer the local Clash profile containing node credentials;
+  Hermes Alter's `xai-oauth` credential reports device-code exhaustion. The
+  system OpenClaw package remains malformed outside the permitted workspace.
+
 # Current authority (supersedes the historical chronology below)
 
 - The only retained project roots and RAG project namespaces are `AgentLab` and
