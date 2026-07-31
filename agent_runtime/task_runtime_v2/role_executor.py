@@ -466,9 +466,11 @@ class RoleAttemptExecutor:
         )
         requested = str(model_profile or "").strip().lower()
         tier = str(tier_policy.get("default_tier") or "performance")
+        professional: Mapping[str, Any] | None = None
         if requested:
-            professional = professional_profiles.get(requested)
-            if isinstance(professional, dict):
+            selected_professional = professional_profiles.get(requested)
+            if isinstance(selected_professional, dict):
+                professional = selected_professional
                 if professional.get("execution_kind") != "cli_agent":
                     raise InvalidTransition(
                         "Project Agent profile is not a CLI execution profile"
@@ -512,6 +514,42 @@ class RoleAttemptExecutor:
         if not isinstance(profile, dict) or profile.get("executor_type") != "cli_agent":
             raise InvalidTransition(f"no {tier} CLI profile for role {role!r}")
         profile = dict(profile)
+        if professional is not None:
+            strict_route = str(professional.get("capacity_route") or "").strip()
+            if not strict_route:
+                raise InvalidTransition(
+                    "professional CLI profile requires an explicit capacity route"
+                )
+            capacity = yaml.safe_load(
+                (self.root / "config" / "model_capacity.yml").read_text(
+                    encoding="utf-8"
+                )
+            ) or {}
+            route = (capacity.get("routes") or {}).get(strict_route)
+            expected = {
+                "role": normalize_role_key(role),
+                "worker": str(profile.get("cli_agent") or ""),
+                "invocation_contract": str(
+                    profile.get("invocation_contract") or ""
+                ),
+                "model_key": str(profile.get("default") or ""),
+            }
+            if not isinstance(route, Mapping) or any(
+                str(route.get(field) or "") != value
+                for field, value in expected.items()
+            ):
+                raise InvalidTransition(
+                    "professional capacity route does not match its execution profile"
+                )
+            if (
+                not str(route.get("pool") or "").strip()
+                or route.get("approved_fallbacks") not in (None, [])
+                or route.get("fallback_on") not in (None, [])
+            ):
+                raise InvalidTransition(
+                    "professional capacity route must be explicit and fallback-free"
+                )
+            profile["capacity_route"] = strict_route
         model_values = _model_invocation_values(profile, self.root)
         provider = str(model_values.get("provider") or "")
         if not provider:

@@ -4561,6 +4561,53 @@ def truenas_sync_cmd(
     raise typer.Exit(code=1 if report["status"] in ("failed", "partial") else 0)
 
 
+@app.command("relay-memory-sync")
+def relay_memory_sync_cmd(
+    execute: bool = typer.Option(False, help="Execute sync; default is a dry-run preview."),
+    watch: bool = typer.Option(False, help="Keep watching agent_docs for changes."),
+    interval_seconds: Optional[int] = typer.Option(None, min=2, help="Watcher polling interval."),
+    project: Optional[str] = typer.Option(None, help="Project owning the watcher task event."),
+    task_id: Optional[str] = typer.Option(None, help="Task id owning the watcher task event."),
+    json_output: bool = typer.Option(False, help="Output JSON for one-shot sync."),
+) -> None:
+    """Sync bounded project memory to Relay with backups and checksum verification."""
+    agentlab_root = resolve_agentlab_root(_PROJECT_ROOT)
+    from project_memory_relay import sync_all_project_memories, watch_project_memories
+
+    if watch:
+        if not execute:
+            console.print("[red]--watch requires --execute[/red]")
+            raise typer.Exit(code=2)
+        if not project or not task_id:
+            console.print("[red]--watch requires --project and --task-id for its durable task event[/red]")
+            raise typer.Exit(code=2)
+        ensure_safe_task_id(task_id)
+        agentlab_root, project_name = runtime_context(project)
+        event_run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+        try:
+            watch_project_memories(
+                agentlab_root,
+                interval_seconds=interval_seconds,
+                event_run_dir=event_run_dir,
+            )
+        except RuntimeError as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            raise typer.Exit(code=2) from exc
+        except KeyboardInterrupt:
+            console.print("[yellow]Relay project-memory watcher stopped.[/yellow]")
+        return
+
+    report = sync_all_project_memories(agentlab_root, execute=execute)
+    if json_output:
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        color = "green" if report["status"] in {"synced", "dry_run_completed"} else "yellow"
+        console.print(f"[bold]Relay Memory Sync:[/bold] [{color}]{report['status']}[/{color}]")
+        console.print(f"  Files: {report['file_count']}")
+        console.print(f"  Problems: {report['problem_count']}")
+    raise typer.Exit(code=1 if report["status"] in {"disabled", "failed", "partial"} else 0)
+
+
 @app.command("backup-status")
 def backup_status_cmd(
     project: Optional[str] = typer.Option(None, help="Project name."),

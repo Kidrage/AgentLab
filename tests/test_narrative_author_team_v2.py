@@ -84,6 +84,12 @@ def test_professional_team_uses_the_governed_alter_tier() -> None:
         assert route["cli_agent"] == worker
         capacity_route = capacity["routes"][route["capacity_route"]]
         assert capacity_route["worker"] == worker
+    for profile in professional.values():
+        if profile["execution_kind"] != "cli_agent":
+            continue
+        strict_route = capacity["routes"][profile["capacity_route"]]
+        assert strict_route["approved_fallbacks"] == []
+        assert strict_route["fallback_on"] == []
 
 
 def test_author_team_contract_declares_every_professional_role() -> None:

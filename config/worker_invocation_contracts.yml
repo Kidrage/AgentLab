@@ -605,7 +605,9 @@ contracts:
       - prompt
     safe_probe:
       - openclaw
-      - --help
+      - agents
+      - list
+      - --json
     expected_parse:
       argv_prefix:
         - openclaw

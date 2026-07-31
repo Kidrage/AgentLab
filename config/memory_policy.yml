@@ -10,7 +10,7 @@ storage:
   operator_memory: agent_docs
   task_evidence: runs/task_xxxx
   derived_knowledge_index: .agentlab_runtime/knowledge
-  server_sync: optional_future_phase
+  server_sync: opt_in_versioned_ssh_relay
   github_private_backup: planned_local_first_manual_sync
   workspace_harness_map: AGENTS.md
 

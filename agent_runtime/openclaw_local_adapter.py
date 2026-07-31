@@ -50,6 +50,11 @@ def load_openclaw_local_policy(agentlab_root: Path | None = None) -> dict[str, A
     policy = safe_read_yaml(root / "config" / "openclaw_local_adapter.yml", default={}) or {}
     policy.setdefault("enabled", False)
     policy.setdefault("mode", "local")
+    policy.setdefault("frontdesk", {})
+    policy["frontdesk"].setdefault("agent_id", "openclaw")
+    policy["frontdesk"].setdefault("provider", "deepseek")
+    policy["frontdesk"].setdefault("model_key", "deepseek_v4_flash")
+    policy["frontdesk"].setdefault("model_id", "deepseek-v4-flash")
     policy.setdefault("agentlab_invocation", {})
     policy["agentlab_invocation"].setdefault("preferred", "cli")
     policy["agentlab_invocation"].setdefault("cli_path", "./agentlab.sh")

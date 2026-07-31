@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Mapping
+import hashlib
 import re
 
 import yaml
@@ -88,19 +89,23 @@ def compile_frontdesk_intent(
         if isinstance(policy, Mapping)
         else load_frontdesk_intent_policy()
     )
-    normalized = " ".join(str(request).strip().casefold().split())
+    raw_request = str(request)
+    normalized = " ".join(raw_request.strip().casefold().split())
     if not normalized:
         raise ValueError("frontdesk request must not be empty")
+    action_text = normalized
+    for pattern in selected_policy.get("negated_action_patterns") or []:
+        action_text = re.sub(str(pattern), " ", action_text)
     has_mutation = _contains(
-        normalized,
+        action_text,
         _vocabulary(selected_policy, "mutation"),
     )
     has_external = _contains(
-        normalized,
+        action_text,
         _vocabulary(selected_policy, "external"),
     )
     has_destructive = _contains(
-        normalized,
+        action_text,
         _vocabulary(selected_policy, "destructive"),
     )
     has_audit = _contains(
@@ -130,6 +135,8 @@ def compile_frontdesk_intent(
     evidence: list[str] = [
         "config:frontdesk_policy.yml#intent_compiler_v2"
     ]
+    if action_text != normalized:
+        evidence.append("rule:negated_action_mask")
     approvals: list[str] = []
     capabilities: list[str] = []
     if status_only:
@@ -225,6 +232,8 @@ def compile_frontdesk_intent(
     )
     return {
         "schema_version": "frontdesk-intent/v2",
+        "request_sha256": hashlib.sha256(raw_request.encode("utf-8")).hexdigest(),
+        "normalized_request": normalized,
         "intent": intent,
         "project": project,
         "task_scope": task_scope,

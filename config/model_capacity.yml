@@ -248,6 +248,38 @@ pools:
         confidence: unknown
 
 routes:
+  ProfessionalSupervisorStrict:
+    role: supervisor
+    worker: hermes
+    invocation_contract: hermes_alter_high
+    model_key: grok_4_5_hermes_oauth
+    pool: xai_subscription_shared
+    approved_fallbacks: []
+    fallback_on: []
+  ProfessionalResearcherStrict:
+    role: researcher
+    worker: hermes
+    invocation_contract: hermes_alter_high
+    model_key: grok_4_5_hermes_oauth
+    pool: xai_subscription_shared
+    approved_fallbacks: []
+    fallback_on: []
+  ProfessionalNarrativePlannerStrict:
+    role: narrative_planner
+    worker: agy
+    invocation_contract: agy_narrative_planner
+    model_key: gemini_3_6_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    approved_fallbacks: []
+    fallback_on: []
+  ProfessionalReviewerStrict:
+    role: reviewer
+    worker: agy
+    invocation_contract: agy_reviewer
+    model_key: gemini_3_6_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    approved_fallbacks: []
+    fallback_on: []
   Supervisor:
     role: supervisor
     worker: codex

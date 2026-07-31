@@ -4,8 +4,10 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 import yaml
 
+import agent_runtime.protocols.enforcement as enforcement_module
 from agent_runtime.protocols import (
     build_frontdesk_context,
+    build_frontdesk_session,
     build_role_session,
     build_workspace_entry,
     check_role_binding,
@@ -85,7 +87,11 @@ def test_frontdesk_doctor_accepts_agy_frontdesk_contract():
     assert any(c["id"] == "frontdesk_not_task_packet_worker" for c in result["checks"])
 
 
-def test_openclaw_is_default_frontdesk_and_codex_is_external_worker():
+@patch(
+    "agent_runtime.protocols.enforcement._probe_frontdesk_runtime",
+    return_value=(True, "OpenClaw runtime probe passed"),
+)
+def test_openclaw_is_default_frontdesk_and_codex_is_external_worker(_probe):
     context = build_frontdesk_context(ROOT, "openclaw", project="AgentLab")
     openclaw_doctor = run_frontdesk_doctor(ROOT, "openclaw")
     hermes_doctor = run_frontdesk_doctor(ROOT, "hermes")
@@ -101,6 +107,65 @@ def test_openclaw_is_default_frontdesk_and_codex_is_external_worker():
     assert openclaw_doctor["status"] == "pass"
     assert hermes_doctor["status"] == "pass"
     assert codex_doctor["status"] == "fail"
+
+
+@patch(
+    "agent_runtime.protocols.enforcement._probe_frontdesk_runtime",
+    return_value=(False, "Invalid regular expression: missing /"),
+)
+def test_openclaw_doctor_fails_when_runtime_cannot_start(_probe):
+    result = run_frontdesk_doctor(ROOT, "openclaw")
+    by_id = {check["id"]: check for check in result["checks"]}
+
+    assert result["status"] == "fail"
+    assert by_id["frontdesk_runtime_usable"]["status"] == "fail"
+    assert "Invalid regular expression" in by_id["frontdesk_runtime_usable"]["message"]
+
+
+@patch("agent_runtime.protocols.enforcement.subprocess.run")
+def test_openclaw_runtime_probe_reports_specific_startup_reason(run):
+    run.return_value.returncode = 1
+    run.return_value.stdout = ""
+    run.return_value.stderr = (
+        "[openclaw] Could not start the CLI.\n"
+        "[openclaw] Reason: Invalid regular expression: missing /\n"
+    )
+
+    ok, detail = enforcement_module._probe_frontdesk_runtime(
+        ROOT,
+        {"safe_probe": ["openclaw", "agents", "list", "--json"]},
+    )
+
+    assert ok is False
+    assert "Reason: Invalid regular expression: missing /" in detail
+    run.assert_called_once_with(
+        ["openclaw", "agents", "list", "--json"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def test_openclaw_session_has_attention_search_and_report_guardrails() -> None:
+    context = build_frontdesk_context(ROOT, "openclaw", project="AgentLab")
+    session = build_frontdesk_session(ROOT, "openclaw", project="AgentLab")
+
+    assert context["backend"] == {
+        "provider": "deepseek",
+        "model_key": "deepseek_v4_flash",
+        "model_id": "deepseek-v4-flash",
+    }
+    assert context["turn_contract"]["phases"] == [
+        "INTAKE", "CLARIFY", "ROUTE", "MONITOR", "REPORT"
+    ]
+    assert "ROLE LOCK" in session
+    assert "preserve the user's request verbatim" in session
+    assert "frontdesk search" in session
+    assert "frontdesk report" in session
+    assert "No evidence means UNKNOWN" in session
+    assert session.count("OPENCLAW FRONTDESK ONLY") >= 2
 
 
 def test_role_binding_rejects_agy_as_coder_and_allows_codex():

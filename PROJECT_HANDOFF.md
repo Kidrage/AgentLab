@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-de62d90289e0`
+- Repository ID: `AgentLab-88711770bd8f`
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-28T16:54:38.903696+00:00`
+- Generated at: `2026-07-31T15:05:00+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `c9fdf35`
-- Indexed paths: 2023
+- HEAD: `b0de95b6`
+- Indexed paths: 2066
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,26 +43,26 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 618 |
-| `tests` | 474 |
+| `agent_runtime` | 642 |
+| `tests` | 491 |
 | `docs` | 347 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
-| `config` | 126 |
+| `config` | 130 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 61 |
+| `agent_runtime/narrative` | 73 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 44 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
 | `docs/narrative` | 32 |
-| `scripts` | 24 |
+| `scripts` | 25 |
+| `agent_runtime/cli` | 22 |
 | `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
-| `agent_runtime/cli` | 19 |
 | `agent_runtime/executors` | 19 |
 | `.` | 18 |
 | `acceptance_runs/narrative_eval` | 18 |
@@ -88,25 +88,27 @@
 
 ### Categories
 
-- code: 1035 files, 10102439 bytes
-- literature: 424 files, 2421332 bytes
-- other: 12 files, 74102 bytes
-- structured_data: 552 files, 3275768 bytes
+- code: 1077 files, 10811269 bytes
+- literature: 423 files, 2421592 bytes
+- other: 15 files, 75183 bytes
+- structured_data: 551 files, 3219969 bytes
 
 ### Common Extensions
 
-- `.py`: 1021
-- `.yml`: 518
+- `.py`: 1062
+- `.yml`: 519
 - `.md`: 384
-- `.txt`: 40
-- `.json`: 29
-- `.sh`: 9
+- `.txt`: 39
+- `.json`: 27
+- `.sh`: 10
 - `[no extension]`: 5
 - `.js`: 5
 - `.csv`: 3
+- `.service`: 2
 - `.html`: 2
 - `.css`: 2
 - `.diff`: 1
+- `.timer`: 1
 - `.ini`: 1
 - `.jsonl`: 1
 - `.log`: 1
@@ -230,40 +232,38 @@
 
 ## Change History
 
-- `c9fdf35 2026-07-29 test: align full-cli worker identities`
-- `8277b01 2026-07-29 fix: block retired agent modes before provider dispatch`
-- `15d833b 2026-07-29 config: retire non-full-cli agent modes`
-- `22eb2a4 2026-07-28 fix: forbid hermes internal fallback drift`
-- `b9c43b4 2026-07-28 fix: bind alter hermes profile and artifact worker`
-- `ea11160 2026-07-28 config: route alter grok roles through hermes`
-- `604b42c 2026-07-25 [codex] fix: suppress no-op sync receipts`
-- `57efca0 2026-07-25 [codex] fix: keep RAG rebuilds project-neutral`
-- `7fb95a3 2026-07-25 [codex] fix: bound cloud sync connections`
-- `8045ea9 2026-07-25 [codex] fix: accept loaded launch agent`
-- `7cfed4e 2026-07-25 [codex] docs: record cloud migration handoff`
-- `3de363b 2026-07-25 [codex] fix: serialize and validate cloud sync`
-- `61917ca 2026-07-25 [codex] fix: harden cloud workspace synchronization`
-- `ee74f1a 2026-07-25 [codex] feat: synchronize local and cloud workspaces`
-- `9643f91 2026-07-25 [codex] feat: add default alter model tier`
-- `55b7daa 2026-07-25 docs: bind convergence evidence to delivery commit`
-- `e033341 2026-07-25 feat: converge model governance and canonical project knowledge`
-- `b615e45 2026-07-25 feat: harden project agents and canonical narrative truth`
-- `79390b3 2026-07-24 feat: converge project governance and runtime evidence`
-- `90916a0 2026-07-24 fix(task-runtime): make task list v2-only by default`
+- `de5bddf3 2026-07-31 fix(frontdesk): report OpenClaw startup reason`
+- `01d85852 2026-07-31 fix(frontdesk): probe OpenClaw runtime health`
+- `8e570416 2026-07-31 fix(frontdesk): honor negated mutation requests`
+- `27dcff42 2026-07-31 fix(frontdesk): ground OpenClaw routing and reports`
+- `a1430e41 2026-07-31 test: define openclaw frontdesk grounding contract`
+- `1105bbcc 2026-07-29 feat(narrative): close signed release governance loop`
+- `3e5f5a4b 2026-07-29 feat(narrative): add evidence-bound P0-P5 release gate`
+- `3cb73e6c 2026-07-29 feat(narrative): govern authorial audit revision contracts`
+- `20153777 2026-07-29 feat(narrative): compile rights-bound role context packs`
+- `5585fb72 2026-07-29 feat(narrative): govern professional author team registration`
+- `f1f01e14 2026-07-29 fix(governance): enforce supply chain state boundaries`
+- `7f5272e4 2026-07-29 fix(cli): honor runtime root in blueprint validation`
+- `1a44c170 2026-07-29 test(capabilities): avoid local path audit false positive`
+- `715bc5e2 2026-07-29 feat(capabilities): schedule private radar evidence`
+- `bb955801 2026-07-29 feat(frontdesk): add durable local service`
+- `1df7e4c7 2026-07-29 feat(narrative): learn reversible authorial preferences`
+- `26e2d613 2026-07-29 feat(narrative): project long-term story state`
+- `21b86a94 2026-07-29 feat(narrative): add professional author team contracts`
+- `e47e1139 2026-07-29 feat(capabilities): govern promotion and rollback`
+- `f027363f 2026-07-29 feat(frontdesk): add intent v2 route tiers`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 20]`
-- `?? tmp_debug/`
+- `## agentlab/unified-stable...origin/agentlab/unified-stable [ahead 8]`
+- `?? config/change_request.yml`
 
 ## Related Repositories
 
 ### Remotes
 
-- `250 ssh://10.147.17.250/home/admin/AgentLab (fetch)`
-- `250 ssh://10.147.17.250/home/admin/AgentLab (push)`
-- `origin github.com:Kidrage/AgentLab.git (fetch)`
-- `origin github.com:Kidrage/AgentLab.git (push)`
+- `origin https://github.com/Kidrage/AgentLab.git (fetch)`
+- `origin https://github.com/Kidrage/AgentLab.git (push)`
 
 ### Submodules
 
@@ -338,6 +338,36 @@
 ## Agent Notes
 
 <!-- AGENT_NOTES_START -->
+# 2026-07-31 cloud-250 Relay memory delivery
+
+- Scope remained bounded to `/home/admin/AgentLab` on cloud endpoint 250, plus
+  required receipts/recovery artifacts in the Codex Truenas namespace. The
+  user-owned untracked `config/change_request.yml` was preserved.
+- `d81e12d` adds governed project-memory Relay sync with stable source snapshots,
+  remote per-file locks, versioned 10-slot history, atomic SHA-256 receipts,
+  read-only dry runs, fair/rate-limited watching, and durable task events.
+  `b0de95b` fixes Linux outbound rsync updates (`<f`) being mislabeled unchanged.
+- Endpoint-local `backup_policy.local.yml` now targets the nested canonical
+  `/mnt/hdd2/AgentLab_WorkSpace/AgentLab` path and enables endpoint `cloud_250`.
+  TrueNAS status passed with SSH connectivity and a writable probe.
+- Initial executed reconciliation completed with `status: synced`, 17 governed
+  files, 0 problems, and a verified remote SHA-256 for every file across active
+  `AgentLab` and `Crown_of_Ash` project memories.
+- Continuous watcher started under PID `238140`, bound to task event
+  `AgentLab/task_0035`; its verified heartbeat reports `status: watching`,
+  17 watched files, 0 pending paths, and a 60-second policy interval.
+- Validation: 250 focused test `14 passed`; isolated implementation tests
+  `36 passed`; full suite `3573 passed, 21 skipped, 2 pre-existing acceptance
+  hygiene failures`. Both failures are the pre-existing canonical evidence hash
+  mismatch for `config/worker_invocation_contracts.yml`, not this change.
+- Recovery artifacts are under
+  `agents/codex/artifacts/relay_memory_sync_250/` on Truenas; the base bundle and
+  follow-up reporting patch were checksum-verified before handoff.
+- Remaining external blockers: installing the 250 proxy requires explicit
+  authorization to transfer the local Clash profile containing node credentials;
+  Hermes Alter's `xai-oauth` credential reports device-code exhaustion. The
+  system OpenClaw package remains malformed outside the permitted workspace.
+
 # Current authority (supersedes the historical chronology below)
 
 - The only retained project roots and RAG project namespaces are `AgentLab` and

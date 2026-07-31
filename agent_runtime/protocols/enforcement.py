@@ -357,6 +357,7 @@ def build_frontdesk_context(
     bindings = _load_policy(root, "agent_role_bindings.yml")
     worker_cfg = ((bindings.get("workers") or {}).get(agent_id) or {})
     default_frontdesk = frontdesk_policy.get("default_frontdesk") or {}
+    frontdesk_cfg = ((frontdesk_policy.get("frontdesk_agents") or {}).get(agent_id) or {})
     entry = build_workspace_entry(root, agent_id, project=project, task_id=task_id)
     content_policy = _load_policy(root, "content_project_governance.yml")
     return {
@@ -368,6 +369,12 @@ def build_frontdesk_context(
         "frontdesk_profile": (worker_cfg.get("frontdesk_profiles") or ["unbound"])[0],
         "default_frontdesk": default_frontdesk,
         "is_default_frontdesk": agent_id == default_frontdesk.get("agent_id"),
+        "backend": {
+            key: frontdesk_cfg.get(key)
+            for key in ("provider", "model_key", "model_id")
+            if frontdesk_cfg.get(key)
+        },
+        "turn_contract": frontdesk_policy.get("turn_contract") or {},
         "execution_paths": frontdesk_policy.get("execution_paths") or {},
         "role": "AgentLab Frontdesk / Chat Assistant Layer",
         "meaning": "Talk with the user, translate intent into AgentLab operations, and report grounded state.",
@@ -394,6 +401,9 @@ def build_frontdesk_context(
             "prepare": "./agentlab.sh prepare --project <Project> --task-id <task_id> --write-plan",
             "run_pipeline_dry": "./agentlab.sh run-pipeline --project <Project> --task-id <task_id> --dry-run",
             "frontdesk_doctor": f"./agentlab.sh frontdesk-doctor --agent {agent_id}",
+            "frontdesk_route": f"./agentlab.sh frontdesk route --adapter {agent_id} --request <verbatim-user-request> --explain",
+            "frontdesk_search": "./agentlab.sh frontdesk search --query <literal> [--path <tracked-scope>]",
+            "frontdesk_report": "./agentlab.sh frontdesk report --project <Project> --task-id <task_id>",
             "role_session": "./agentlab.sh role-session --role <Role> --worker <worker> --project <Project> --task-id <task_id>",
         },
     }
@@ -407,16 +417,42 @@ def build_frontdesk_session(
     task_id: str | None = None,
 ) -> str:
     context = build_frontdesk_context(root, agent_id, project=project, task_id=task_id)
+    anchor = "OPENCLAW FRONTDESK ONLY" if agent_id == "openclaw" else f"{agent_id.upper()} FRONTDESK ONLY"
+    compact_context = {
+        key: context[key]
+        for key in (
+            "packet_type",
+            "schema_version",
+            "agent_id",
+            "is_default_frontdesk",
+            "backend",
+            "role",
+            "turn_contract",
+            "allowed_actions",
+            "forbidden_actions",
+            "active_project_state_sources",
+            "write_gate",
+            "canonical_commands",
+        )
+    }
     return "\n".join([
         "# AgentLab Frontdesk Session",
         "",
-        "You are the AgentLab Frontdesk / Chat Assistant Layer.",
-        "Use only this packet plus AgentLab CLI/artifacts for state. Do not rediscover the repository.",
-        "Do not implement tasks or edit target files. Generate handoffs and invoke registered AgentLab contracts only.",
+        f"## ROLE LOCK — {anchor}",
+        "You are the user-facing intake, routing, monitoring, and grounded-report layer. You are never a task worker.",
+        "At the start of every turn, preserve the user's request verbatim before interpretation and choose exactly one phase: INTAKE, CLARIFY, ROUTE, MONITOR, or REPORT.",
+        f"Run `./agentlab.sh frontdesk route --adapter {agent_id} --request <verbatim-user-request> --explain` before routing. Never route from a paraphrase.",
+        "Use `./agentlab.sh frontdesk search --query <literal> [--path <tracked-scope>]` for repository facts. Never invent a path, line, match, or hash.",
+        "Use `./agentlab.sh frontdesk report --project <Project> --task-id <task_id>` before reporting task completion or verification.",
+        "No evidence means UNKNOWN. A worker statement is not verified until AgentLab artifacts provide path-and-hash evidence.",
+        "Do not implement, edit task targets, select an unregistered worker, silently fallback, or claim delegated work as your own.",
+        "Reply with: Phase; Intent/decision; Evidence paths and hashes; Next AgentLab action; Unknowns; Boundary check.",
         "",
-        "```yaml",
-        yaml.safe_dump(context, sort_keys=False, allow_unicode=True).rstrip(),
+        "```yaml session-context",
+        yaml.safe_dump(compact_context, sort_keys=False, allow_unicode=True).rstrip(),
         "```",
+        "",
+        f"## END ROLE LOCK — {anchor}",
     ])
 
 
@@ -521,6 +557,30 @@ def _check(status: bool, check_id: str, message: str, severity: str = "fail") ->
     return ProtocolCheck(check_id, "pass" if status else "fail", severity, message)
 
 
+def _probe_frontdesk_runtime(root: Path, contract: dict[str, Any]) -> tuple[bool, str]:
+    probe = contract.get("safe_probe") or []
+    if not isinstance(probe, list) or not probe or not all(isinstance(item, str) and item for item in probe):
+        return False, "frontdesk invocation contract has no valid safe_probe"
+    try:
+        result = subprocess.run(
+            probe,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, f"frontdesk command is unavailable: {probe[0]}"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"frontdesk runtime probe failed: {type(exc).__name__}"
+    if result.returncode == 0:
+        return True, "frontdesk runtime probe passed"
+    lines = [line.strip() for line in (result.stderr or result.stdout).splitlines() if line.strip()]
+    detail = next((line for line in lines if "Reason:" in line), lines[0] if lines else f"exit code {result.returncode}")
+    return False, f"frontdesk runtime probe failed: {detail[:240]}"
+
+
 def run_frontdesk_doctor(root: Path, agent_id: str) -> dict[str, Any]:
     root = Path(root)
     frontdesk = _load_policy(root, "frontdesk_policy.yml")
@@ -546,6 +606,16 @@ def run_frontdesk_doctor(root: Path, agent_id: str) -> dict[str, Any]:
             "frontdesk-only agents must not use task_packet_prompt invocation",
         ),
     ]
+    default_frontdesk = (frontdesk.get("default_frontdesk") or {}).get("agent_id")
+    if agent_id == default_frontdesk:
+        runtime_ok, runtime_detail = _probe_frontdesk_runtime(root, contract)
+        checks.append(
+            _check(
+                runtime_ok,
+                "frontdesk_runtime_usable",
+                runtime_detail,
+            )
+        )
     return _doctor_result("frontdesk_doctor", checks)
 
 

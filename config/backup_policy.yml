@@ -287,6 +287,19 @@ targets:
     protocol_url: ""
     mount_path: ""
 
+    # Opt-in per endpoint. This is the narrow, versioned-update exception to the
+    # general merge-only policy below: only governed project-memory records may
+    # replace an older Relay copy, while a newer Relay copy is preserved.
+    continuous_project_memory:
+      enabled: false
+      endpoint_id: endpoint
+      interval_seconds: 60
+      existing_remote: version_then_update_if_local_not_older
+      conflict_policy: preserve_remote_newer
+      remote_history: true
+      max_versions: 10
+      receipt_retention_hours: 24
+
     # Core behavior: push-only, merge (never overwrite, never delete)
     mode: silent_background_merge
 
