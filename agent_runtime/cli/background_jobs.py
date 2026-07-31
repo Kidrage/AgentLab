@@ -53,17 +53,14 @@ def register_background_job_commands(
             False,
             "--knowledge-contract-required/--knowledge-contract-optional",
         ),
-        allow_writer_cli_fallback: bool = typer.Option(
-            False,
-            "--allow-writer-cli-fallback/--no-writer-cli-fallback",
-        ),
-        writer_budget: str = typer.Option("frugal", "--writer-budget"),
+        writer_budget: str | None = typer.Option(None, "--writer-budget"),
         writer_capacity_route: str = typer.Option(
-            "Writer", "--writer-capacity-route"
+            ..., "--writer-capacity-route"
         ),
         writer_model_key: str = typer.Option(
-            "deepseek_v4_pro", "--writer-model-key"
+            ..., "--writer-model-key"
         ),
+        audit_budget: str | None = typer.Option(None, "--audit-budget"),
         transient_retry_seconds: int = typer.Option(
             900, "--transient-retry-seconds", min=1
         ),
@@ -97,10 +94,10 @@ def register_background_job_commands(
             chapter_state_plan=chapter_state_plan,
             parent_task_id=parent_task_id,
             knowledge_contract_required=knowledge_contract_required,
-            allow_writer_cli_fallback=allow_writer_cli_fallback,
             writer_budget=writer_budget,
             writer_capacity_route=writer_capacity_route,
             writer_model_key=writer_model_key,
+            audit_budget=audit_budget,
             transient_retry_seconds=transient_retry_seconds,
             risk_signals=risk_signal_data,
         )

@@ -23,6 +23,7 @@ from agent_runtime.task_runtime_v2 import (
 from agent_runtime.knowledge_system.sources import SourceCollector
 from agent_runtime.config_loader import load_agentlab_configs
 from agent_runtime.narrative.auto_acceptance import (
+    _contract_character_updates,
     auto_accept_and_project_candidate,
     project_detached_candidate_state,
     record_detached_candidate_acceptance,
@@ -41,6 +42,56 @@ from agent_runtime.project_truth import (
     ResourceChange,
 )
 from task_runtime_v2_support import execute_role_with_output
+
+
+def test_contract_character_updates_reject_unknown_duplicate_or_unsupported_state() -> None:
+    current = {
+        "char_kain": {
+            "current_state": {
+                "life": "alive",
+                "location_ref": "loc_gray_valley",
+                "role": "blacksmith_apprentice",
+            }
+        }
+    }
+
+    with pytest.raises(ValueError, match="unknown character"):
+        _contract_character_updates(
+            {
+                "state_projection": {
+                    "character_updates": [
+                        {"id": "char_unknown", "current_state": {"life": "alive"}}
+                    ]
+                }
+            },
+            current_characters=current,
+        )
+    with pytest.raises(ValueError, match="duplicate character"):
+        _contract_character_updates(
+            {
+                "state_projection": {
+                    "character_updates": [
+                        {"id": "char_kain", "current_state": {"life": "alive"}},
+                        {"id": "char_kain", "current_state": {"life": "alive"}},
+                    ]
+                }
+            },
+            current_characters=current,
+        )
+    with pytest.raises(ValueError, match="unsupported current_state field"):
+        _contract_character_updates(
+            {
+                "state_projection": {
+                    "character_updates": [
+                        {
+                            "id": "char_kain",
+                            "current_state": {"invented_axis": "unsafe"},
+                        }
+                    ]
+                }
+            },
+            current_characters=current,
+        )
 
 
 _GOVERNED_PROFILE = {
@@ -236,6 +287,18 @@ def test_detached_dual_review_auto_acceptance_releases_state_projector(
                             "after": "mark_awake",
                             "cause": "ash_mark_awakens",
                             "evidence_target": "first_resonance",
+                        },
+                        "state_projection": {
+                            "character_updates": [
+                                {
+                                    "id": "char_kain",
+                                    "current_state": {
+                                        "life": "alive",
+                                        "location_ref": "loc_gray_valley",
+                                        "role": "blacksmith_apprentice",
+                                    },
+                                }
+                            ]
                         },
                         "foreshadow_actions": [
                             {
@@ -505,7 +568,17 @@ def test_detached_dual_review_auto_acceptance_releases_state_projector(
                     ).hexdigest(),
                 }
             ],
-            "base_state": {},
+            "base_state": {
+                "characters": {
+                    "char_kain": {
+                        "current_state": {
+                            "life": "alive",
+                            "location_ref": "loc_gray_valley",
+                            "role": "blacksmith_apprentice",
+                        }
+                    }
+                }
+            },
         }
     )
     passing_senior_review = senior_review.read_bytes()
@@ -674,6 +747,11 @@ def test_detached_dual_review_auto_acceptance_releases_state_projector(
     assert authoritative["world_axes"]["chapter_001_story_state"][
         "after"
     ] == "mark_awake"
+    assert authoritative["characters"]["char_kain"]["current_state"] == {
+        "life": "alive",
+        "location_ref": "loc_gray_valley",
+        "role": "blacksmith_apprentice",
+    }
     final_projection = runtime.load_task("task-detached")
     assert final_projection["work_items"]["state-projector"]["status"] == "accepted"
     assert final_projection["attempts"][senior_attempt_id]["status"] == "succeeded"

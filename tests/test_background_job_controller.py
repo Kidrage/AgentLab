@@ -27,6 +27,29 @@ NOW = "2026-07-17T15:00:00+00:00"
 AUDIT_HASH = "candidate-hash-001"
 
 
+def _write_model_authority(root: Path) -> None:
+    config = root / "config"
+    config.mkdir(parents=True, exist_ok=True)
+    (config / "execution_policy.yml").write_text(
+        "budget_mode_policy:\n"
+        "  default_budget_mode: alter\n"
+        "  available_modes: [alter, frugal, balanced, max_quality]\n",
+        encoding="utf-8",
+    )
+    (config / "model_capacity.yml").write_text(
+        "routes:\n"
+        "  AlterWriterStrict:\n"
+        "    role: writer\n"
+        "    worker: agy\n"
+        "    invocation_contract: agy_writer\n"
+        "    model_key: gemini_3_6_flash_high_agy_oauth\n"
+        "    pool: agy_gemini_observer\n"
+        "    approved_fallbacks: []\n"
+        "    fallback_on: []\n",
+        encoding="utf-8",
+    )
+
+
 def test_create_job_rejects_ids_longer_than_revision_contract_limit(tmp_path: Path) -> None:
     (tmp_path / "projects" / "Crown_of_Ash").mkdir(parents=True)
 
@@ -43,23 +66,69 @@ def test_create_job_rejects_ids_longer_than_revision_contract_limit(tmp_path: Pa
         )
 
 
-def test_create_job_records_explicit_writer_fallback_policy(tmp_path: Path) -> None:
+def test_create_job_rejects_writer_cli_fallback(tmp_path: Path) -> None:
     (tmp_path / "projects" / "Crown_of_Ash").mkdir(parents=True)
+    _write_model_authority(tmp_path)
+
+    with pytest.raises(ValueError, match="forbids writer CLI fallback"):
+        create_crown_delivery_job(
+            tmp_path,
+            project="Crown_of_Ash",
+            job_id="job-with-writer-fallback",
+            eval_id="eval",
+            start_chapter=1,
+            end_chapter=10,
+            writer_worker="agy",
+            chapter_state_plan="plan.yml",
+            writer_capacity_route="AlterWriterStrict",
+            writer_model_key="gemini_3_6_flash_high_agy_oauth",
+            allow_writer_cli_fallback=True,
+        )
+
+
+def test_create_job_records_exact_writer_route_without_fallback(tmp_path: Path) -> None:
+    (tmp_path / "projects" / "Crown_of_Ash").mkdir(parents=True)
+    _write_model_authority(tmp_path)
 
     state = create_crown_delivery_job(
         tmp_path,
         project="Crown_of_Ash",
-        job_id="job-with-writer-fallback",
+        job_id="job-with-exact-writer-route",
         eval_id="eval",
         start_chapter=1,
         end_chapter=10,
         writer_worker="agy",
         chapter_state_plan="plan.yml",
-        allow_writer_cli_fallback=True,
+        writer_capacity_route="AlterWriterStrict",
+        writer_model_key="gemini_3_6_flash_high_agy_oauth",
+        allow_writer_cli_fallback=False,
     )
 
-    assert state["config"]["writer_worker"] == "agy"
-    assert state["config"]["allow_writer_cli_fallback"] is True
+    assert state["config"]["writer_capacity_route"] == "AlterWriterStrict"
+    assert state["config"]["writer_model_key"] == "gemini_3_6_flash_high_agy_oauth"
+    assert state["config"]["audit_budget"] == "alter"
+    assert state["config"]["allow_writer_cli_fallback"] is False
+
+
+def test_create_job_rejects_writer_binding_outside_capacity_authority(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "projects" / "Crown_of_Ash").mkdir(parents=True)
+    _write_model_authority(tmp_path)
+
+    with pytest.raises(ValueError, match="writer capacity binding mismatch"):
+        create_crown_delivery_job(
+            tmp_path,
+            project="Crown_of_Ash",
+            job_id="job-with-invalid-writer-route",
+            eval_id="eval",
+            start_chapter=1,
+            end_chapter=10,
+            writer_worker="hermes",
+            chapter_state_plan="plan.yml",
+            writer_capacity_route="AlterWriterStrict",
+            writer_model_key="grok_4_5_hermes_oauth",
+        )
 
 
 def _passing_quality_scorecard(start: int = 1, end: int = 10) -> dict:
@@ -143,6 +212,7 @@ def _create_job(
     max_retries_per_action: int = 3,
 ) -> dict:
     (root / "projects" / "Crown_of_Ash").mkdir(parents=True)
+    _write_model_authority(root)
     return create_crown_delivery_job(
         root,
         project="Crown_of_Ash",
@@ -152,8 +222,10 @@ def _create_job(
         end_chapter=end_chapter,
         batch_size=10,
         heavy_audit_cadence=heavy_audit_cadence,
-        writer_worker="claude_writer",
+        writer_worker="agy",
         chapter_state_plan="runs/shared/chapter_state_plan.yml",
+        writer_capacity_route="AlterWriterStrict",
+        writer_model_key="gemini_3_6_flash_high_agy_oauth",
         max_retries_per_action=max_retries_per_action,
         now=NOW,
     )

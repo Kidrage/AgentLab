@@ -203,7 +203,7 @@ current_evidence:
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: 11a9225728cb45517db91a6efe86dd8b2020b1d79502a53cfde3bf18bd2c3748
+  sha256: 2ec10b5f1314943cc1ad4a5f9fea52e9932ca0cdd7ddccf295974a51efee4e6e
 - path: config/model_catalog.yml
   class: active
   capability_ids:
@@ -234,7 +234,7 @@ current_evidence:
 current_evidence_count: 42
 historical_references: []
 historical_reference_count: 0
-aggregate_digest: 43ca575baf1a6fde2155612eeb05766a5755890383be12a7e87818450fd4080b
+aggregate_digest: a1f32b45035b2b9e671dadfcd5fb8bb59732f0e5274e5146fe404b8fb65aadf4
 status: pass
 issues: []
 notes:

@@ -33,7 +33,9 @@ def _request(root: Path, action: str, *, end_chapter: int = 2) -> dict:
             "end_chapter": end_chapter,
             "batch_size": 10,
             "heavy_audit_cadence": 10,
-            "writer_worker": "writer-worker",
+            "writer_worker": "agy",
+            "writer_capacity_route": "AlterWriterStrict",
+            "writer_model_key": "gemini_3_6_flash_high_agy_oauth",
             "chapter_state_plan": "runs/shared/chapter_state_plan.yml",
             "writer_budget": "frugal",
             "allow_writer_cli_fallback": False,
@@ -50,6 +52,26 @@ def _project(root: Path) -> Path:
     (project / "production/manuscript/.gitkeep").write_text("")
     (project / "runs/shared").mkdir(parents=True)
     (project / "runs/shared/chapter_state_plan.yml").write_text("status: candidate\n")
+    config = root / "config"
+    config.mkdir(parents=True, exist_ok=True)
+    (config / "execution_policy.yml").write_text(
+        "budget_mode_policy:\n"
+        "  default_budget_mode: alter\n"
+        "  available_modes: [alter, frugal, balanced, max_quality]\n",
+        encoding="utf-8",
+    )
+    (config / "model_capacity.yml").write_text(
+        "routes:\n"
+        "  AlterWriterStrict:\n"
+        "    role: writer\n"
+        "    worker: agy\n"
+        "    invocation_contract: agy_writer\n"
+        "    model_key: gemini_3_6_flash_high_agy_oauth\n"
+        "    pool: agy_gemini_observer\n"
+        "    approved_fallbacks: []\n"
+        "    fallback_on: []\n",
+        encoding="utf-8",
+    )
     return project
 
 
@@ -132,7 +154,6 @@ def test_final_acceptance_builds_candidate_package_not_production(tmp_path: Path
 def test_generation_forwards_writer_budget_to_narrative_runtime(tmp_path: Path) -> None:
     _project(tmp_path)
     request = _request(tmp_path, "generate_batch")
-    request["config"]["allow_writer_cli_fallback"] = True
     observed: dict = {}
 
     def fake_run(root, project, **kwargs):
@@ -156,7 +177,7 @@ def test_generation_forwards_writer_budget_to_narrative_runtime(tmp_path: Path) 
 
     assert result["outcome"] == "success"
     assert observed["writer_budget_mode"] == "frugal"
-    assert observed["allow_writer_cli_fallback"] is True
+    assert observed["allow_writer_cli_fallback"] is False
 
 
 def test_generation_network_failure_returns_durable_retry_wait(tmp_path: Path) -> None:
@@ -259,6 +280,7 @@ def test_heavy_audit_result_persists_source_manifest_binding(tmp_path: Path) -> 
     decision.to_dict.return_value = {"status": "pass", "allow_seal": True}
 
     def successful_pipeline(_root, *, project, task_id, budget_mode):
+        assert budget_mode == "alter"
         run_dir = tmp_path / "projects" / project / "runs" / task_id
         run_dir.mkdir(parents=True)
         for name in (
@@ -308,8 +330,10 @@ def test_worker_always_writes_failure_receipt_for_exception(tmp_path: Path) -> N
         eval_id="eval-v1",
         start_chapter=1,
         end_chapter=2,
-        writer_worker="writer-worker",
+        writer_worker="agy",
         chapter_state_plan="runs/shared/chapter_state_plan.yml",
+        writer_capacity_route="AlterWriterStrict",
+        writer_model_key="gemini_3_6_flash_high_agy_oauth",
     )
     attempt = schedule_next_attempt(
         tmp_path, project="Crown_of_Ash", job_id="job-1"
