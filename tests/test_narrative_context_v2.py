@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
 
@@ -24,9 +25,14 @@ from agent_runtime.narrative.production.live_revision import (
 from agent_runtime.narrative.role_context import compile_role_context_pack
 from agent_runtime.narrative.outbound_transfer import (
     build_narrative_outbound_transfer_contract,
+    evaluate_narrative_auto_approval,
 )
 from agent_runtime.project_agents import ProjectAgentRegistry
-from agent_runtime.project_truth import ProjectTruthStore
+from agent_runtime.project_truth import (
+    ChangeSet,
+    ProjectTruthStore,
+    ResourceChange,
+)
 from agent_runtime.run_task import app
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -113,6 +119,8 @@ def _review_context_packs(
             "timeline",
             "character_knowledge",
         ],
+        "plot_causality_architect": ["causality_graph"],
+        "character_ensemble_director": ["character_minds"],
         "relationship_director": ["relationship_graph"],
         "reader_simulation_panel": ["reader_questions"],
     }
@@ -270,6 +278,123 @@ def test_narrative_external_transfer_requires_exact_expiring_approval(
     assert "approved_private_context_scope_sha256_mismatch" in changed_scope[
         "issues"
     ]
+
+
+def test_project_policy_auto_approves_only_scoped_native_grok_context(
+    tmp_path: Path,
+) -> None:
+    agentlab, project, _ = _context_project(tmp_path)
+    source = project / "production" / "canon.yml"
+    source.write_text("fact: true\n", encoding="utf-8")
+    policy_path = project / "production" / "outbound_context_policy.yml"
+    policy_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "narrative-outbound-auto-approval/v1",
+                "status": "active",
+                "project": PROJECT,
+                "authorization": {
+                    "mode": "policy_auto_approve",
+                    "user_authorized": True,
+                    "user_responsibility": "candidate_acceptance_only",
+                },
+                "constraints": {
+                    "allowed_recipients": [
+                        "cli_agent:grok;runtime_provider:grok-cli-oauth"
+                    ],
+                    "allowed_roles": ["Supervisor", "Writer"],
+                    "allowed_task_prefixes": ["task_"],
+                    "allowed_source_roots": ["production"],
+                    "max_source_files": 4,
+                    "max_total_bytes": 4096,
+                    "max_expiry_hours": 24,
+                    "candidate_only": True,
+                    "state_projection_requires_user_acceptance": True,
+                    "fallback_allowed": False,
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    policy_sha256 = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    truth = ProjectTruthStore(project)
+    pointer = truth.initialize(PROJECT)
+    truth.commit(
+        ChangeSet(
+            project_id=PROJECT,
+            expected_snapshot_id=pointer.current_snapshot_id,
+            actor_id="test-user",
+            idempotency_key="authorize-outbound-context-policy",
+            reason="Record the user-approved outbound context policy.",
+            resources=(
+                ResourceChange(
+                    key="policies.outbound_context_auto_approval",
+                    content={
+                        "schema_version": (
+                            "narrative-outbound-auto-approval-authority/v1"
+                        ),
+                        "status": "active",
+                        "project": PROJECT,
+                        "policy_path": (
+                            "production/outbound_context_policy.yml"
+                        ),
+                        "policy_sha256": policy_sha256,
+                        "authorized_by": "test-user",
+                    },
+                ),
+            ),
+        )
+    )
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(hours=1)
+    ).isoformat()
+
+    approved = evaluate_narrative_auto_approval(
+        agentlab,
+        project=PROJECT,
+        task_id=TASK_ID,
+        recipient="cli_agent:grok;runtime_provider:grok-cli-oauth",
+        role="Supervisor",
+        purpose="Plan one bounded candidate chapter.",
+        source_paths=[source],
+        expires_at=expires_at,
+    )
+    wrong_route = evaluate_narrative_auto_approval(
+        agentlab,
+        project=PROJECT,
+        task_id=TASK_ID,
+        recipient="cli_agent:claude_code;runtime_provider:deepseek",
+        role="Supervisor",
+        purpose="Plan one bounded candidate chapter.",
+        source_paths=[source],
+        expires_at=expires_at,
+    )
+
+    assert approved["status"] == "pass"
+    assert approved["execution_allowed"] is True
+    assert approved["policy_sha256"] == policy_sha256
+    assert approved["truth_snapshot_id"] == truth.current().snapshot_id
+    assert approved["truth_authority_revision_id"]
+    assert wrong_route["status"] == "blocked"
+    assert "recipient_not_allowed" in wrong_route["issues"]
+
+    policy_path.write_text(
+        policy_path.read_text(encoding="utf-8") + "\n# unapproved change\n",
+        encoding="utf-8",
+    )
+    stale_policy = evaluate_narrative_auto_approval(
+        agentlab,
+        project=PROJECT,
+        task_id=TASK_ID,
+        recipient="cli_agent:grok;runtime_provider:grok-cli-oauth",
+        role="Supervisor",
+        purpose="Plan one bounded candidate chapter.",
+        source_paths=[source],
+        expires_at=expires_at,
+    )
+    assert stale_policy["status"] == "blocked"
+    assert "auto_approval_truth_authority_invalid" in stale_policy["issues"]
 
 
 def test_role_context_pack_is_namespace_scoped_budgeted_and_hash_bound(
@@ -696,6 +821,14 @@ def test_authorial_audit_plan_always_runs_hard_gates_and_risk_reviewers(
     }
     assert plan["soft_reviews"] == [
         {
+            "reviewer_role": "character_ensemble_director",
+            "dimensions": [
+                "character_motive",
+                "knowledge_and_false_belief",
+                "offstage_action",
+            ],
+        },
+        {
             "reviewer_role": "relationship_director",
             "dimensions": ["relationship_progression", "consent_and_agency"],
         },
@@ -718,6 +851,7 @@ def test_authorial_review_execution_uses_bound_project_agents_and_verified_outpu
         project,
         reviewer_roles=[
             "canon_timeline_steward",
+            "character_ensemble_director",
             "relationship_director",
             "reader_simulation_panel",
         ],
@@ -846,6 +980,11 @@ def test_authorial_review_execution_uses_bound_project_agents_and_verified_outpu
                 }
             else:
                 output["dimensions_reviewed"] = {
+                    "character_ensemble_director": [
+                        "character_motive",
+                        "knowledge_and_false_belief",
+                        "offstage_action",
+                    ],
                     "relationship_director": [
                         "relationship_progression",
                         "consent_and_agency",
@@ -895,15 +1034,16 @@ def test_authorial_review_execution_uses_bound_project_agents_and_verified_outpu
     assert result["hard_gate_status"] == "pass"
     assert [item["reviewer_role"] for item in result["executions"]] == [
         "canon_timeline_steward",
+        "character_ensemble_director",
         "relationship_director",
         "reader_simulation_panel",
     ]
-    assert len(created_items) == 3
+    assert len(created_items) == 4
     assert all(
         item["assigned_agent_id"] in reviewer_roles
         for item in created_items
     )
-    assert len(verified) == 3
+    assert len(verified) == 4
 
     first_work_item_ids = {
         item["work_item_id"] for item in created_items
@@ -931,7 +1071,7 @@ def test_authorial_review_execution_uses_bound_project_agents_and_verified_outpu
 
     assert repeated["status"] == "pass"
     assert repeated["execution_sha256"] != result["execution_sha256"]
-    assert len(second_work_item_ids) == 3
+    assert len(second_work_item_ids) == 4
     assert first_work_item_ids.isdisjoint(second_work_item_ids)
 
     active_context_packs = _review_context_packs(
@@ -1114,6 +1254,7 @@ def test_narrative_audit_cli_builds_hash_bound_plan(tmp_path: Path) -> None:
     assert payload["status"] == "pass"
     assert payload["hard_audit"]["checks"]
     assert [item["reviewer_role"] for item in payload["soft_reviews"]] == [
+        "plot_causality_architect",
         "foreshadow_mystery_keeper",
         "reader_simulation_panel",
     ]

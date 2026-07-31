@@ -771,6 +771,59 @@ def _grok_research_fixture(
     )
 
 
+def _grok_native_fixture(tmp_path: Path) -> dict:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "native_grok_model": {
+                        "provider": "grok_cli_oauth",
+                        "runtime_provider": "grok-cli-oauth",
+                        "cli_provider": "grok",
+                        "model_id": "grok-4.5",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "grok_native_high": {
+                        "worker_id": "grok",
+                        "invocation_style": "bounded_role_task_packet",
+                        "template": (
+                            "grok --model {model_id} --reasoning-effort high "
+                            "--permission-mode plan --disable-web-search "
+                            "--no-subagents --no-memory --output-format plain "
+                            '--verbatim --single "Read the bounded AgentLab role '
+                            "task packet at {task_packet_path}; execute only the "
+                            'assigned role contract."'
+                        ),
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "executor_type": "cli_agent",
+        "cli_agent": "grok",
+        "invocation_contract": "grok_native_high",
+        "default": "native_grok_model",
+        "capacity_selected_route": "ProfessionalGrokSupervisor",
+        "capacity_pool": "grok_cli_subscription",
+        "capacity_attempt_id": "native-grok-attempt-1",
+        "capacity_selection_kind": "direct",
+    }
+
+
 def _sample_profiles(executor_type: str = "cli_agent") -> dict:
     """Return a minimal agent_model_profiles dict."""
     return {
@@ -1984,6 +2037,60 @@ class TestRunCliAgentSubprocess:
         assert len(chain["attempts"]) == 1
         assert chain["final"]["receipt_path"] == str(receipt_path)
 
+    def test_native_grok_success_writes_route_verified_model_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        role_profile = _grok_native_fixture(tmp_path)
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/local/bin/grok"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(
+                0,
+                stdout="# Authorial direction\n\nProceed with the locked canon.\n",
+            ),
+        ):
+            result = run_cli_agent(
+                plan,
+                "Supervisor",
+                role_profile,
+                sealed_messages=[
+                    {
+                        "role": "user",
+                        "content": "Return the governed authorial direction.",
+                    }
+                ],
+            )
+
+        assert result.status == "completed"
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["status"] == "pass"
+        assert receipt["role"] == "Supervisor"
+        assert receipt["worker"] == "grok"
+        assert receipt["invocation_contract"] == "grok_native_high"
+        assert receipt["provider"] == "grok-cli-oauth"
+        assert receipt["model"] == "grok-4.5"
+        assert receipt["profile_binding_verified"] is True
+        assert receipt["command_binding_verified"] is True
+        assert receipt["provider_process_started"] is True
+        assert receipt["auth_presence_verified"] is False
+        assert receipt["provider_auth_result_observed"] is True
+        assert receipt["evidence_source"] == (
+            "runtime_verified_argv_profile_workspace_and_process_result"
+        )
+        assert receipt["fallback_detected"] is False
+        assert receipt["issues"] == []
+
     def test_grok_research_missing_oauth_credential_blocks_before_provider_process(
         self,
         tmp_path,
@@ -2522,6 +2629,7 @@ class TestRunCliAgentSubprocess:
         assert result.raw_usage["sealed_context"] is True
         assert result.raw_usage["execution_workspace_isolated"] is True
         assert observed["workspace"] != Path(plan.agentlab_root)
+        assert observed["workspace"] == observed["workspace"].resolve()
         assert observed["packet_path"].parent == observed["workspace"]
         assert observed["packet"]["context_policy"]["read_scope"] == ["this_task_packet"]
         assert not Path(observed["workspace"]).exists()
@@ -3406,7 +3514,7 @@ class TestRunCliAgentSubprocess:
         assert not any("task_packet_writer.json" in arg for arg in argv)
         assert result.raw_usage["sealed_packet_stdin"] is True
 
-    def test_real_agy_writer_contract_delivers_sealed_packet_on_stdin(
+    def test_real_agy_writer_contract_delivers_sealed_packet_by_explicit_path(
         self,
         tmp_path,
     ):
@@ -3456,6 +3564,15 @@ class TestRunCliAgentSubprocess:
         def fake_run(argv, **kwargs):
             observed["argv"] = list(argv)
             observed["kwargs"] = dict(kwargs)
+            prompt = argv[argv.index("-p") + 1]
+            packet_path = next(
+                Path(part.rstrip(".;,"))
+                for part in prompt.split()
+                if "task_packet_writer.json" in part
+            )
+            observed["packet"] = json.loads(
+                packet_path.read_text(encoding="utf-8")
+            )
             return self._mock_proc(
                 0,
                 stdout="AGENTLAB_EDIT fiction_draft.md\nbounded prose\nAGENTLAB_END_EDIT\n",
@@ -3480,18 +3597,21 @@ class TestRunCliAgentSubprocess:
 
         assert result.status == "completed"
         kwargs = observed["kwargs"]
-        packet = json.loads(kwargs["input"])
-        assert packet["packet_type"] == "agentlab_sealed_role_session"
-        assert packet["messages"] == [
-            {"role": "user", "content": "bounded chapter context"}
-        ]
+        assert "input" not in kwargs
         assert observed["argv"][:4] == [
             "agy",
             "--sandbox",
             "--model",
             "gemini-3.5-flash-high",
         ]
-        assert result.raw_usage["sealed_packet_stdin"] is True
+        prompt = observed["argv"][observed["argv"].index("-p") + 1]
+        assert "task_packet_writer.json" in prompt
+        packet = observed["packet"]
+        assert packet["packet_type"] == "agentlab_sealed_role_session"
+        assert packet["messages"] == [
+            {"role": "user", "content": "bounded chapter context"}
+        ]
+        assert result.raw_usage.get("sealed_packet_stdin") is not True
         receipt = yaml.safe_load(
             Path(result.raw_usage["model_execution_receipt"]).read_text(
                 encoding="utf-8"
@@ -3500,6 +3620,82 @@ class TestRunCliAgentSubprocess:
         assert receipt["worker"] == "agy"
         assert receipt["invocation_contract"] == "agy_writer"
         assert receipt["command_binding_verified"] is True
+
+    def test_agy_writer_missing_packet_refusal_is_not_success(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        repository_root = Path(__file__).parent.parent
+        real_contracts = yaml.safe_load(
+            (repository_root / "config" / "worker_invocation_contracts.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {"contracts": {"agy_writer": real_contracts["contracts"]["agy_writer"]}},
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  gemini_writer:
+    provider: agy_gemini_oauth
+    runtime_provider: agy-gemini-oauth
+    model_id: gemini-3.5-flash-high
+    cli_model_id: gemini-3.5-flash-high
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "invocation_contract": "agy_writer",
+            "default": "gemini_writer",
+            "capacity_selected_route": "WriterAgy",
+            "capacity_pool": "agy_gemini_observer",
+        }
+
+        def fake_run(argv, **kwargs):
+            return self._mock_proc(
+                0,
+                stdout=(
+                    '<AGENTLAB_EDIT candidate="1">\n'
+                    "未在输入（stdin/上下文）中接收到完整的 AgentLab Writer 封包内容。\n"
+                    "</AGENTLAB_EDIT>\n"
+                ),
+                stderr="",
+            )
+
+        with patch(
+            "cli_executor.shutil.which",
+            return_value="/usr/local/bin/agy",
+        ), patch(
+            "cli_executor.subprocess.run",
+            side_effect=fake_run,
+        ):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "bounded chapter context"}
+                ],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["failure_class"] == "validation_failed"
+        assert "writer_missing_sealed_packet" in str(result.error)
 
     def test_claude_supervisor_fallback_writes_approved_fallback_chain(self, tmp_path):
         import sys

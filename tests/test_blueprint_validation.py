@@ -486,6 +486,39 @@ def _valid_blueprint(
     return fragment, records
 
 
+def _refresh_policy_authority_hashes(project: Path) -> None:
+    """Refresh the three hash-bound records after an approved policy edit."""
+    policy = project / "production" / "canonical" / "character_content_policy.yml"
+    index_path = project / "production" / "canonical" / "index.yml"
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    for fragment in index["fragments"]:
+        if fragment["path"] == "production/canonical/character_content_policy.yml":
+            fragment["sha256"] = hashlib.sha256(policy.read_bytes()).hexdigest()
+    _write_yaml(index_path, index)
+
+    authority_path = project / "production" / "blueprint_authority.yml"
+    authority = yaml.safe_load(authority_path.read_text(encoding="utf-8"))
+    for component in authority["components"]:
+        if component["path"] == "production/canonical":
+            component["sha256"] = artifact_sha256(project / "production" / "canonical")
+    _write_yaml(authority_path, authority)
+
+    distillation_path = project / "project_brain" / "fact_distillation.yml"
+    distillation = yaml.safe_load(distillation_path.read_text(encoding="utf-8"))
+    hashes = {
+        "production/blueprint_authority.yml": hashlib.sha256(
+            authority_path.read_bytes()
+        ).hexdigest(),
+        "production/canonical/character_content_policy.yml": hashlib.sha256(
+            policy.read_bytes()
+        ).hexdigest(),
+    }
+    for source in distillation["sources"]:
+        if source["path"] in hashes:
+            source["sha256"] = hashes[source["path"]]
+    _write_yaml(distillation_path, distillation)
+
+
 def test_validates_agentlab_decisions_canon_invariants_and_twenty_chapter_cards(
     tmp_path: Path,
 ) -> None:
@@ -732,6 +765,103 @@ def test_character_content_policy_rejects_retired_revision_or_intensity(
 
     assert "character_content_policy:revision_mismatch" in result["issues"]
     assert "character_content_policy:adult_contract_incomplete" in result["issues"]
+
+
+def test_character_content_policy_accepts_constrained_role_position_override(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    records = {item["id"]: item for item in policy["records"]}
+    women_policy = records["policy_women_agency_and_appearance"]
+    women_policy["agency_contract"]["body_never_reward_or_container"] = False
+    women_policy["user_override_20260731"] = {
+        "status": "active",
+        "allows_harem_competition": True,
+        "allows_container_or_prize_position": True,
+        "allows_free_new_characters": True,
+        "preserves_independent_agency": True,
+        "preserves_adult_consent": True,
+    }
+    _write_yaml(policy_path, policy)
+    _refresh_policy_authority_hashes(project)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "pass"
+
+
+def test_character_content_policy_rejects_unconstrained_role_position_override(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    records = {item["id"]: item for item in policy["records"]}
+    women_policy = records["policy_women_agency_and_appearance"]
+    women_policy["agency_contract"]["body_never_reward_or_container"] = False
+    women_policy["user_override_20260731"] = {
+        "status": "active",
+        "allows_harem_competition": True,
+        "allows_container_or_prize_position": True,
+        "allows_free_new_characters": True,
+        "preserves_independent_agency": True,
+    }
+    _write_yaml(policy_path, policy)
+    _refresh_policy_authority_hashes(project)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert (
+        "character_content_policy:women_agency_contract_incomplete"
+        in result["issues"]
+    )
+
+
+def test_seal_refreshes_fact_distillation_for_role_position_override(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    records = {item["id"]: item for item in policy["records"]}
+    women_policy = records["policy_women_agency_and_appearance"]
+    women_policy["agency_contract"]["body_never_reward_or_container"] = False
+    women_policy["user_override_20260731"] = {
+        "status": "active",
+        "allows_harem_competition": True,
+        "allows_container_or_prize_position": True,
+        "allows_free_new_characters": True,
+        "preserves_independent_agency": True,
+        "preserves_adult_consent": True,
+    }
+    _write_yaml(policy_path, policy)
+
+    seal_crown_blueprint(tmp_path, allow_registered_blueprint_drift=True)
+
+    distillation_path = project / "project_brain" / "fact_distillation.yml"
+    distillation = yaml.safe_load(distillation_path.read_text(encoding="utf-8"))
+    source_hashes = {
+        source["path"]: source["sha256"] for source in distillation["sources"]
+    }
+    assert source_hashes["production/blueprint_authority.yml"] == hashlib.sha256(
+        (project / "production" / "blueprint_authority.yml").read_bytes()
+    ).hexdigest()
+    assert source_hashes[
+        "production/canonical/character_content_policy.yml"
+    ] == hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    assert validate_crown_blueprint(tmp_path)["status"] == "pass"
 
 
 def test_character_policy_rejects_old_context_invalidation_and_slender_isabella(

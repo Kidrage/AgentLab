@@ -1,18 +1,18 @@
 schema_version: 4.0
 default_mode: full_cli
 professional_role_profiles:
-  authorial_director: {base_role_key: supervisor, execution_tier: full, execution_kind: cli_agent}
-  canon_timeline_steward: {base_role_key: reviewer, execution_tier: full, execution_kind: cli_agent}
-  plot_causality_architect: {base_role_key: narrative_planner, execution_tier: full, execution_kind: cli_agent}
-  character_ensemble_director: {base_role_key: narrative_planner, execution_tier: full, execution_kind: cli_agent}
-  relationship_director: {base_role_key: reviewer, execution_tier: full, execution_kind: cli_agent}
-  world_archaeologist: {base_role_key: researcher, execution_tier: performance, execution_kind: cli_agent}
-  foreshadow_mystery_keeper: {base_role_key: narrative_planner, execution_tier: full, execution_kind: cli_agent}
-  arc_scene_planner: {base_role_key: narrative_planner, execution_tier: full, execution_kind: cli_agent}
-  research_style_curator: {base_role_key: researcher, execution_tier: performance, execution_kind: cli_agent}
-  writer: {base_role_key: writer, execution_tier: full, execution_kind: cli_agent}
-  senior_editor: {base_role_key: reviewer, execution_tier: full, execution_kind: cli_agent}
-  reader_simulation_panel: {base_role_key: reviewer, execution_tier: performance, execution_kind: cli_agent}
+  authorial_director: {base_role_key: supervisor, execution_tier: alter, execution_kind: cli_agent}
+  canon_timeline_steward: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent}
+  plot_causality_architect: {base_role_key: narrative_planner, execution_tier: alter, execution_kind: cli_agent}
+  character_ensemble_director: {base_role_key: narrative_planner, execution_tier: alter, execution_kind: cli_agent}
+  relationship_director: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent}
+  world_archaeologist: {base_role_key: researcher, execution_tier: alter, execution_kind: cli_agent}
+  foreshadow_mystery_keeper: {base_role_key: narrative_planner, execution_tier: alter, execution_kind: cli_agent}
+  arc_scene_planner: {base_role_key: narrative_planner, execution_tier: alter, execution_kind: cli_agent}
+  research_style_curator: {base_role_key: researcher, execution_tier: alter, execution_kind: cli_agent}
+  writer: {base_role_key: writer, execution_tier: alter, execution_kind: cli_agent}
+  senior_editor: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent}
+  reader_simulation_panel: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent}
   state_projector: {base_role_key: scribe, execution_tier: deterministic, execution_kind: deterministic_tool}
 authority:
   purpose: canonical_agent_backend_selection

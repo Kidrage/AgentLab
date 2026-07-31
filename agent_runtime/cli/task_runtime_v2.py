@@ -218,6 +218,11 @@ def register_task_runtime_commands(
         effective_contract_hash: str | None = typer.Option(
             None, "--effective-contract-hash"
         ),
+        requires_user_acceptance: bool = typer.Option(
+            False,
+            "--requires-user-acceptance",
+            help="Keep the WorkItem gated until explicit user acceptance.",
+        ),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
     ) -> None:
         emit(
@@ -232,6 +237,7 @@ def register_task_runtime_commands(
                 agent_manifest_revision=agent_manifest_revision,
                 canonical_snapshot_id=canonical_snapshot_id,
                 effective_contract_hash=effective_contract_hash,
+                requires_user_acceptance=requires_user_acceptance,
                 idempotency_key=idempotency_key,
             )["work_items"][work_item_id]
         )

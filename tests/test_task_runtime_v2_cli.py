@@ -92,6 +92,55 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
     assert "ok: true" in doctor.output.lower()
 
 
+def test_work_item_cli_can_require_user_acceptance(tmp_path: Path) -> None:
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-acceptance-gate",
+            "--title",
+            "Acceptance gate",
+            "--goal",
+            "Keep projection behind explicit user acceptance.",
+            "--idempotency-key",
+            "create-acceptance-gate",
+        ],
+    )
+    gated = runner.invoke(
+        app,
+        [
+            "work-item",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-acceptance-gate",
+            "--work-item-id",
+            "state-projector",
+            "--kind",
+            "verification",
+            "--title",
+            "Project accepted state",
+            "--requires-user-acceptance",
+            "--idempotency-key",
+            "create-state-projector",
+        ],
+    )
+
+    assert created.exit_code == 0, created.output
+    assert gated.exit_code == 0, gated.output
+    assert "requires_user_acceptance: true" in gated.output.lower()
+    assert "status: ready" in gated.output.lower()
+
+
 def test_work_item_cli_materializes_project_agent_collaboration(
     tmp_path: Path,
 ) -> None:

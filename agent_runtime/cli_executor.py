@@ -2705,11 +2705,102 @@ def _grok_research_preflight(
 ) -> dict[str, Any]:
     """Verify the exact, read-only Hermes xAI Researcher path offline."""
 
+    invocation_contract = str(
+        role_profile.get("invocation_contract") or ""
+    ).strip()
+    if (
+        str(role_profile.get("cli_agent") or "").strip() == "grok"
+        and invocation_contract in {"grok_native_high", "grok_native_medium"}
+    ):
+        requested_model_key = str(model_values.get("model_key") or "")
+        requested_model_id = str(model_values.get("catalog_model_id") or "")
+        requested_cli_model_id = str(model_values.get("model_id") or "")
+        selected_provider = str(model_values.get("provider") or "")
+        catalog_provider = str(model_values.get("catalog_provider") or "")
+        expected_reasoning_effort = (
+            "high" if invocation_contract == "grok_native_high" else "medium"
+        )
+        profile_binding_verified = bool(requested_model_key) and (
+            str(role_profile.get("default") or "") == requested_model_key
+        )
+        expected_prefix = [
+            "grok",
+            "--model",
+            requested_cli_model_id,
+            "--reasoning-effort",
+            expected_reasoning_effort,
+            "--permission-mode",
+            "plan",
+            "--disable-web-search",
+            "--no-subagents",
+            "--no-memory",
+            "--output-format",
+            "plain",
+            "--verbatim",
+            "--single",
+        ]
+        prompt = argv[-1] if len(argv) == len(expected_prefix) + 1 else ""
+        command_binding_verified = (
+            len(argv) == len(expected_prefix) + 1
+            and Path(argv[0]).name == "grok"
+            and argv[1:-1] == expected_prefix[1:]
+            and str(task_packet_path) in prompt
+            and "bounded AgentLab role task packet" in prompt
+        )
+        root = Path(agentlab_root).resolve(strict=False)
+        cwd = execution_cwd.resolve(strict=False)
+        packet = task_packet_path.resolve(strict=False)
+        isolated_workspace_verified = (
+            bounded_messages and cwd != root and packet.parent == cwd
+        )
+        issues: list[str] = []
+        if not binary_available:
+            issues.append("grok_native_binary_missing")
+        if not profile_binding_verified:
+            issues.append("grok_native_profile_model_binding_mismatch")
+        if (
+            selected_provider != "grok-cli-oauth"
+            or catalog_provider != "grok_cli_oauth"
+        ):
+            issues.append("grok_native_provider_binding_mismatch")
+        if not command_binding_verified:
+            issues.append("grok_native_command_binding_mismatch")
+        if not isolated_workspace_verified:
+            issues.append("grok_native_sealed_workspace_missing")
+
+        return {
+            "applicable": True,
+            "kind": "native",
+            "status": "pass" if not issues else "fail",
+            "issues": sorted(set(issues)),
+            "role": agent_name,
+            "invocation_contract": invocation_contract,
+            "provider": selected_provider or None,
+            "catalog_provider": catalog_provider or None,
+            "requested_model_key": requested_model_key or None,
+            "requested_model_id": requested_model_id or None,
+            "requested_cli_model_id": requested_cli_model_id or None,
+            "profile_binding_verified": profile_binding_verified,
+            "binary_available": binary_available,
+            "command_binding_verified": command_binding_verified,
+            "reasoning_effort": expected_reasoning_effort,
+            "sealed_context_verified": bounded_messages,
+            "isolated_workspace_verified": isolated_workspace_verified,
+            "auth_mode": "local_grok_cli_oauth_session",
+            "auth_presence_verified": False,
+            "credential_values_recorded": False,
+            "capacity_route": role_profile.get("capacity_selected_route"),
+            "capacity_pool": role_profile.get("capacity_pool"),
+            "attempt_id": role_profile.get("_runtime_model_execution_attempt_id"),
+            "selection_kind": role_profile.get(
+                "_runtime_capacity_selection_kind"
+            ),
+        }
+
     applicable = (
         agent_name == "Researcher"
         and str(role_profile.get("cli_agent") or "").strip() == "grok"
-        and str(role_profile.get("invocation_contract") or "").strip()
-        == "grok_research"
+        and invocation_contract == "grok_research"
     )
     if not applicable:
         return {"applicable": False, "status": "not_applicable", "issues": []}
@@ -2863,8 +2954,10 @@ def _grok_research_preflight(
 
     return {
         "applicable": True,
+        "kind": "research",
         "status": "pass" if not issues else "fail",
         "issues": sorted(set(issues)),
+        "role": agent_name,
         "invocation_contract": "grok_research",
         "provider": selected_provider or None,
         "catalog_provider": catalog_provider or None,
@@ -2941,12 +3034,17 @@ def _write_grok_research_model_receipt(
     ]
     if not reported_model_ids and usage.get("provider_reported_model_id"):
         reported_model_ids = [str(usage["provider_reported_model_id"])]
+    role = str(preflight.get("role") or "Researcher")
+    invocation_contract = str(
+        preflight.get("invocation_contract") or "grok_research"
+    )
+    native_execution = preflight.get("kind") == "native"
     receipt = {
         "schema_version": 1,
         "status": status,
-        "role": "Researcher",
+        "role": role,
         "worker": "grok",
-        "invocation_contract": "grok_research",
+        "invocation_contract": invocation_contract,
         "provider": preflight.get("provider"),
         "model": preflight.get("requested_model_id"),
         "requested_model_key": preflight.get("requested_model_key"),
@@ -2954,14 +3052,20 @@ def _write_grok_research_model_receipt(
         "binary_available": preflight.get("binary_available") is True,
         "profile_binding_verified": preflight.get("profile_binding_verified") is True,
         "command_binding_verified": preflight.get("command_binding_verified") is True,
-        "allowed_toolsets": list(preflight.get("allowed_toolsets") or []),
         "sealed_context_verified": preflight.get("sealed_context_verified") is True,
         "isolated_workspace_verified": preflight.get("isolated_workspace_verified") is True,
-        "read_only_workspace_verified": preflight.get("read_only_workspace_verified") is True,
-        "auth_mode": "local_hermes_xai_oauth_session",
-        "auth_store": preflight.get("auth_store"),
-        "auth_provider_entry_present": preflight.get("auth_provider_entry_present") is True,
-        "credential_present": preflight.get("credential_present") is True,
+        "auth_mode": preflight.get("auth_mode") or "local_hermes_xai_oauth_session",
+        "auth_presence_verified": (
+            preflight.get("auth_provider_entry_present") is True
+            if not native_execution
+            else False
+        ),
+        "provider_auth_result_observed": (
+            native_execution
+            and provider_process_started
+            and exit_code == 0
+            and not timed_out
+        ),
         "credential_values_recorded": False,
         "fallback_chain": [],
         "provider_response_metadata_observed": bool(reported_model_ids),
@@ -2970,15 +3074,33 @@ def _write_grok_research_model_receipt(
             None if not reported_model_ids else not provider_model_mismatch
         ),
         "provider_process_started": provider_process_started,
-        "evidence_source": "runtime_verified_argv_auth_presence_config_and_workspace_mode",
+        "evidence_source": (
+            "runtime_verified_argv_profile_workspace_and_process_result"
+            if native_execution
+            else "runtime_verified_argv_auth_presence_config_and_workspace_mode"
+        ),
         "exit_code": exit_code,
         "stdout_nonempty": stdout_nonempty,
         "timed_out": timed_out,
         "issues": sorted(set(str(item) for item in issues)),
     }
+    if preflight.get("kind") == "research":
+        receipt.update(
+            {
+                "allowed_toolsets": list(preflight.get("allowed_toolsets") or []),
+                "read_only_workspace_verified": (
+                    preflight.get("read_only_workspace_verified") is True
+                ),
+                "auth_store": preflight.get("auth_store"),
+                "auth_provider_entry_present": (
+                    preflight.get("auth_provider_entry_present") is True
+                ),
+                "credential_present": preflight.get("credential_present") is True,
+            }
+        )
     return _persist_model_execution_receipt(
         run_dir,
-        "Researcher",
+        role,
         preflight,
         receipt,
     )
@@ -3859,6 +3981,25 @@ def _looks_like_cli_usage_error(stderr_text: str) -> bool:
     )
 
 
+def _agy_writer_rejected_sealed_packet(
+    *,
+    agent_name: str,
+    cli_agent_name: str,
+    stdout_text: str,
+) -> bool:
+    """Detect Agy Writer refusals that mean the sealed packet was not consumed."""
+
+    if agent_name != "Writer" or cli_agent_name != "agy":
+        return False
+    lowered = stdout_text.casefold()
+    chinese_refusal = "未在输入" in stdout_text and "封包" in stdout_text
+    english_refusal = (
+        ("did not receive" in lowered or "not received" in lowered)
+        and ("writer packet" in lowered or "task packet" in lowered)
+    )
+    return chinese_refusal or english_refusal
+
+
 def run_cli_agent(
     plan: WorkflowPlan,
     agent_name: str,
@@ -4123,11 +4264,15 @@ def run_cli_agent(
         explicit_approval_granted: bool | None = None
         explicit_payload_sha256: str | None = None
         explicit_scope_sha256: str | None = None
+        approval_authority: dict[str, Any] | None = None
         if external_context_approval:
             from agent_runtime.approval_signature import (
                 narrative_outbound_approval_payload,
                 pinned_approval_public_key,
                 verify_detached_approval,
+            )
+            from agent_runtime.narrative.outbound_transfer import (
+                evaluate_narrative_auto_approval,
             )
 
             transfer = execution_policy.get("external_context_transfer")
@@ -4147,39 +4292,90 @@ def run_cli_agent(
                 scope_sha256=expected_scope,
                 expires_at=str(transfer.get("expires_at") or ""),
             )
-            try:
-                expires_at = datetime.fromisoformat(
-                    approval_payload["expires_at"].replace("Z", "+00:00")
+            recorded_auto_approval = execution_policy.get(
+                "external_context_auto_approval"
+            )
+            recorded_auto_approval = (
+                recorded_auto_approval
+                if isinstance(recorded_auto_approval, dict)
+                else {}
+            )
+            current_auto_approval = evaluate_narrative_auto_approval(
+                Path(plan.agentlab_root),
+                project=str(plan.project),
+                task_id=str(plan.task_id),
+                recipient=str(transfer.get("recipient") or ""),
+                role=agent_name,
+                purpose=str(transfer.get("purpose") or ""),
+                source_paths=outbound_source_paths or [],
+                expires_at=str(transfer.get("expires_at") or ""),
+            )
+            auto_approved = bool(
+                recorded_auto_approval.get("status") == "pass"
+                and current_auto_approval.get("status") == "pass"
+                and recorded_auto_approval.get("policy_sha256")
+                == current_auto_approval.get("policy_sha256")
+                and recorded_auto_approval.get("truth_snapshot_id")
+                == current_auto_approval.get("truth_snapshot_id")
+                and recorded_auto_approval.get(
+                    "truth_authority_revision_id"
                 )
-                if (
-                    expires_at.tzinfo is None
-                    or expires_at <= datetime.now(timezone.utc)
-                ):
-                    raise ValueError("external context approval expired")
-                verify_detached_approval(
-                    approval_payload,
-                    signature_path=Path(
-                        str(
-                            execution_policy.get(
-                                "external_context_approval_signature_path"
-                            )
-                            or ""
-                        )
-                    ),
-                    public_key_path=Path(
-                        pinned_approval_public_key(
-                            Path(plan.agentlab_root),
-                            section="external_context_approval_authority",
-                        )
-                    ),
-                    forbidden_root=Path(plan.agentlab_root),
+                == current_auto_approval.get(
+                    "truth_authority_revision_id"
                 )
-            except (OSError, RuntimeError, ValueError):
-                explicit_approval_granted = False
-            else:
+            )
+            if auto_approved:
                 explicit_approval_granted = True
                 explicit_payload_sha256 = packet_sha256
                 explicit_scope_sha256 = expected_scope
+                approval_authority = {
+                    "mode": "project_truth_policy",
+                    "policy_sha256": current_auto_approval.get(
+                        "policy_sha256"
+                    ),
+                    "truth_snapshot_id": current_auto_approval.get(
+                        "truth_snapshot_id"
+                    ),
+                    "truth_authority_revision_id": (
+                        current_auto_approval.get(
+                            "truth_authority_revision_id"
+                        )
+                    ),
+                }
+            else:
+                try:
+                    expires_at = datetime.fromisoformat(
+                        approval_payload["expires_at"].replace("Z", "+00:00")
+                    )
+                    if (
+                        expires_at.tzinfo is None
+                        or expires_at <= datetime.now(timezone.utc)
+                    ):
+                        raise ValueError("external context approval expired")
+                    verify_detached_approval(
+                        approval_payload,
+                        signature_path=Path(
+                            str(
+                                execution_policy.get(
+                                    "external_context_approval_signature_path"
+                                )
+                                or ""
+                            )
+                        ),
+                        public_key_path=Path(
+                            pinned_approval_public_key(
+                                Path(plan.agentlab_root),
+                                section="external_context_approval_authority",
+                            )
+                        ),
+                        forbidden_root=Path(plan.agentlab_root),
+                    )
+                except (OSError, RuntimeError, ValueError):
+                    explicit_approval_granted = False
+                else:
+                    explicit_approval_granted = True
+                    explicit_payload_sha256 = packet_sha256
+                    explicit_scope_sha256 = expected_scope
         elif approval_required:
             # Environment variables are inherited by the executing Agent and
             # therefore cannot constitute an independent user action.
@@ -4224,6 +4420,7 @@ def run_cli_agent(
                 or configured_pack_role_session
                 or agent_name == "Researcher"
             ),
+            approval_authority=approval_authority,
         )
         if not manifest.get("execution_allowed"):
             return LLMCallResult(
@@ -4380,7 +4577,7 @@ def run_cli_agent(
     try:
         execution_cwd = Path(plan.agentlab_root)
         if workspace_context is not None:
-            execution_cwd = Path(workspace_context.name)
+            execution_cwd = Path(workspace_context.name).resolve()
             if (
                 resolved_invocation_contract.get("structured_output")
                 == "narrative_heavy_audit"
@@ -5267,6 +5464,11 @@ def run_cli_agent(
             or artifact_materialization.get("status") != "pass"
         )
     )
+    writer_packet_refused = _agy_writer_rejected_sealed_packet(
+        agent_name=agent_name,
+        cli_agent_name=cli_agent_name,
+        stdout_text=stdout_text,
+    )
     success = (
         proc.returncode == 0
         and bool(stdout_text)
@@ -5275,6 +5477,7 @@ def run_cli_agent(
         and not qwen_provider_model_mismatch
         and not grok_provider_model_mismatch
         and not artifact_materialization_failed
+        and not writer_packet_refused
         and artifact_input_postflight_issue is None
         and staged_input_postflight_issue is None
     )
@@ -5285,6 +5488,7 @@ def run_cli_agent(
             "validation_failed"
             if (
                 artifact_materialization_failed
+                or writer_packet_refused
                 or artifact_input_postflight_issue
                 or staged_input_postflight_issue
             )
@@ -5312,6 +5516,8 @@ def run_cli_agent(
     receipt_failure_issues = (
         [] if success else [f"failure_class:{failure_class or 'unknown'}"]
     )
+    if writer_packet_refused:
+        receipt_failure_issues.append("writer_missing_sealed_packet")
     if staged_input_postflight_issue:
         receipt_failure_issues.append(
             f"staged_input_postflight_failed:{staged_input_postflight_issue}"
@@ -5507,7 +5713,11 @@ def run_cli_agent(
         result_error = None
     else:
         result_status = "blocked_user_decision"
-        result_error = f"CLI agent {failure_class} (exit {proc.returncode})."
+        result_error = (
+            "writer_missing_sealed_packet"
+            if writer_packet_refused
+            else f"CLI agent {failure_class} (exit {proc.returncode})."
+        )
 
     return LLMCallResult(
         provider="agentlab-cli-executor",
