@@ -6,6 +6,7 @@ import yaml
 
 from agent_runtime.protocols import (
     build_frontdesk_context,
+    build_frontdesk_session,
     build_role_session,
     build_workspace_entry,
     check_role_binding,
@@ -101,6 +102,26 @@ def test_openclaw_is_default_frontdesk_and_codex_is_external_worker():
     assert openclaw_doctor["status"] == "pass"
     assert hermes_doctor["status"] == "pass"
     assert codex_doctor["status"] == "fail"
+
+
+def test_openclaw_session_has_attention_search_and_report_guardrails() -> None:
+    context = build_frontdesk_context(ROOT, "openclaw", project="AgentLab")
+    session = build_frontdesk_session(ROOT, "openclaw", project="AgentLab")
+
+    assert context["backend"] == {
+        "provider": "deepseek",
+        "model_key": "deepseek_v4_flash",
+        "model_id": "deepseek-v4-flash",
+    }
+    assert context["turn_contract"]["phases"] == [
+        "INTAKE", "CLARIFY", "ROUTE", "MONITOR", "REPORT"
+    ]
+    assert "ROLE LOCK" in session
+    assert "preserve the user's request verbatim" in session
+    assert "frontdesk search" in session
+    assert "frontdesk report" in session
+    assert "No evidence means UNKNOWN" in session
+    assert session.count("OPENCLAW FRONTDESK ONLY") >= 2
 
 
 def test_role_binding_rejects_agy_as_coder_and_allows_codex():

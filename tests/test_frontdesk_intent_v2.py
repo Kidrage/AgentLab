@@ -22,6 +22,8 @@ def test_deterministic_status_check_routes_f0() -> None:
     assert result["route_tier"] == "F0"
     assert result["mutation_scope"] == "none"
     assert result["external_effect"] == "none"
+    assert result["normalized_request"] == "check the current agentlab status without changing anything."
+    assert len(result["request_sha256"]) == 64
 
 
 def test_scoped_implementation_routes_single_agent_f2() -> None:
