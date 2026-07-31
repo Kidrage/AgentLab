@@ -86,7 +86,11 @@ def test_frontdesk_doctor_accepts_agy_frontdesk_contract():
     assert any(c["id"] == "frontdesk_not_task_packet_worker" for c in result["checks"])
 
 
-def test_openclaw_is_default_frontdesk_and_codex_is_external_worker():
+@patch(
+    "agent_runtime.protocols.enforcement._probe_frontdesk_runtime",
+    return_value=(True, "OpenClaw runtime probe passed"),
+)
+def test_openclaw_is_default_frontdesk_and_codex_is_external_worker(_probe):
     context = build_frontdesk_context(ROOT, "openclaw", project="AgentLab")
     openclaw_doctor = run_frontdesk_doctor(ROOT, "openclaw")
     hermes_doctor = run_frontdesk_doctor(ROOT, "hermes")
@@ -102,6 +106,19 @@ def test_openclaw_is_default_frontdesk_and_codex_is_external_worker():
     assert openclaw_doctor["status"] == "pass"
     assert hermes_doctor["status"] == "pass"
     assert codex_doctor["status"] == "fail"
+
+
+@patch(
+    "agent_runtime.protocols.enforcement._probe_frontdesk_runtime",
+    return_value=(False, "Invalid regular expression: missing /"),
+)
+def test_openclaw_doctor_fails_when_runtime_cannot_start(_probe):
+    result = run_frontdesk_doctor(ROOT, "openclaw")
+    by_id = {check["id"]: check for check in result["checks"]}
+
+    assert result["status"] == "fail"
+    assert by_id["frontdesk_runtime_usable"]["status"] == "fail"
+    assert "Invalid regular expression" in by_id["frontdesk_runtime_usable"]["message"]
 
 
 def test_openclaw_session_has_attention_search_and_report_guardrails() -> None:

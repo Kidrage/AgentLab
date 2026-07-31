@@ -557,6 +557,32 @@ def _check(status: bool, check_id: str, message: str, severity: str = "fail") ->
     return ProtocolCheck(check_id, "pass" if status else "fail", severity, message)
 
 
+def _probe_frontdesk_runtime(root: Path, contract: dict[str, Any]) -> tuple[bool, str]:
+    probe = contract.get("safe_probe") or []
+    if not isinstance(probe, list) or not probe or not all(isinstance(item, str) and item for item in probe):
+        return False, "frontdesk invocation contract has no valid safe_probe"
+    try:
+        result = subprocess.run(
+            probe,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, f"frontdesk command is unavailable: {probe[0]}"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"frontdesk runtime probe failed: {type(exc).__name__}"
+    if result.returncode == 0:
+        return True, "frontdesk runtime probe passed"
+    detail = next(
+        (line.strip() for line in (result.stderr or result.stdout).splitlines() if line.strip()),
+        f"exit code {result.returncode}",
+    )
+    return False, f"frontdesk runtime probe failed: {detail[:240]}"
+
+
 def run_frontdesk_doctor(root: Path, agent_id: str) -> dict[str, Any]:
     root = Path(root)
     frontdesk = _load_policy(root, "frontdesk_policy.yml")
@@ -582,6 +608,16 @@ def run_frontdesk_doctor(root: Path, agent_id: str) -> dict[str, Any]:
             "frontdesk-only agents must not use task_packet_prompt invocation",
         ),
     ]
+    default_frontdesk = (frontdesk.get("default_frontdesk") or {}).get("agent_id")
+    if agent_id == default_frontdesk:
+        runtime_ok, runtime_detail = _probe_frontdesk_runtime(root, contract)
+        checks.append(
+            _check(
+                runtime_ok,
+                "frontdesk_runtime_usable",
+                runtime_detail,
+            )
+        )
     return _doctor_result("frontdesk_doctor", checks)
 
 
