@@ -4,6 +4,7 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 import yaml
 
+import agent_runtime.protocols.enforcement as enforcement_module
 from agent_runtime.protocols import (
     build_frontdesk_context,
     build_frontdesk_session,
@@ -119,6 +120,32 @@ def test_openclaw_doctor_fails_when_runtime_cannot_start(_probe):
     assert result["status"] == "fail"
     assert by_id["frontdesk_runtime_usable"]["status"] == "fail"
     assert "Invalid regular expression" in by_id["frontdesk_runtime_usable"]["message"]
+
+
+@patch("agent_runtime.protocols.enforcement.subprocess.run")
+def test_openclaw_runtime_probe_reports_specific_startup_reason(run):
+    run.return_value.returncode = 1
+    run.return_value.stdout = ""
+    run.return_value.stderr = (
+        "[openclaw] Could not start the CLI.\n"
+        "[openclaw] Reason: Invalid regular expression: missing /\n"
+    )
+
+    ok, detail = enforcement_module._probe_frontdesk_runtime(
+        ROOT,
+        {"safe_probe": ["openclaw", "agents", "list", "--json"]},
+    )
+
+    assert ok is False
+    assert "Reason: Invalid regular expression: missing /" in detail
+    run.assert_called_once_with(
+        ["openclaw", "agents", "list", "--json"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
 
 
 def test_openclaw_session_has_attention_search_and_report_guardrails() -> None:

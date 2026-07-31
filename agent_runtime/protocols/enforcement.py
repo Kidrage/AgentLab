@@ -576,10 +576,8 @@ def _probe_frontdesk_runtime(root: Path, contract: dict[str, Any]) -> tuple[bool
         return False, f"frontdesk runtime probe failed: {type(exc).__name__}"
     if result.returncode == 0:
         return True, "frontdesk runtime probe passed"
-    detail = next(
-        (line.strip() for line in (result.stderr or result.stdout).splitlines() if line.strip()),
-        f"exit code {result.returncode}",
-    )
+    lines = [line.strip() for line in (result.stderr or result.stdout).splitlines() if line.strip()]
+    detail = next((line for line in lines if "Reason:" in line), lines[0] if lines else f"exit code {result.returncode}")
     return False, f"frontdesk runtime probe failed: {detail[:240]}"
 
 
