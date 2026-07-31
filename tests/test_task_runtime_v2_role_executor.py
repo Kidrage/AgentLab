@@ -36,6 +36,7 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
                         "base_role_key": "writer",
                         "execution_tier": "performance",
                         "execution_kind": "cli_agent",
+                        "capacity_route": "WriterStrict",
                     }
                 },
                 "modes": {
@@ -50,6 +51,25 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
                                 }
                             }
                         }
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config / "model_capacity.yml").write_text(
+        yaml.safe_dump(
+            {
+                "routes": {
+                    "WriterStrict": {
+                        "role": "writer",
+                        "worker": "claude_code",
+                        "invocation_contract": "claude_writer",
+                        "model_key": "writer-model",
+                        "pool": "fixture",
+                        "approved_fallbacks": [],
+                        "fallback_on": [],
                     }
                 }
             },
