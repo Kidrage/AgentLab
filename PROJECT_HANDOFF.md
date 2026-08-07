@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-08-07T03:17:42.410522+00:00`
+- Generated at: `2026-08-07T03:20:00.999846+00:00`
 
 ## Current State
 
 - Branch: `agent/f0-baseline-bootstrap`
-- HEAD: `5c1f9e7`
+- HEAD: `7d5a5fa`
 - Indexed paths: 2010
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,7 +89,7 @@
 ### Categories
 
 - code: 1030 files, 9817712 bytes
-- literature: 420 files, 2386152 bytes
+- literature: 420 files, 2386253 bytes
 - other: 13 files, 94463 bytes
 - structured_data: 547 files, 3193896 bytes
 
@@ -232,26 +232,12 @@
 
 ## Change History
 
+- `7d5a5fa 2026-08-06 fix(f0): establish reproducible bootstrap baseline`
 - `5c1f9e7 2026-07-24 test(cli): cover agy proxy inheritance defaults and preflight reporting`
 
 ## Current Changes
 
 - `## agent/f0-baseline-bootstrap`
-- ` M .github/workflows/ci.yml`
-- ` M AGENTS.md`
-- ` M PROJECT_HANDOFF.md`
-- ` M README.md`
-- ` M agent_runtime/repository_handoff.py`
-- ` M agentlab.sh`
-- ` M config/repository_hygiene.yml`
-- ` M tests/conftest.py`
-- ` M tests/test_ci_workflow_integrity.py`
-- ` M tests/test_repository_handoff.py`
-- `?? acceptance_runs/f_series/`
-- `?? docs/f_series/`
-- `?? requirements.lock`
-- `?? scripts/bootstrap.sh`
-- `?? tests/test_bootstrap_shell.py`
 
 ## Related Repositories
 
