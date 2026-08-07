@@ -1,0 +1,49 @@
+schema_version: 1
+report_type: agentlab_f_series_baseline
+stage: F0
+status: in_progress
+baseline:
+  repository: Kidrage/AgentLab
+  branch: main
+  commit: 5c1f9e7c04a53cad9a37e730836fad3b118a2586
+repair_branch: agent/f0-baseline-bootstrap
+environment:
+  os: Ubuntu 24.04.3 LTS
+  kernel: Linux 6.18.35 x86_64
+  python: 3.12.13
+bootstrap:
+  initial_command: ./agentlab.sh repository-handoff --repo .
+  initial_status: blocked_missing_dependency
+  initial_error: "ModuleNotFoundError: No module named 'typer'"
+  lock_sha256: 89644e5e3abf84525b667afde63e96b77ae2ec812410af9afff2581f9345b3c2
+  post_bootstrap_handoff: pass
+acceptance_authority:
+  path: acceptance_runs/agentlab_capability_acceptance/current.yml
+  overall_status: fail
+  status_counts:
+    pass: 16
+    fail: 3
+    candidate: 9
+tests:
+  complete_offline_suite:
+    passed: 3371
+    failed: 12
+    skipped: 20
+    warnings: 32
+  baseline_comparison:
+    source: clean_git_archive_of_baseline_commit
+    selected_failures_replayed: 12
+    same_failures_observed: 12
+  inherited_failure_groups:
+    acceptance_evidence_chain: 2
+    background_retry_accounting: 2
+    qwen_narrative_execution: 2
+    crown_scale_governance: 2
+    agy_capacity_policy: 1
+    narrative_packet_schema: 1
+    trusted_live_runner_readiness: 2
+claims:
+  f0_complete: false
+  current_acceptance_promoted: false
+  runtime_semantics_changed: false
+  next_stage_allowed: false

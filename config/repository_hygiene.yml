@@ -13,6 +13,7 @@ root_policy:
     - agentlab.sh
     - agentlab_app.py
     - pyproject.toml
+    - requirements.lock
     - requirements.txt
     - requirements-dev.txt
     - pytest.ini

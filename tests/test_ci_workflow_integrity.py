@@ -90,7 +90,7 @@ def test_ci_validate_entrypoints_commands() -> None:
 
 
 def test_ci_install_dependencies_commands() -> None:
-    """Install dependencies must upgrade pip and install requirements.txt."""
+    """Install dependencies must use the hash-locked dependency set."""
     wf = _load_ci()
     test_job = wf.get("jobs", {}).get("test", {})
     steps = test_job.get("steps", [])
@@ -105,7 +105,8 @@ def test_ci_install_dependencies_commands() -> None:
 
     run_text = install_step["run"]
     assert "pip install --upgrade pip" in run_text or "pip install --upgrade pip" in run_text.lower()
-    assert "pip install -r requirements.txt" in run_text
+    assert "pip install --require-hashes -r requirements.lock" in run_text
+    assert "pip install -r requirements.txt" not in run_text
 
 
 def test_ci_run_tests_command() -> None:

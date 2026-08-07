@@ -6,12 +6,13 @@ results.
 
 ## Read Order
 
-1. `_shared/AGENT_PROTOCOL.md` for collaboration, safety, Git, and evidence.
-2. `OPERATING_MODEL.md` for the current task lifecycle and ownership map.
-3. `DRIVER_PROTOCOL.md` for external worker and CLI-shell boundaries.
-4. The specific project memory and `config/*.yml` authority needed by the task.
+1. Run `./agentlab.sh bootstrap` once after a fresh clone.
+2. Read `_shared/AGENT_PROTOCOL.md` for collaboration, safety, Git, and evidence.
+3. Read `OPERATING_MODEL.md` for the current task lifecycle and ownership map.
+4. Read `DRIVER_PROTOCOL.md` for external worker and CLI-shell boundaries.
+5. Read the specific project memory and `config/*.yml` authority needed by the task.
 
-Before deep repository reads, use the canonical handoff:
+After bootstrap and before deep repository reads, use the canonical handoff:
 
 ```bash
 ./agentlab.sh repository-handoff --repo .

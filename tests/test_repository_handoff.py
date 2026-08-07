@@ -52,6 +52,26 @@ def test_safe_inventory_covers_modalities_without_dependency_cache(tmp_path: Pat
     assert all("node_modules" not in path for values in snapshot["category_examples"].values() for path in values)
 
 
+def test_repository_identity_is_stable_across_clone_names_and_remote_protocols(
+    tmp_path: Path,
+) -> None:
+    first_parent = tmp_path / "first"
+    second_parent = tmp_path / "second"
+    first_parent.mkdir()
+    second_parent.mkdir()
+    first = _repository(first_parent)
+    second = _repository(second_parent)
+    _git(first, "remote", "add", "origin", "https://github.com/Kidrage/AgentLab.git")
+    _git(second, "remote", "add", "origin", "git@github.com:Kidrage/AgentLab.git")
+
+    first_snapshot = scan_repository(first)
+    second_snapshot = scan_repository(second)
+
+    assert first_snapshot["repository_name"] == "AgentLab"
+    assert second_snapshot["repository_name"] == "AgentLab"
+    assert first_snapshot["repository_id"] == second_snapshot["repository_id"]
+
+
 def test_inventory_excludes_deleted_tracked_paths(tmp_path: Path) -> None:
     root = _repository(tmp_path)
     (root / "src" / "main.py").unlink()
@@ -97,12 +117,14 @@ def test_update_writes_only_canonical_handoff_and_preserves_notes(tmp_path: Path
 
     root_handoff.write_text(content.replace(
         "- Add durable decisions, constraints, or cross-agent context here.",
-        "- Durable manual decision.",
+        "- Durable manual decision at /Users/example/project.",
     ), encoding="utf-8")
     (root / "src" / "new.py").write_text("VALUE = 1\n", encoding="utf-8")
     update_handoffs(root, shared)
     refreshed = root_handoff.read_text(encoding="utf-8")
     assert "Durable manual decision" in refreshed
+    assert "/Users/example" not in refreshed
+    assert "<USER_HOME>/project" in refreshed
     assert "src/new.py" in refreshed
 
 

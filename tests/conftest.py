@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+import sys
 
 import pytest
 
@@ -42,7 +43,7 @@ def isolated_agentlab_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def isolated_agentlab_cli_root(isolated_agentlab_root: Path) -> Path:
+def isolated_agentlab_cli_root(isolated_agentlab_root: Path, monkeypatch) -> Path:
     """Add a clean runtime copy for subprocess CLI integration tests."""
     shutil.copytree(
         ROOT / "agent_runtime",
@@ -50,4 +51,5 @@ def isolated_agentlab_cli_root(isolated_agentlab_root: Path) -> Path:
         dirs_exist_ok=True,
         ignore=shutil.ignore_patterns(".env", ".venv", "__pycache__", "*.pyc"),
     )
+    monkeypatch.setenv("PYTHON", sys.executable)
     return isolated_agentlab_root

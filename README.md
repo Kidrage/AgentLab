@@ -42,6 +42,9 @@ Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`,
 ## Quick Start / 快速开始
 
 ```bash
+# Bootstrap once after cloning / 克隆后先完成可复现安装
+./agentlab.sh bootstrap
+
 # Read-only orientation / 只读检查
 ./agentlab.sh repository-handoff --repo .
 ./agentlab.sh model-doctor
@@ -63,6 +66,15 @@ Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`,
 # Execute only after approval / 仅在授权后执行
 ./agentlab.sh run-pipeline --project AgentLab --task-id task_0001 --execute
 ```
+
+The supported Python versions are 3.11-3.13. `bootstrap` creates `.venv` and
+installs the hash-locked dependency set from `requirements.lock`; it does not
+require Provider credentials. If dependencies are missing, other commands stop
+with an actionable bootstrap message instead of a Python traceback.
+
+支持 Python 3.11-3.13。`bootstrap` 会创建 `.venv` 并从
+`requirements.lock` 安装带哈希的锁定依赖，不需要任何模型密钥。依赖缺失时，
+其他命令会给出明确的自举提示，而不是直接输出 Python 堆栈。
 
 Use `./agentlab.sh --help` and nested `--help` for the current command inventory.
 Do not rely on a copied command count or model table.

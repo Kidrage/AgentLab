@@ -2,6 +2,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ "${1:-}" == "bootstrap" ]]; then
+  shift
+  exec bash "$ROOT/scripts/bootstrap.sh" "$@"
+fi
+
 PYTHON_BIN="$ROOT/.venv/bin/python"
 if [[ ! -x "$PYTHON_BIN" && -x "$ROOT/.venv/bin/python3" ]]; then
   PYTHON_BIN="$ROOT/.venv/bin/python3"
@@ -15,6 +21,9 @@ _python_has_runtime_deps() {
   "$1" - <<'PY' >/dev/null 2>&1
 import typer
 import yaml
+import dotenv
+import pydantic
+import rich
 PY
 }
 
@@ -32,6 +41,26 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
   else
     PYTHON_BIN="python3"
   fi
+fi
+
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  cat >&2 <<EOF
+AgentLab bootstrap error [blocking]: Python was not found at '$PYTHON_BIN'.
+Install Python 3.11-3.13, or set PYTHON to a compatible interpreter.
+EOF
+  exit 2
+fi
+
+if ! _python_has_runtime_deps "$PYTHON_BIN"; then
+  cat >&2 <<'EOF'
+AgentLab bootstrap error [blocking]: runtime dependencies are not installed.
+Run the deterministic project bootstrap first:
+
+  ./agentlab.sh bootstrap
+
+Then retry the requested command. See README.md for supported Python versions.
+EOF
+  exit 2
 fi
 
 # Load optional local environment overrides without requiring them.

@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-de62d90289e0`
+- Repository ID: `AgentLab-33af7623ad3a`
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-23T08:46:30.476983+00:00`
+- Generated at: `2026-08-07T03:17:42.410522+00:00`
 
 ## Current State
 
-- Branch: `feature/task-runtime-v2`
-- HEAD: `90358ec`
-- Indexed paths: 2041
+- Branch: `agent/f0-baseline-bootstrap`
+- HEAD: `5c1f9e7`
+- Indexed paths: 2010
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,31 +43,31 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 584 |
-| `tests` | 450 |
-| `acceptance_runs` | 406 |
-| `docs` | 340 |
+| `agent_runtime` | 615 |
+| `tests` | 472 |
+| `docs` | 345 |
+| `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
-| `config` | 124 |
-| `acceptance_runs/narrative_eval` | 116 |
+| `config` | 125 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 50 |
+| `agent_runtime/narrative` | 59 |
 | `skills` | 47 |
 | `skills/active` | 46 |
-| `acceptance_runs/agentlab_capability_acceptance` | 41 |
+| `acceptance_runs/agentlab_capability_acceptance` | 44 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
-| `docs/narrative` | 31 |
-| `scripts` | 22 |
+| `docs/narrative` | 32 |
+| `scripts` | 24 |
 | `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
+| `.` | 19 |
+| `agent_runtime/cli` | 19 |
+| `agent_runtime/executors` | 19 |
+| `acceptance_runs/narrative_eval` | 18 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
-| `agent_runtime/executors` | 18 |
-| `.` | 17 |
 | `acceptance_runs/m2_operator_demo` | 16 |
-| `agent_runtime/cli` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
@@ -88,19 +88,19 @@
 
 ### Categories
 
-- code: 975 files, 8618882 bytes
-- literature: 414 files, 2352810 bytes
-- other: 12 files, 74102 bytes
-- structured_data: 640 files, 3277825 bytes
+- code: 1030 files, 9817712 bytes
+- literature: 420 files, 2386152 bytes
+- other: 13 files, 94463 bytes
+- structured_data: 547 files, 3193896 bytes
 
 ### Common Extensions
 
-- `.py`: 961
-- `.yml`: 608
-- `.md`: 375
+- `.py`: 1015
+- `.yml`: 515
+- `.md`: 381
 - `.txt`: 39
 - `.json`: 27
-- `.sh`: 9
+- `.sh`: 10
 - `[no extension]`: 5
 - `.js`: 5
 - `.csv`: 3
@@ -108,6 +108,7 @@
 - `.css`: 2
 - `.diff`: 1
 - `.ini`: 1
+- `.lock`: 1
 - `.jsonl`: 1
 - `.log`: 1
 - `.toml`: 1
@@ -124,26 +125,6 @@
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.yml`
 - `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml`
 - `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/model_override_receipt.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_quality_matrix.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_state_plan.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/character_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/continuity_failure_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/foreshadowing_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/longform_eval_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/manuscript_reset_proposal.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/series_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/series_scale_simulation.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/timeline_worldline_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/chapter_quality_matrix.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/chapter_state_plan.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/character_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/continuity_failure_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/foreshadowing_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/longform_eval_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/manuscript_reset_proposal.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/series_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/series_scale_simulation.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/timeline_worldline_ledger.yml`
 - `acceptance_runs/s10_generalization_eval/fixtures/video_story_skeleton_governance/evidence_contract.yml`
 - `agent_runtime/artifact_contract.py`
 - `agent_runtime/assistant/models.py`
@@ -174,6 +155,8 @@
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/narrative/crown_v3_migration.py`
+- `agent_runtime/narrative/knowledge_contract.py`
 - `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
 - `agent_runtime/operator_os/action_contract.py`
@@ -182,7 +165,11 @@
 - `agent_runtime/program_manager/acceptance_contract.py`
 - `agent_runtime/program_manager/models.py`
 - `agent_runtime/program_manager/project_state_contract.py`
+- `agent_runtime/project_agents/contract.py`
+- `agent_runtime/project_agents/models.py`
 - `agent_runtime/project_ops/models.py`
+- `agent_runtime/project_truth/migration.py`
+- `agent_runtime/project_truth/models.py`
 - `agent_runtime/project_workflows/models.py`
 - `agent_runtime/retry/models.py`
 - `agent_runtime/review/models.py`
@@ -194,6 +181,20 @@
 - `agentlab_tui/models.py`
 - `config/agent_model_profiles.yml`
 - `config/capability_schema.yml`
+- `config/config_ui_schema.yml`
+- `config/hermes_brain_model_groups.yml`
+- `config/migration_profile.yml`
+- `config/model_capacity.yml`
+- `config/model_catalog.yml`
+- `config/model_cost_profiles.yml`
+- `config/model_pricing.yml`
+- `config/model_providers.yml`
+- `config/project_artifact_contracts.yml`
+- `config/worker_invocation_contracts.yml`
+- `docs/AGENTLAB_COMPANY_MODEL.md`
+- `docs/AGENT_PACKET_CONTRACT.md`
+- `docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
+- `docs/S9_VISION_AUDIO_DOCUMENT_CONTRACTS.md`
 
 ## Key Entrypoints and Guides
 
@@ -223,6 +224,7 @@
 - `docs/archive/root_agent_guides_legacy_20260718/README_PRE_PRUNING.md`
 - `docs/archive/skill_usage_legacy_20260718/README.md`
 - `projects/README.md`
+- `requirements.lock`
 - `requirements.txt`
 - `tests/fixtures/p1_closure/fake_ecc/AGENTS.md`
 - `tests/fixtures/p1_closure/fake_repo/pyproject.toml`
@@ -230,44 +232,33 @@
 
 ## Change History
 
-- `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
-- `53640cd 2026-07-22 feat: add governed task runtime v2`
-- `5b8738a 2026-07-22 feat: route Seedance through Hermes Ark skills`
-- `c179aed 2026-07-22 docs: refresh model route handoff`
-- `6c35230 2026-07-22 fix: deliver Agy planner YAML`
-- `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
-- `c990809 2026-07-22 fix: align default routes with native Codex`
-- `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
-- `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
-- `479ebcf 2026-07-21 fix(narrative): enforce Gate 1 prose length`
-- `668d4b7 2026-07-21 fix(narrative): deliver sealed Writer packet on stdin`
-- `bf1c056 2026-07-21 fix(narrative): seal Gate 1 operator plans`
-- `a6ed77b 2026-07-21 fix(narrative): align writer operator materialization`
-- `2452bf9 2026-07-21 feat(narrative): seal live writer packet path`
-- `c8ac0a1 2026-07-21 fix(narrative): bind literary memory evidence`
-- `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
-- `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
-- `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
-- `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
-- `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
+- `5c1f9e7 2026-07-24 test(cli): cover agy proxy inheritance defaults and preflight reporting`
 
 ## Current Changes
 
-- `## feature/task-runtime-v2`
+- `## agent/f0-baseline-bootstrap`
+- ` M .github/workflows/ci.yml`
+- ` M AGENTS.md`
 - ` M PROJECT_HANDOFF.md`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
-- `?? run_crown_ep1.sh`
+- ` M README.md`
+- ` M agent_runtime/repository_handoff.py`
+- ` M agentlab.sh`
+- ` M config/repository_hygiene.yml`
+- ` M tests/conftest.py`
+- ` M tests/test_ci_workflow_integrity.py`
+- ` M tests/test_repository_handoff.py`
+- `?? acceptance_runs/f_series/`
+- `?? docs/f_series/`
+- `?? requirements.lock`
+- `?? scripts/bootstrap.sh`
+- `?? tests/test_bootstrap_shell.py`
 
 ## Related Repositories
 
 ### Remotes
 
-- `250 ssh://10.147.17.250/home/admin/AgentLab (fetch)`
-- `250 ssh://10.147.17.250/home/admin/AgentLab (push)`
-- `origin github.com:Kidrage/AgentLab.git (fetch)`
-- `origin github.com:Kidrage/AgentLab.git (push)`
+- `origin https://github.com/Kidrage/AgentLab.git (fetch)`
+- `origin https://github.com/Kidrage/AgentLab.git (push)`
 
 ### Submodules
 
@@ -279,6 +270,7 @@
 
 - `.clinerules/sync-rules.md`
 - `AGENTS.md`
+- `ARCHITECTURE_IMPACT_REPORT.md`
 - `CLAUDE.md`
 - `CLI_ROADMAP.md`
 - `CONTEXT.md`
@@ -296,7 +288,6 @@
 - `acceptance_runs/e2e_minimal_task/input_task.md`
 - `acceptance_runs/e2e_minimal_task/revision_packet.md`
 - `acceptance_runs/hotfix_cli_binary_aliases/CLI_COMMAND_INVENTORY.md`
-- `acceptance_runs/hotfix_cli_binary_aliases/HOTFIX_CLI_BINARY_ALIASES_REPORT.md`
 
 ### image
 
@@ -317,9 +308,12 @@
 - `acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_print_smoke.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke.yml`
+- `acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/task_packet.yml`
+- `acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_live_candidate_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_scale_governance_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/current.yml`
+- `acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
 - `acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml`
 - `acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_writer_20260707.yml`
 - `acceptance_runs/agentlab_capability_acceptance/frontdesk_boundary_audit.yml`
@@ -329,9 +323,6 @@
 - `acceptance_runs/agentlab_capability_acceptance/goal_acceptance_scope.yml`
 - `acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml`
-- `acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml`
-- `acceptance_runs/agentlab_capability_acceptance/grok_oauth_cli_smoke.yml`
-- `acceptance_runs/agentlab_capability_acceptance/hermes_frontdesk_deepseek_v4_pro_smoke.yml`
 
 ## Validation and Risks
 
@@ -666,7 +657,7 @@ Ch25 has not passed literary review or anonymous A/B selection, and Ch26/27 have
 not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
 User-positive calibration is still missing and ten human blind pairs at 70% new
 system preference remain required before Gate 2 scaling or Phase 5.
-- 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to `/Users/saintpeter/AgentLab_Archive/task_cleanup_20260722_non_crown/`: 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
+- 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to `<USER_HOME>/AgentLab_Archive/task_cleanup_20260722_non_crown/`: 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

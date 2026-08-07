@@ -75,6 +75,7 @@ KEY_FILE_NAMES = {
     "docker-compose.yml",
     "compose.yml",
     "requirements.txt",
+    "requirements.lock",
 }
 
 MANUAL_NOTES_START = "<!-- AGENT_NOTES_START -->"
@@ -196,9 +197,42 @@ def _category(path: Path) -> str:
     return "other"
 
 
+def _remote_identities(git: dict[str, Any]) -> list[str]:
+    identities: set[str] = set()
+    for remote in git.get("remotes", []):
+        fields = remote.split()
+        if len(fields) < 2:
+            continue
+        value = fields[1].rstrip("/")
+        if "://" in value:
+            parts = urlsplit(value)
+            host = (parts.hostname or "").lower()
+            path = parts.path.lstrip("/")
+        elif ":" in value:
+            host, path = value.split(":", 1)
+            host = host.lower()
+        else:
+            host, path = "", value
+        if path.endswith(".git"):
+            path = path[:-4]
+        identity = "/".join(part for part in (host, path) if part)
+        if identity:
+            identities.add(identity)
+    return sorted(identities)
+
+
+def _repository_name(root: Path, git: dict[str, Any]) -> str:
+    identities = _remote_identities(git)
+    if identities:
+        return identities[0].rsplit("/", 1)[-1]
+    return root.name
+
+
 def _repository_id(root: Path, git: dict[str, Any]) -> str:
-    identity = "|".join(git.get("remotes", [])) or root.name
-    slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", root.name).strip("-.") or "repository"
+    identities = _remote_identities(git)
+    repository_name = _repository_name(root, git)
+    identity = "|".join(identities) or root.name
+    slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", repository_name).strip("-.") or "repository"
     return f"{slug}-{sha256(identity.encode('utf-8')).hexdigest()[:12]}"
 
 
@@ -259,6 +293,7 @@ def scan_repository(root: Path, *, max_paths: int = 200_000, examples_per_catego
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "root": str(root),
+        "repository_name": _repository_name(root, git),
         "repository_id": _repository_id(root, git),
         "git": git,
         "scan": {
@@ -283,7 +318,10 @@ def scan_repository(root: Path, *, max_paths: int = 200_000, examples_per_catego
 def _extract_manual_notes(existing: str) -> str:
     if MANUAL_NOTES_START not in existing or MANUAL_NOTES_END not in existing:
         return "- Add durable decisions, constraints, or cross-agent context here."
-    return existing.split(MANUAL_NOTES_START, 1)[1].split(MANUAL_NOTES_END, 1)[0].strip()
+    notes = existing.split(MANUAL_NOTES_START, 1)[1].split(MANUAL_NOTES_END, 1)[0].strip()
+    notes = re.sub(r"/Users/[^/\s`]+/", "<USER_HOME>/", notes)
+    notes = re.sub(r"/home/[^/\s`]+/", "<USER_HOME>/", notes)
+    return notes
 
 
 def _bullets(values: Iterable[str], empty: str = "None detected.") -> list[str]:
@@ -304,7 +342,7 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
         "",
         f"- Repository ID: `{snapshot['repository_id']}`",
         "- Working root: `.`",
-        f"- Repository name: `{Path(snapshot['root']).name}`",
+        f"- Repository name: `{snapshot['repository_name']}`",
         f"- Git repository: `{str(git['is_git']).lower()}`",
         f"- Generated at: `{snapshot['generated_at']}`",
         "",
