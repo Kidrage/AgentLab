@@ -1,0 +1,16 @@
+schema_version: production-role-profiles/v1
+
+# Domain names stay stable in the protocol while execution is resolved through
+# an existing governed AgentLab model tier. These entries never create a new
+# runtime role or provider fallback surface.
+profiles:
+  source_story_locker: {role: Reviewer, agent_model_profile: alter}
+  screenplay_adapter: {role: Writer, agent_model_profile: alter}
+  production_designer: {role: ArtifactProducer, agent_model_profile: alter}
+  sound_bible_designer: {role: ArtifactProducer, agent_model_profile: alter}
+  previs_director: {role: ArtifactProducer, agent_model_profile: alter}
+  picture_producer: {role: ArtifactProducer, agent_model_profile: alter}
+  sound_producer: {role: ArtifactProducer, agent_model_profile: alter}
+  post_producer: {role: ArtifactProducer, agent_model_profile: alter}
+  film_qc_reviewer: {role: Reviewer, agent_model_profile: alter}
+  master_verifier: {role: Verifier, agent_model_profile: alter}

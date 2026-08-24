@@ -17,7 +17,7 @@ from agent_runtime.narrative.jobs.crown_adapter import (
     create_crown_audit_job_from_contract,
     upgrade_crown_job_state,
 )
-from tests.narrative_test_authority import install_narrative_test_authority
+from narrative_test_authority import install_narrative_test_authority
 
 
 NOW = "2026-07-19T10:00:00+00:00"

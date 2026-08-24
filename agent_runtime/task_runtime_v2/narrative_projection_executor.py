@@ -43,7 +43,9 @@ class NarrativeProjectionAttemptExecutor:
             or work_item.get("kind") != "verification"
             or work_item.get("requires_user_acceptance") is not True
         ):
-            raise InvalidTransition("detached projection requires its governed verifier")
+            raise InvalidTransition(
+                "detached projection requires its governed verifier"
+            )
         classification = projection["task"].get("input_classification") or {}
         deterministic_tool = {
             "tool_id": TOOL_ID,
@@ -131,6 +133,12 @@ class NarrativeProjectionAttemptExecutor:
             "status": "pass",
             "output_path": attempt_output.relative_to(task_root).as_posix(),
             "output_sha256": hashlib.sha256(attempt_output.read_bytes()).hexdigest(),
+            "sealed_sources": [
+                {
+                    "path": output.relative_to(self.agentlab_root).as_posix(),
+                    "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+                }
+            ],
             "deterministic_tool": dict(deterministic_tool),
             "model_execution": None,
         }

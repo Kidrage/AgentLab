@@ -28,14 +28,17 @@ AgentLab 采用“共享内核 + 版本化任务协议 + 稳定角色能力档�
 
 - 一个业务目标对应一个 Task；协议引用和输入事实写入 append-only ledger。
 - 协议只按显式事实编译，不用自然语言关键词暗中换路。
-- 编译结果一次性绑定，WorkItem 批量原子物化；重复 prepare 必须幂等。
+- 编译结果一次性绑定，WorkItem 批量原子物化；绑定后通用 WorkItem API 不得增删节点，重复 prepare 必须幂等。
 - 依赖解锁、阻塞恢复、事件哈希重建和 doctor 校验由 Task Runtime v2 统一负责。
+- WorkItem 只有在同一个成功 Attempt 产生全部声明产物、且绑定到该 Attempt 的 gate 全部存在后才能 accepted；重试之间不得拼接旧产物与新门禁。
+- 编译图同时声明外部 source fact、前序节点输入、gate 的受审 ArtifactVersion，以及最终 result artifact。执行器只读取声明的源码根和已 accepted 前序节点的不可变输出。
+- 自动/确定性 gate 必须来自确定性工具 Attempt；独立 gate 的审查角色和 worker/provider 身份必须不同于受审产物生产者；人工 gate 必须有外部私钥签名、固定公钥验证的 approval receipt。
 - agent 只能产生候选产物；证据、独立审查与人工 gate 决定是否晋升。
 - 角色的 worker/model/capacity route 由配置权威解析，协议不复制模型矩阵，也不允许静默 fallback。
 
 ## 稳定生产阶梯
 
-1. 每次内核变更先运行小说与代码离线 canary，各 10 次，并注入一次阻塞重启。
+1. 每次内核变更先运行小说与代码离线 canary，各 10 次，并注入一次阻塞重启。每次必须产生真实的确定性 Attempt receipt、候选产物、证据绑定、gate 事件并进入 Task completed。
 2. canary 全绿后，执行一个隔离小说章节的真实 provider 试产；失败只保留候选和 receipt，不影响既有小说世界。
 3. 小说稳定后运行大型代码生产，并要求测试、独立审查和 CI/人工 gate。
 4. 电影协议先 dry-run 到完整母版图；源故事、剧本和 bible 锁定后才允许昂贵的画面/声音生成。
@@ -48,4 +51,4 @@ AgentLab 采用“共享内核 + 版本化任务协议 + 稳定角色能力档�
   --state-root /tmp/agentlab-protocol-canaries
 ```
 
-`task execute` 当前负责把精确协议编译并物化为 Task Runtime WorkItems。真实模型调用仍必须通过受管 Attempt executor；禁止协议任务回退到 legacy `runs/` 双写路径。
+`task execute` 默认只做安全的 prepare。显式传入 `--live --work-item-id ...` 后，CLI 角色进入 `RoleAttemptExecutor`，确定性角色进入内核确定性执行器；成功输出登记为协议声明的 ArtifactVersion。有 gate 的节点进入 `waiting_review`，待 `protocol-gate record` 写入 Attempt、受审 ArtifactVersion 和所需签名后，再次执行命令完成 accepted。协议任务始终禁止回退到 legacy `runs/` 双写路径。

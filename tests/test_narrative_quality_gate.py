@@ -20,7 +20,7 @@ from agent_runtime.narrative.quality.live_editor import (
     finalize_literary_ab_review,
 )
 from agent_runtime.background_job_worker import execute_action
-from tests.narrative_test_authority import install_narrative_test_authority
+from narrative_test_authority import install_narrative_test_authority
 
 
 HASH = "current-body"

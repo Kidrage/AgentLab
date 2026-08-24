@@ -69,7 +69,10 @@ packs:
       - artifact_promotion
     protocol:
       ref: code.large.v1
-      required_facts: [kind, scope, repository]
+      required_facts: [kind, scope, target_count, canon_impact, risk_flags, repository]
+      fact_constraints:
+        kind: [code_build]
+        scope: [large]
       role_selection: static
       role_bindings:
         - {node_id: supervisor_plan, role: Supervisor, depends_on: []}
@@ -78,10 +81,22 @@ packs:
         - {node_id: implementation, role: Coder, depends_on: [interface_contract]}
         - {node_id: independent_validation, role: TesterAuditor, depends_on: [implementation]}
         - {node_id: promotion_verification, role: Verifier, depends_on: [independent_validation]}
+      source_fact_bindings:
+        repository_context: [repository]
+        interface_contract: [repository]
+        implementation: [repository]
+        independent_validation: [repository]
+        promotion_verification: [repository]
       artifact_contracts:
         - {artifact_type: source_patch, producer_node: implementation, candidate_only: true}
         - {artifact_type: validation_report, producer_node: independent_validation, candidate_only: true}
+        - {artifact_type: verification_report, producer_node: promotion_verification, candidate_only: true}
+      result_artifact_type: source_patch
       promotion_gates: [tests_pass, independent_review, ci_or_human_acceptance]
+      promotion_gate_bindings:
+        tests_pass: {work_item_id: independent_validation, evidence_kind: automated, subject_artifact_types: [validation_report]}
+        independent_review: {work_item_id: promotion_verification, evidence_kind: independent, subject_artifact_types: [source_patch]}
+        ci_or_human_acceptance: {work_item_id: promotion_verification, evidence_kind: human, subject_artifact_types: [source_patch]}
 
   - pack_id: narrative_longform
     name: Longform Narrative Production
@@ -223,17 +238,33 @@ packs:
       - no_production_write_before_promotion
     protocol:
       ref: narrative.chapter.v1
-      required_facts: [kind, scope, chapter]
+      required_facts: [kind, scope, target_count, canon_impact, risk_flags, chapter, source_story_bible]
+      fact_constraints:
+        kind: [prose_build]
+        scope: [single_chapter]
       role_selection: narrative_author_team
+      source_fact_bindings:
+        authorial_director: [source_story_bible]
+        canon_timeline_steward: [source_story_bible]
+        arc_scene_planner: [source_story_bible]
+        writer: [source_story_bible]
+        senior_editor: [source_story_bible]
+        state_projector: [source_story_bible]
       artifact_contracts:
         - {artifact_type: prose_candidate, producer_node: writer, candidate_only: true}
         - {artifact_type: editorial_review, producer_node: senior_editor, candidate_only: true}
         - {artifact_type: narrative_state_delta, producer_node: state_projector, candidate_only: true}
+      result_artifact_type: prose_candidate
       promotion_gates:
         - candidate_hash_bound
         - independent_editor_acceptance
         - deterministic_state_projection
         - user_acceptance
+      promotion_gate_bindings:
+        candidate_hash_bound: {work_item_id: writer, evidence_kind: automated, subject_artifact_types: [prose_candidate]}
+        independent_editor_acceptance: {work_item_id: senior_editor, evidence_kind: independent, subject_artifact_types: [prose_candidate]}
+        deterministic_state_projection: {work_item_id: state_projector, evidence_kind: deterministic, subject_artifact_types: [narrative_state_delta]}
+        user_acceptance: {work_item_id: state_projector, evidence_kind: human, subject_artifact_types: [prose_candidate]}
 
   - pack_id: article_light
     name: Article Light Draft
@@ -409,32 +440,74 @@ packs:
       - qa_or_human_acceptance_before_project_artifact_promotion
     protocol:
       ref: film.production.v1
-      required_facts: [kind, scope, source_story_artifact]
+      required_facts: [kind, scope, target_count, canon_impact, risk_flags, source_story_artifact]
+      fact_constraints:
+        kind: [film_build]
+        scope: [feature]
       role_selection: static
       role_bindings:
-        - {node_id: screenplay_lock, role: Writer, profile: screenplay_adapter, depends_on: []}
+        - {node_id: source_story_lock, role: Reviewer, profile: source_story_locker, depends_on: []}
+        - {node_id: screenplay_lock, role: Writer, profile: screenplay_adapter, depends_on: [source_story_lock]}
         - {node_id: production_design, role: ArtifactProducer, profile: production_designer, depends_on: [screenplay_lock]}
-        - {node_id: director_previs, role: ArtifactProducer, profile: previs_director, depends_on: [screenplay_lock, production_design]}
+        - {node_id: sound_bible, role: ArtifactProducer, profile: sound_bible_designer, depends_on: [screenplay_lock]}
+        - {node_id: director_previs, role: ArtifactProducer, profile: previs_director, depends_on: [screenplay_lock, production_design, sound_bible]}
         - {node_id: picture_generation, role: ArtifactProducer, profile: picture_producer, depends_on: [director_previs]}
         - {node_id: sound_generation, role: ArtifactProducer, profile: sound_producer, depends_on: [director_previs]}
         - {node_id: post_production, role: ArtifactProducer, profile: post_producer, depends_on: [picture_generation, sound_generation]}
         - {node_id: independent_qc, role: Reviewer, profile: film_qc_reviewer, depends_on: [post_production]}
         - {node_id: master_verification, role: Verifier, profile: master_verifier, depends_on: [independent_qc]}
+      source_fact_bindings:
+        source_story_lock: [source_story_artifact]
       artifact_contracts:
+        - {artifact_type: source_story_lock, producer_node: source_story_lock, candidate_only: true}
         - {artifact_type: locked_screenplay, producer_node: screenplay_lock, candidate_only: true}
         - {artifact_type: production_design_bible, producer_node: production_design, candidate_only: true}
+        - {artifact_type: sound_bible, producer_node: sound_bible, candidate_only: true}
         - {artifact_type: animatic_manifest, producer_node: director_previs, candidate_only: true}
+        - {artifact_type: episode_plan, producer_node: director_previs, candidate_only: true}
+        - {artifact_type: shot_list, producer_node: director_previs, candidate_only: true}
+        - {artifact_type: character_visual_bible, producer_node: director_previs, candidate_only: true}
+        - {artifact_type: prompt_pack, producer_node: director_previs, candidate_only: true}
+        - {artifact_type: asset_registry, producer_node: director_previs, candidate_only: true}
         - {artifact_type: picture_asset_manifest, producer_node: picture_generation, candidate_only: true}
+        - {artifact_type: picture_generation_ledger, producer_node: picture_generation, candidate_only: true}
+        - {artifact_type: picture_generation_receipt, producer_node: picture_generation, candidate_only: true}
+        - {artifact_type: generated_assets_manifest, producer_node: picture_generation, candidate_only: true}
         - {artifact_type: sound_asset_manifest, producer_node: sound_generation, candidate_only: true}
+        - {artifact_type: sound_generation_ledger, producer_node: sound_generation, candidate_only: true}
+        - {artifact_type: sound_generation_receipt, producer_node: sound_generation, candidate_only: true}
+        - {artifact_type: edit_timeline, producer_node: post_production, candidate_only: true}
+        - {artifact_type: sound_mix_manifest, producer_node: post_production, candidate_only: true}
+        - {artifact_type: generation_ledger, producer_node: post_production, candidate_only: true}
+        - {artifact_type: generation_receipt, producer_node: post_production, candidate_only: true}
+        - {artifact_type: media_continuity_ledger, producer_node: post_production, candidate_only: true}
         - {artifact_type: master_candidate_manifest, producer_node: post_production, candidate_only: true}
         - {artifact_type: film_qc_report, producer_node: independent_qc, candidate_only: true}
+        - {artifact_type: media_qc_report, producer_node: independent_qc, candidate_only: true}
+        - {artifact_type: visual_observation_report, producer_node: independent_qc, candidate_only: true}
+        - {artifact_type: visual_review_report, producer_node: independent_qc, candidate_only: true}
+        - {artifact_type: visual_acceptance_candidate, producer_node: independent_qc, candidate_only: true}
+        - {artifact_type: visual_acceptance_decision, producer_node: independent_qc, candidate_only: true}
+        - {artifact_type: master_verification_report, producer_node: master_verification, candidate_only: true}
+        - {artifact_type: visual_verification_report, producer_node: master_verification, candidate_only: true}
+        - {artifact_type: narrative_media_delivery_receipt, producer_node: master_verification, candidate_only: true}
+      result_artifact_type: master_candidate_manifest
       promotion_gates:
         - screenplay_locked
-        - production_bibles_locked
+        - visual_bible_locked
+        - sound_bible_locked
         - asset_provenance_verified
         - audiovisual_sync_verified
         - independent_qc_passed
         - human_master_approval
+      promotion_gate_bindings:
+        screenplay_locked: {work_item_id: screenplay_lock, evidence_kind: human, subject_artifact_types: [locked_screenplay]}
+        visual_bible_locked: {work_item_id: production_design, evidence_kind: human, subject_artifact_types: [production_design_bible]}
+        sound_bible_locked: {work_item_id: sound_bible, evidence_kind: human, subject_artifact_types: [sound_bible]}
+        asset_provenance_verified: {work_item_id: post_production, evidence_kind: automated, subject_artifact_types: [picture_generation_receipt, sound_generation_receipt]}
+        audiovisual_sync_verified: {work_item_id: post_production, evidence_kind: automated, subject_artifact_types: [edit_timeline, sound_mix_manifest]}
+        independent_qc_passed: {work_item_id: independent_qc, evidence_kind: independent, subject_artifact_types: [master_candidate_manifest]}
+        human_master_approval: {work_item_id: master_verification, evidence_kind: human, subject_artifact_types: [master_candidate_manifest]}
 
   - pack_id: media_generation
     name: Single Media Generation

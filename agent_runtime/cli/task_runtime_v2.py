@@ -30,14 +30,29 @@ def register_task_runtime_commands(
 ) -> None:
     """Register the stable Task Runtime command surface on an AgentLab Typer app."""
 
-    task_app = typer.Typer(help="Task Runtime business-goal lifecycle.", no_args_is_help=True)
-    job_app = typer.Typer(help="Execution strategies under a Task.", no_args_is_help=True)
+    task_app = typer.Typer(
+        help="Task Runtime business-goal lifecycle.", no_args_is_help=True
+    )
+    job_app = typer.Typer(
+        help="Execution strategies under a Task.", no_args_is_help=True
+    )
     work_app = typer.Typer(help="Schedulable units under a Job.", no_args_is_help=True)
-    attempt_app = typer.Typer(help="Immutable execution attempts.", no_args_is_help=True)
-    artifact_app = typer.Typer(help="Immutable artifact versions.", no_args_is_help=True)
+    attempt_app = typer.Typer(
+        help="Immutable execution attempts.", no_args_is_help=True
+    )
+    artifact_app = typer.Typer(
+        help="Immutable artifact versions.", no_args_is_help=True
+    )
     evidence_app = typer.Typer(help="Artifact evidence bindings.", no_args_is_help=True)
-    trace_app = typer.Typer(help="Immutable task trace and memory records.", no_args_is_help=True)
-    runtime_app = typer.Typer(help="Task Runtime project operations.", no_args_is_help=True)
+    trace_app = typer.Typer(
+        help="Immutable task trace and memory records.", no_args_is_help=True
+    )
+    gate_app = typer.Typer(
+        help="Compiled protocol promotion gates.", no_args_is_help=True
+    )
+    runtime_app = typer.Typer(
+        help="Task Runtime project operations.", no_args_is_help=True
+    )
 
     def current_root() -> Path:
         return Path(root() if callable(root) else root)
@@ -46,7 +61,9 @@ def register_task_runtime_commands(
         return TaskRuntime(current_root(), project=project)
 
     def emit(value: Any) -> None:
-        console.print(yaml.safe_dump(value, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(value, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     def json_mapping(raw: str, *, field: str) -> dict[str, Any]:
         try:
@@ -101,14 +118,104 @@ def register_task_runtime_commands(
     def task_execute(
         project: str = typer.Option(..., "--project"),
         task_id: str = typer.Option(..., "--task-id"),
+        live: bool = typer.Option(
+            False,
+            "--live",
+            help="Execute one compiled node through its governed role executor.",
+        ),
+        work_item_id: str | None = typer.Option(None, "--work-item-id"),
+        messages_path: Path | None = typer.Option(None, "--messages-path"),
+        source_paths: list[Path] = typer.Option([], "--source-path"),
+        external_context_request_path: Path | None = typer.Option(
+            None, "--external-context-request"
+        ),
+        attempt_id: str | None = typer.Option(None, "--attempt-id"),
+        idempotency_key: str = typer.Option("protocol-execute", "--idempotency-key"),
+        timeout: int | None = typer.Option(None, "--timeout", min=1),
     ) -> None:
-        """Compile and materialize the Task's exact production protocol."""
+        """Prepare a protocol, or execute one exact node with ``--live``."""
+
+        runner = ProductionProtocolRunner(current_root(), project=project)
+        if not live:
+            emit(runner.prepare(task_id))
+            return
+        if (
+            not work_item_id
+            or messages_path is None
+            or external_context_request_path is None
+        ):
+            raise typer.BadParameter(
+                "--live requires --work-item-id, --messages-path, and "
+                "--external-context-request"
+            )
+        task_root = runner.runtime._task_dir(task_id).resolve(strict=True)
+        resolved_messages = messages_path.resolve(strict=True)
+        if (
+            messages_path.is_symlink()
+            or not resolved_messages.is_file()
+            or not resolved_messages.is_relative_to(task_root)
+        ):
+            raise typer.BadParameter(
+                "messages path must be a regular file inside the governed Task"
+            )
+        messages = json_list(
+            resolved_messages.read_text(encoding="utf-8"), field="messages"
+        )
+        if external_context_request_path.is_symlink():
+            raise typer.BadParameter(
+                "external context request path may not be a symlink"
+            )
+        external_request = yaml.safe_load(
+            external_context_request_path.read_text(encoding="utf-8")
+        )
+        if not isinstance(external_request, dict):
+            raise typer.BadParameter("external context request must be a mapping")
+        emit(
+            runner.execute_node(
+                task_id,
+                work_item_id=work_item_id,
+                messages=messages,
+                source_paths=source_paths,
+                external_context_request=external_request,
+                attempt_id=attempt_id,
+                idempotency_key=idempotency_key,
+                timeout=timeout,
+            )
+        )
+
+    @gate_app.command("record")
+    def protocol_gate_record(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        gate_id: str = typer.Option(..., "--gate-id"),
+        work_item_id: str = typer.Option(..., "--work-item-id"),
+        evidence_kind: str = typer.Option(..., "--evidence-kind"),
+        evidence_sha256: str = typer.Option(..., "--evidence-sha256"),
+        attempt_id: str = typer.Option(..., "--attempt-id"),
+        subject_version_ids: list[str] = typer.Option(..., "--subject-version-id"),
+        actor: str = typer.Option(..., "--actor"),
+        approval_receipt_path: Path | None = typer.Option(None, "--approval-receipt"),
+        approval_signature_path: Path | None = typer.Option(
+            None, "--approval-signature"
+        ),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        """Record a declared, hash-bound protocol gate pass."""
 
         emit(
-            ProductionProtocolRunner(
-                current_root(),
-                project=project,
-            ).prepare(task_id)
+            runtime(project).record_protocol_gate(
+                task_id,
+                gate_id=gate_id,
+                work_item_id=work_item_id,
+                evidence_kind=evidence_kind,
+                evidence_sha256=evidence_sha256,
+                attempt_id=attempt_id,
+                subject_version_ids=subject_version_ids,
+                actor=actor,
+                idempotency_key=idempotency_key,
+                approval_receipt_path=approval_receipt_path,
+                approval_signature_path=approval_signature_path,
+            )["protocol_gates"][gate_id]
         )
 
     @task_app.command("classify")
@@ -136,9 +243,7 @@ def register_task_runtime_commands(
         emit(
             runtime(project).classify_task_input(
                 task_id,
-                input_profile=json_mapping(
-                    input_profile_json, field="input_profile"
-                ),
+                input_profile=json_mapping(input_profile_json, field="input_profile"),
                 producer_attempt_id=producer_attempt_id,
                 idempotency_key=idempotency_key,
             )["task"]
@@ -158,7 +263,12 @@ def register_task_runtime_commands(
             False, "--include-legacy", help="Include legacy runs/task_id entries"
         ),
     ) -> None:
-        emit({"project": project, "tasks": runtime(project).list_tasks(include_legacy=include_legacy)})
+        emit(
+            {
+                "project": project,
+                "tasks": runtime(project).list_tasks(include_legacy=include_legacy),
+            }
+        )
 
     def task_transition(
         project: str, task_id: str, status: str, idempotency_key: str
@@ -378,14 +488,7 @@ def register_task_runtime_commands(
         """Execute one configured role and bind its receipt to a v2 Attempt."""
 
         root = current_root()
-        raw_task_root = (
-            root
-            / "projects"
-            / project
-            / "runtime"
-            / "tasks"
-            / task_id
-        )
+        raw_task_root = root / "projects" / project / "runtime" / "tasks" / task_id
         lexical_task_root = raw_task_root.absolute()
         lexical_messages_path = messages_path.absolute()
         try:
@@ -414,9 +517,7 @@ def register_task_runtime_commands(
             external_context_request_path.read_text(encoding="utf-8")
         )
         if not isinstance(loaded_request, dict):
-            raise typer.BadParameter(
-                "external context request must be a mapping"
-            )
+            raise typer.BadParameter("external context request must be a mapping")
         external_context_request = loaded_request
         emit(
             RoleAttemptExecutor(root, project=project).execute(
@@ -542,7 +643,9 @@ def register_task_runtime_commands(
         iterations: int = typer.Option(10, "--iterations", min=1),
         state_root: Path | None = typer.Option(None, "--state-root"),
     ) -> None:
-        target = state_root or current_root() / ".agentlab_runtime" / "protocol_canaries"
+        target = (
+            state_root or current_root() / ".agentlab_runtime" / "protocol_canaries"
+        )
         report = run_protocol_canaries(
             current_root(),
             state_root=target,
@@ -593,6 +696,7 @@ def register_task_runtime_commands(
     app.add_typer(artifact_app, name="artifact")
     app.add_typer(evidence_app, name="evidence")
     app.add_typer(trace_app, name="trace")
+    app.add_typer(gate_app, name="protocol-gate")
     app.add_typer(runtime_app, name="runtime")
     app.add_typer(
         runtime_app,

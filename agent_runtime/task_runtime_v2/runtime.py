@@ -24,6 +24,14 @@ PROJECTION_SCHEMA = "task-runtime-projection/v2"
 PROJECT_INDEX_SCHEMA = "task-runtime-project-index/v2"
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_CLASSIFICATION_INPUT_FIELDS = {
+    "kind",
+    "scope",
+    "target_count",
+    "canon_impact",
+    "risk_flags",
+    "requested_tier",
+}
 
 
 class TaskRuntimeError(RuntimeError):
@@ -105,7 +113,9 @@ def _canonical_json(value: Any) -> str:
 
 
 def _event_hash(event_without_hash: dict[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json(event_without_hash).encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        _canonical_json(event_without_hash).encode("utf-8")
+    ).hexdigest()
 
 
 def _goal_fingerprint(user_goal: str) -> str:
@@ -145,7 +155,9 @@ class TaskRuntime:
     def __init__(self, agentlab_root: Path, *, project: str) -> None:
         self.agentlab_root = Path(agentlab_root).resolve(strict=False)
         self.project = _validated_id(project, field="project")
-        self.tasks_root = self.agentlab_root / "projects" / self.project / "runtime" / "tasks"
+        self.tasks_root = (
+            self.agentlab_root / "projects" / self.project / "runtime" / "tasks"
+        )
 
     def create_task(
         self,
@@ -176,14 +188,23 @@ class TaskRuntime:
             raise ValueError("protocol_ref must be non-empty when provided")
         if resolved_protocol_ref and input_profile is None:
             raise ValueError("protocol-bound tasks require an input_profile")
+        if resolved_protocol_ref and legacy_source is not None:
+            raise ValueError("protocol-bound tasks cannot use legacy_source")
         boundary_reason = str(independent_boundary_reason or "").strip()
         if allow_duplicate_goal and not boundary_reason:
             raise ValueError(
                 "independent_boundary_reason is required when allowing a duplicate goal"
             )
         declared_input_profile = dict(input_profile or {})
+        classification_profile = input_profile
+        if resolved_protocol_ref:
+            classification_profile = {
+                key: value
+                for key, value in declared_input_profile.items()
+                if key in _CLASSIFICATION_INPUT_FIELDS
+            }
         input_classification = TaskInputClassifier(self.agentlab_root).classify(
-            input_profile
+            classification_profile
         )
         payload: dict[str, Any] = {
             "title": title,
@@ -229,18 +250,38 @@ class TaskRuntime:
         if not isinstance(compiled_graph, dict):
             raise ValueError("compiled_graph must be a mapping")
         document = json.loads(_canonical_json(compiled_graph))
-        if document.get("schema_version") != "compiled-task-graph/v1":
+        if document.get("schema_version") != "compiled-task-graph/v3":
             raise ValueError("compiled_graph schema is unsupported")
+
+        projection = self.load_task(task_id)
+        existing = projection["task"].get("compiled_protocol")
+        if existing == document:
+            return projection
 
         def validate(projection: dict[str, Any]) -> None:
             task = projection["task"]
             if not task.get("protocol_ref"):
                 raise InvalidTransition("Task is not protocol-bound")
             if task["protocol_ref"] != document.get("protocol_ref"):
-                raise InvalidTransition("compiled protocol does not match Task protocol_ref")
-            existing = task.get("compiled_protocol")
-            if existing is not None and existing != document:
-                raise InvalidTransition("Task already has a different compiled protocol")
+                raise InvalidTransition(
+                    "compiled protocol does not match Task protocol_ref"
+                )
+            existing_graph = task.get("compiled_protocol")
+            if existing_graph is not None:
+                raise InvalidTransition(
+                    "Task already has a different compiled protocol"
+                )
+            from agent_runtime.production_protocols import compile_production_protocol
+
+            expected = compile_production_protocol(
+                self.agentlab_root,
+                protocol_ref=str(task["protocol_ref"]),
+                task_facts=task.get("input_profile") or {},
+            ).as_dict()
+            if document != expected:
+                raise InvalidTransition(
+                    "compiled protocol does not match compiler authority"
+                )
 
         self._append_event(
             task_id=task_id,
@@ -252,6 +293,400 @@ class TaskRuntime:
             validate_projection=validate,
         )
         return self.rebuild_task(task_id)
+
+    def record_protocol_gate(
+        self,
+        task_id: str,
+        *,
+        gate_id: str,
+        work_item_id: str,
+        evidence_kind: str,
+        evidence_sha256: str,
+        attempt_id: str,
+        subject_version_ids: list[str],
+        actor: str,
+        idempotency_key: str,
+        approval_receipt_path: Path | None = None,
+        approval_signature_path: Path | None = None,
+    ) -> dict[str, Any]:
+        """Record one hash-bound pass for a declared protocol promotion gate."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        gate_id = _validated_id(gate_id, field="gate_id")
+        work_item_id = _validated_id(work_item_id, field="work_item_id")
+        evidence_kind = _validated_id(evidence_kind, field="evidence_kind")
+        attempt_id = _validated_id(attempt_id, field="attempt_id")
+        if not isinstance(subject_version_ids, list) or not subject_version_ids:
+            raise ValueError("protocol gate subject_version_ids must be non-empty")
+        normalized_version_ids = [
+            _validated_id(item, field="subject_version_id")
+            for item in subject_version_ids
+        ]
+        if len(normalized_version_ids) != len(set(normalized_version_ids)):
+            raise ValueError("protocol gate subject_version_ids must be unique")
+        actor = str(actor or "").strip()
+        if not actor:
+            raise ValueError("protocol gate actor is required")
+        if not _SHA256.fullmatch(str(evidence_sha256 or "")):
+            raise ValueError("protocol gate evidence_sha256 must be a SHA-256 digest")
+        payload = {
+            "work_item_id": work_item_id,
+            "status": "pass",
+            "evidence_kind": evidence_kind,
+            "evidence_sha256": evidence_sha256,
+            "attempt_id": attempt_id,
+            "subject_version_ids": normalized_version_ids,
+            "actor": actor,
+        }
+        if approval_receipt_path is not None:
+            receipt_candidate = Path(approval_receipt_path)
+            task_root = self._task_dir(task_id)
+            if _has_symlink_component(receipt_candidate, task_root):
+                raise ValueError("protocol approval receipt escaped the Task")
+            try:
+                receipt_path = receipt_candidate.resolve(strict=True)
+                receipt_bytes = receipt_path.read_bytes()
+                receipt = yaml.safe_load(receipt_bytes.decode("utf-8")) or {}
+            except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+                raise ValueError("protocol approval receipt is invalid") from exc
+            approvals_root = (task_root / "approvals").resolve(strict=False)
+            if not receipt_path.is_relative_to(approvals_root):
+                raise ValueError("protocol approval receipt must be inside approvals/")
+            payload["approval_receipt"] = {
+                "path": receipt_path.relative_to(task_root).as_posix(),
+                "sha256": hashlib.sha256(receipt_bytes).hexdigest(),
+                "document": receipt,
+            }
+            if approval_signature_path is not None:
+                from agent_runtime.narrative.user_acceptance import (
+                    _pinned_public_key,
+                    _verify_external_signature,
+                )
+
+                project_root = self.agentlab_root / "projects" / self.project
+                payload["approval_receipt"]["signature_authority"] = (
+                    _verify_external_signature(
+                        project_root,
+                        payload=receipt,
+                        signature_path=Path(approval_signature_path),
+                        public_key_path=_pinned_public_key(project_root),
+                    )
+                )
+
+        def validate(projection: dict[str, Any]) -> None:
+            compiled = projection["task"].get("compiled_protocol")
+            if not isinstance(compiled, dict):
+                raise InvalidTransition("protocol gates require a compiled protocol")
+            binding = next(
+                (
+                    item
+                    for item in compiled.get("promotion_gate_bindings") or []
+                    if item.get("gate_id") == gate_id
+                ),
+                None,
+            )
+            if not isinstance(binding, dict):
+                raise InvalidTransition(f"protocol gate is undeclared: {gate_id}")
+            if (
+                binding.get("work_item_id") != work_item_id
+                or binding.get("evidence_kind") != evidence_kind
+            ):
+                raise InvalidTransition(
+                    "protocol gate evidence does not match its compiled binding"
+                )
+            if work_item_id not in projection["work_items"]:
+                raise EntityNotFound(
+                    f"protocol gate work item {work_item_id!r} does not exist"
+                )
+            attempt = projection["attempts"].get(attempt_id)
+            if (
+                attempt is None
+                or attempt.get("work_item_id") != work_item_id
+                or attempt.get("status") != "succeeded"
+            ):
+                raise InvalidTransition(
+                    "protocol gate evidence requires a successful Attempt"
+                )
+            subjects: dict[str, str] = {}
+            for version_id in normalized_version_ids:
+                artifact = projection["artifacts"].get(version_id)
+                if artifact is None:
+                    raise EntityNotFound(
+                        f"protocol gate subject artifact {version_id!r} does not exist"
+                    )
+                artifact_type = str(artifact.get("artifact_id") or "")
+                if artifact_type in subjects:
+                    raise InvalidTransition(
+                        "protocol gate must bind exactly one version per artifact type"
+                    )
+                subjects[artifact_type] = str(artifact.get("sha256") or "")
+            expected_subjects = set(binding.get("subject_artifact_types") or [])
+            if set(subjects) != expected_subjects:
+                raise InvalidTransition(
+                    "protocol gate subject artifacts do not match its compiled binding"
+                )
+            outcome = attempt.get("outcome") or {}
+            self._validate_attempt_execution_receipt(
+                task_id=task_id,
+                attempt=attempt,
+                outcome=outcome,
+            )
+            task_root = self._task_dir(task_id)
+            try:
+                attempt_receipt = (
+                    yaml.safe_load(
+                        (task_root / str(outcome.get("receipt_path") or "")).read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    or {}
+                )
+            except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+                raise InvalidTransition(
+                    "protocol gate evaluator receipt is unavailable"
+                ) from exc
+            sealed_subjects = {
+                str(source.get("path") or ""): str(source.get("sha256") or "")
+                for source in attempt_receipt.get("sealed_sources") or []
+                if isinstance(source, dict)
+            }
+            for version_id in normalized_version_ids:
+                artifact = projection["artifacts"][version_id]
+                if artifact.get("producer_attempt_id") == attempt_id:
+                    continue
+                absolute_subject = task_root / str(artifact.get("path") or "")
+                try:
+                    subject_path = (
+                        absolute_subject.resolve(strict=True)
+                        .relative_to(self.agentlab_root)
+                        .as_posix()
+                    )
+                except (OSError, RuntimeError, ValueError) as exc:
+                    raise InvalidTransition(
+                        "protocol gate subject artifact is unavailable"
+                    ) from exc
+                if sealed_subjects.get(subject_path) != artifact.get("sha256"):
+                    raise InvalidTransition(
+                        "protocol gate subject artifact was not sealed into its evaluator Attempt"
+                    )
+            subject_digest = hashlib.sha256(
+                _canonical_json(subjects).encode("utf-8")
+            ).hexdigest()
+            if evidence_sha256 != subject_digest:
+                raise InvalidTransition(
+                    "protocol gate evidence hash is not bound to its subject artifacts"
+                )
+            contract = attempt.get("execution_contract") or {}
+            role = str(contract.get("role") or "")
+            if (
+                evidence_kind == "deterministic"
+                and contract.get("executor_type") != "deterministic_tool"
+            ):
+                raise InvalidTransition(
+                    "deterministic protocol gates require a deterministic tool Attempt"
+                )
+            if evidence_kind == "automated" and contract.get("executor_type") not in {
+                "cli_agent",
+                "deterministic_tool",
+            }:
+                raise InvalidTransition(
+                    "automated protocol gates require a governed executor Attempt"
+                )
+            if evidence_kind == "independent" and role not in {
+                "Reviewer",
+                "TesterAuditor",
+                "Verifier",
+            }:
+                raise InvalidTransition(
+                    "independent protocol gates require an independent review role"
+                )
+            if evidence_kind == "independent":
+                reviewer_identity = (attempt.get("worker"), attempt.get("provider"))
+                subject_identities = {
+                    (
+                        projection["attempts"][
+                            str(artifact["producer_attempt_id"])
+                        ].get("worker"),
+                        projection["attempts"][
+                            str(artifact["producer_attempt_id"])
+                        ].get("provider"),
+                    )
+                    for version_id in normalized_version_ids
+                    for artifact in [projection["artifacts"][version_id]]
+                }
+                if reviewer_identity in subject_identities:
+                    raise InvalidTransition(
+                        "independent protocol gate cannot review its own producer identity"
+                    )
+            approval = payload.get("approval_receipt")
+            if evidence_kind == "human":
+                document = (
+                    approval.get("document") if isinstance(approval, dict) else None
+                )
+                signature_authority = (
+                    approval.get("signature_authority")
+                    if isinstance(approval, dict)
+                    else None
+                )
+                if (
+                    not isinstance(signature_authority, dict)
+                    or not isinstance(document, dict)
+                    or any(
+                        (
+                            document.get("schema_version")
+                            != "protocol-human-approval/v1",
+                            document.get("task_id") != task_id,
+                            document.get("gate_id") != gate_id,
+                            document.get("actor") != actor,
+                            document.get("decision") != "approved",
+                            document.get("evidence_sha256") != evidence_sha256,
+                            document.get("subject_artifacts") != subjects,
+                        )
+                    )
+                ):
+                    raise InvalidTransition(
+                        "human protocol gate requires a matching externally signed approval receipt"
+                    )
+            elif approval is not None:
+                raise InvalidTransition(
+                    "approval receipts are only valid for human protocol gates"
+                )
+            if gate_id in projection["protocol_gates"]:
+                raise EntityAlreadyExists(f"protocol gate {gate_id!r} already exists")
+
+        self._append_event(
+            task_id=task_id,
+            event_type="PROTOCOL_GATE_RECORDED",
+            entity_type="protocol_gate",
+            entity_id=gate_id,
+            idempotency_key=idempotency_key,
+            payload=payload,
+            validate_projection=validate,
+        )
+        return self.rebuild_task(task_id)
+
+    def _validate_protocol_work_item_acceptance(
+        self,
+        projection: dict[str, Any],
+        *,
+        work_item_id: str,
+    ) -> None:
+        compiled = projection["task"].get("compiled_protocol")
+        if not isinstance(compiled, dict):
+            return
+        succeeded_attempt_ids = {
+            attempt_id
+            for attempt_id, attempt in projection["attempts"].items()
+            if attempt.get("work_item_id") == work_item_id
+            and attempt.get("status") == "succeeded"
+        }
+        if not succeeded_attempt_ids:
+            raise InvalidTransition(
+                "protocol WorkItem acceptance requires a successful Attempt"
+            )
+        required_artifact_types = {
+            str(contract.get("artifact_type") or "")
+            for contract in compiled.get("artifact_contracts") or []
+            if contract.get("producer_node") == work_item_id
+        }
+        required_gates = {
+            str(binding.get("gate_id") or "")
+            for binding in compiled.get("promotion_gate_bindings") or []
+            if binding.get("work_item_id") == work_item_id
+        }
+        missing_gates = sorted(required_gates - set(projection["protocol_gates"]))
+        if missing_gates:
+            raise InvalidTransition(
+                "protocol WorkItem acceptance requires promotion gates: "
+                + ", ".join(missing_gates)
+            )
+        gate_attempt_ids = {
+            str(projection["protocol_gates"][gate_id].get("attempt_id") or "")
+            for gate_id in required_gates
+        }
+        if len(gate_attempt_ids) > 1:
+            raise InvalidTransition(
+                "protocol WorkItem gates must bind one coherent successful Attempt"
+            )
+        eligible_attempt_ids = gate_attempt_ids or succeeded_attempt_ids
+        coherent_attempts = {
+            attempt_id
+            for attempt_id in eligible_attempt_ids
+            if attempt_id in succeeded_attempt_ids
+            and required_artifact_types.issubset(
+                {
+                    str(artifact.get("artifact_id") or "")
+                    for artifact in projection["artifacts"].values()
+                    if artifact.get("producer_attempt_id") == attempt_id
+                }
+            )
+        }
+        if not coherent_attempts:
+            missing = ", ".join(sorted(required_artifact_types)) or "Attempt evidence"
+            raise InvalidTransition(
+                "protocol WorkItem acceptance requires one coherent Attempt for: "
+                + missing
+            )
+
+    def _validate_protocol_completion(self, projection: dict[str, Any]) -> None:
+        compiled = projection["task"].get("compiled_protocol")
+        if not isinstance(compiled, dict):
+            return
+        expected_nodes = {
+            str(binding.get("node_id") or "")
+            for binding in compiled.get("role_bindings") or []
+        }
+        if set(projection["work_items"]) != expected_nodes:
+            raise InvalidTransition(
+                "task completion requires the exact compiled protocol graph"
+            )
+        unaccepted = sorted(
+            node_id
+            for node_id in expected_nodes
+            if projection["work_items"][node_id].get("status") != "accepted"
+        )
+        if unaccepted:
+            raise InvalidTransition(
+                "task completion requires accepted protocol WorkItems: "
+                + ", ".join(unaccepted)
+            )
+        for node_id in sorted(expected_nodes):
+            self._validate_protocol_work_item_acceptance(
+                projection, work_item_id=node_id
+            )
+        selected_version_id = projection.get("selected_artifact_version")
+        selected = projection["artifacts"].get(selected_version_id)
+        result_artifact_type = str(compiled.get("result_artifact_type") or "")
+        if not selected or selected.get("artifact_id") != result_artifact_type:
+            raise InvalidTransition(
+                "task completion requires selection of the compiled result artifact: "
+                + result_artifact_type
+            )
+        result_gate_ids = {
+            str(binding.get("gate_id") or "")
+            for binding in compiled.get("promotion_gate_bindings") or []
+            if result_artifact_type in set(binding.get("subject_artifact_types") or [])
+        }
+        if not result_gate_ids:
+            raise InvalidTransition(
+                "compiled result artifact requires at least one approval gate"
+            )
+        unbound_result_gates = sorted(
+            gate_id
+            for gate_id in result_gate_ids
+            if selected_version_id
+            not in set(
+                (projection["protocol_gates"].get(gate_id) or {}).get(
+                    "subject_version_ids"
+                )
+                or []
+            )
+        )
+        if unbound_result_gates:
+            raise InvalidTransition(
+                "selected result artifact version is not bound to approval gates: "
+                + ", ".join(unbound_result_gates)
+            )
 
     def classify_task_input(
         self,
@@ -283,9 +718,10 @@ class TaskRuntime:
                     "input classification requires a successful producer Attempt"
                 )
             contract = attempt.get("execution_contract") or {}
-            if contract.get("role") != "Supervisor" or contract.get(
-                "purpose"
-            ) != "input_classification":
+            if (
+                contract.get("role") != "Supervisor"
+                or contract.get("purpose") != "input_classification"
+            ):
                 raise InvalidTransition(
                     "input classification must come from a Supervisor intake Attempt"
                 )
@@ -335,7 +771,9 @@ class TaskRuntime:
         if not requested_delta:
             raise ValueError("requested_delta is required")
         if not isinstance(target_scope, (str, list, dict)) or not target_scope:
-            raise ValueError("target_scope must be a non-empty string, list, or mapping")
+            raise ValueError(
+                "target_scope must be a non-empty string, list, or mapping"
+            )
         for values, label in (
             (preserve_invariants, "preserve_invariants"),
             (allowed_retcons, "allowed_retcons"),
@@ -396,7 +834,9 @@ class TaskRuntime:
 
         tasks: list[dict[str, Any]] = []
         if self.tasks_root.exists():
-            for task_dir in sorted(path for path in self.tasks_root.iterdir() if path.is_dir()):
+            for task_dir in sorted(
+                path for path in self.tasks_root.iterdir() if path.is_dir()
+            ):
                 projection = self.rebuild_task(task_dir.name)
                 tasks.append(
                     {
@@ -466,12 +906,8 @@ class TaskRuntime:
                         "evidence": [
                             {
                                 "binding_id": binding["binding_id"],
-                                "input_manifest_hash": binding[
-                                    "input_manifest_hash"
-                                ],
-                                "index_snapshot_id": binding[
-                                    "index_snapshot_id"
-                                ],
+                                "input_manifest_hash": binding["input_manifest_hash"],
+                                "index_snapshot_id": binding["index_snapshot_id"],
                                 "source_hashes": binding["source_hashes"],
                                 "audit": binding["audit"],
                                 "execution_receipt": binding["execution_receipt"],
@@ -492,7 +928,9 @@ class TaskRuntime:
 
         entries: dict[str, dict[str, Any]] = {}
         if self.tasks_root.exists():
-            for task_dir in sorted(path for path in self.tasks_root.iterdir() if path.is_dir()):
+            for task_dir in sorted(
+                path for path in self.tasks_root.iterdir() if path.is_dir()
+            ):
                 with self._ledger_lock(task_dir.name):
                     events = self._load_events(task_dir.name)
                     projection = self._project(events, task_id=task_dir.name)
@@ -537,7 +975,9 @@ class TaskRuntime:
 
         reports: dict[str, dict[str, Any]] = {}
         if self.tasks_root.exists():
-            for task_dir in sorted(path for path in self.tasks_root.iterdir() if path.is_dir()):
+            for task_dir in sorted(
+                path for path in self.tasks_root.iterdir() if path.is_dir()
+            ):
                 try:
                     with self._ledger_lock(task_dir.name):
                         events = self._load_events(task_dir.name)
@@ -550,9 +990,16 @@ class TaskRuntime:
                                 f"{version_id}: artifact path is a symlink"
                             )
                         elif not path.is_file():
-                            artifact_failures.append(f"{version_id}: artifact file missing")
-                        elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact["sha256"]:
-                            artifact_failures.append(f"{version_id}: artifact SHA256 mismatch")
+                            artifact_failures.append(
+                                f"{version_id}: artifact file missing"
+                            )
+                        elif (
+                            hashlib.sha256(path.read_bytes()).hexdigest()
+                            != artifact["sha256"]
+                        ):
+                            artifact_failures.append(
+                                f"{version_id}: artifact SHA256 mismatch"
+                            )
                     for record_id, record in projection["trace_records"].items():
                         path = task_dir / record["path"]
                         if path.is_symlink():
@@ -560,8 +1007,13 @@ class TaskRuntime:
                                 f"{record_id}: trace record path is a symlink"
                             )
                         elif not path.is_file():
-                            artifact_failures.append(f"{record_id}: trace record file missing")
-                        elif hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
+                            artifact_failures.append(
+                                f"{record_id}: trace record file missing"
+                            )
+                        elif (
+                            hashlib.sha256(path.read_bytes()).hexdigest()
+                            != record["sha256"]
+                        ):
                             artifact_failures.append(
                                 f"{record_id}: trace record SHA256 mismatch"
                             )
@@ -611,13 +1063,16 @@ class TaskRuntime:
                                 artifact_failures.append(
                                     f"legacy {label} provenance file missing"
                                 )
-                            elif hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
+                            elif (
+                                hashlib.sha256(path.read_bytes()).hexdigest()
+                                != expected_sha256
+                            ):
                                 artifact_failures.append(
                                     f"legacy {label} provenance SHA256 mismatch"
                                 )
-                    classification = projection["task"].get(
-                        "input_classification"
-                    ) or {}
+                    classification = (
+                        projection["task"].get("input_classification") or {}
+                    )
                     if (
                         projection["task"].get("legacy_source") is None
                         and classification.get("enforcement") == "strict"
@@ -635,6 +1090,62 @@ class TaskRuntime:
                                 artifact_failures.append(
                                     f"{attempt_id}: invalid Attempt receipt: {exc}"
                                 )
+                    compiled = projection["task"].get("compiled_protocol")
+                    if isinstance(compiled, dict):
+                        for gate_id, gate in projection["protocol_gates"].items():
+                            if gate.get("evidence_kind") != "human":
+                                continue
+                            approval = gate.get("approval_receipt") or {}
+                            authority = approval.get("signature_authority") or {}
+                            document = approval.get("document") or {}
+                            try:
+                                from agent_runtime.narrative.user_acceptance import (
+                                    _pinned_public_key,
+                                    _verify_external_signature,
+                                )
+
+                                project_root = (
+                                    self.agentlab_root / "projects" / self.project
+                                )
+                                observed = _verify_external_signature(
+                                    project_root,
+                                    payload=document,
+                                    signature_path=Path(
+                                        str(authority.get("signature_path") or "")
+                                    ),
+                                    public_key_path=_pinned_public_key(project_root),
+                                )
+                                if observed != authority:
+                                    raise ValueError(
+                                        "signature authority no longer matches"
+                                    )
+                            except (ValueError, OSError) as exc:
+                                artifact_failures.append(
+                                    f"{gate_id}: invalid human approval signature: {exc}"
+                                )
+                        expected_nodes = {
+                            str(binding.get("node_id") or "")
+                            for binding in compiled.get("role_bindings") or []
+                        }
+                        if set(projection["work_items"]) != expected_nodes:
+                            artifact_failures.append(
+                                "compiled protocol WorkItem graph is incomplete or drifted"
+                            )
+                        for work_item_id, work_item in projection["work_items"].items():
+                            if work_item.get("status") != "accepted":
+                                continue
+                            try:
+                                self._validate_protocol_work_item_acceptance(
+                                    projection,
+                                    work_item_id=work_item_id,
+                                )
+                            except InvalidTransition as exc:
+                                artifact_failures.append(f"{work_item_id}: {exc}")
+                        if projection["task"].get("status") == "completed":
+                            try:
+                                self._validate_protocol_completion(projection)
+                            except InvalidTransition as exc:
+                                artifact_failures.append(str(exc))
                     reports[task_dir.name] = {
                         "ok": not artifact_failures,
                         "event_count": len(events),
@@ -682,6 +1193,15 @@ class TaskRuntime:
                     "task completion requires one evidenced selected artifact version"
                 )
             classification = projection["task"].get("input_classification") or {}
+            if projection["task"].get("compiled_protocol") is not None:
+                if projection["task"].get(
+                    "legacy_source"
+                ) is None and not classification.get("admission_ready"):
+                    raise InvalidTransition(
+                        "task completion requires a complete input classification"
+                    )
+                self._validate_protocol_completion(projection)
+                return
             if projection["task"].get("legacy_source") is None:
                 if not classification.get("admission_ready"):
                     raise InvalidTransition(
@@ -714,9 +1234,7 @@ class TaskRuntime:
                     )
                 successful_delegated_attempts = sum(
                     attempt["status"] == "succeeded"
-                    and str(
-                        (attempt.get("execution_contract") or {}).get("role") or ""
-                    )
+                    and str((attempt.get("execution_contract") or {}).get("role") or "")
                     != "Supervisor"
                     for attempt in projection["attempts"].values()
                 )
@@ -728,6 +1246,7 @@ class TaskRuntime:
                         "task completion requires successful delegated Attempts: "
                         f"{successful_delegated_attempts}/{minimum_attempts}"
                     )
+
         self._append_event(
             task_id=task_id,
             event_type="TASK_STATUS_CHANGED",
@@ -736,7 +1255,9 @@ class TaskRuntime:
             idempotency_key=idempotency_key,
             payload={"status": status},
             expected_task_statuses={
-                current for current, allowed in TASK_TRANSITIONS.items() if status in allowed
+                current
+                for current, allowed in TASK_TRANSITIONS.items()
+                if status in allowed
             },
             validate_projection=validate,
         )
@@ -780,15 +1301,23 @@ class TaskRuntime:
             raise ValueError("requires_user_acceptance must be boolean")
 
         def validate(projection: dict[str, Any]) -> None:
+            if projection["task"].get("compiled_protocol") is not None:
+                raise InvalidTransition(
+                    "generic WorkItem creation cannot mutate a compiled protocol graph"
+                )
             if projection["task"]["status"] in {"completed", "failed", "cancelled"}:
                 raise InvalidTransition("reopen the Task before adding a WorkItem")
             if job_id not in projection["jobs"]:
                 raise EntityNotFound(f"job {job_id!r} does not exist")
             if work_item_id in projection["work_items"]:
                 raise EntityAlreadyExists(f"work item {work_item_id!r} already exists")
-            missing = [item for item in dependencies if item not in projection["work_items"]]
+            missing = [
+                item for item in dependencies if item not in projection["work_items"]
+            ]
             if missing:
-                raise EntityNotFound(f"work item dependencies do not exist: {', '.join(missing)}")
+                raise EntityNotFound(
+                    f"work item dependencies do not exist: {', '.join(missing)}"
+                )
 
         self._append_event(
             task_id=task_id,
@@ -815,6 +1344,7 @@ class TaskRuntime:
         batch_id: str,
         items: list[dict[str, Any]],
         idempotency_key: str,
+        protocol_materialization_sha256: str | None = None,
     ) -> dict[str, Any]:
         """Atomically create one topologically ordered WorkItem batch."""
 
@@ -850,11 +1380,23 @@ class TaskRuntime:
                 canonical_snapshot_id=raw.get("canonical_snapshot_id"),
                 contract_hash=raw.get("effective_contract_hash"),
             )
-            requires_user_acceptance = raw.get(
-                "requires_user_acceptance", False
-            )
+            requires_user_acceptance = raw.get("requires_user_acceptance", False)
             if not isinstance(requires_user_acceptance, bool):
                 raise ValueError("requires_user_acceptance must be boolean")
+            protocol_role = raw.get("protocol_role")
+            protocol_profile = raw.get("protocol_profile")
+            agent_model_profile = raw.get("agent_model_profile")
+            execution_kind = raw.get("execution_kind")
+            for field, value in (
+                ("protocol_role", protocol_role),
+                ("protocol_profile", protocol_profile),
+                ("agent_model_profile", agent_model_profile),
+                ("execution_kind", execution_kind),
+            ):
+                if value is not None and (
+                    not isinstance(value, str) or not value.strip()
+                ):
+                    raise ValueError(f"{field} must be a non-empty string or null")
             normalized.append(
                 {
                     "work_item_id": work_item_id,
@@ -863,20 +1405,58 @@ class TaskRuntime:
                     "title": title,
                     "depends_on": dependencies,
                     "requires_user_acceptance": requires_user_acceptance,
+                    "protocol_role": protocol_role,
+                    "protocol_profile": protocol_profile,
+                    "agent_model_profile": agent_model_profile,
+                    "execution_kind": execution_kind,
                     **agent_binding,
                 }
             )
             batch_ids.add(work_item_id)
 
         def validate(projection: dict[str, Any]) -> None:
+            compiled = projection["task"].get("compiled_protocol")
+            if compiled is not None:
+                expected_hash = hashlib.sha256(
+                    _canonical_json(compiled).encode("utf-8")
+                ).hexdigest()
+                if protocol_materialization_sha256 != expected_hash:
+                    raise InvalidTransition(
+                        "compiled protocol graph requires its exact materialization token"
+                    )
+                if projection["work_items"]:
+                    raise InvalidTransition(
+                        "compiled protocol graph is already materialized"
+                    )
+                expected_items = [
+                    {
+                        "work_item_id": binding["node_id"],
+                        "job_id": "job-main",
+                        "kind": binding["work_item_kind"],
+                        "title": binding["title"],
+                        "depends_on": list(binding.get("depends_on") or []),
+                        "requires_user_acceptance": False,
+                        "protocol_role": binding["role"],
+                        "protocol_profile": binding.get("profile"),
+                        "agent_model_profile": binding.get("agent_model_profile"),
+                        "execution_kind": binding.get("execution_kind"),
+                    }
+                    for binding in compiled.get("role_bindings") or []
+                ]
+                if normalized != expected_items:
+                    raise InvalidTransition(
+                        "WorkItem batch does not match the compiled protocol graph"
+                    )
+            elif protocol_materialization_sha256 is not None:
+                raise InvalidTransition(
+                    "protocol materialization token requires a compiled protocol graph"
+                )
             if projection["task"]["status"] in {"completed", "failed", "cancelled"}:
                 raise InvalidTransition("reopen the Task before adding WorkItems")
             available = set(projection["work_items"])
             for item in normalized:
                 if item["job_id"] not in projection["jobs"]:
-                    raise EntityNotFound(
-                        f"job {item['job_id']!r} does not exist"
-                    )
+                    raise EntityNotFound(f"job {item['job_id']!r} does not exist")
                 if item["work_item_id"] in available:
                     raise EntityAlreadyExists(
                         f"work item {item['work_item_id']!r} already exists"
@@ -895,7 +1475,10 @@ class TaskRuntime:
             entity_type="work_item_batch",
             entity_id=batch_id,
             idempotency_key=idempotency_key,
-            payload={"items": normalized},
+            payload={
+                "items": normalized,
+                "protocol_materialization_sha256": protocol_materialization_sha256,
+            },
             validate_projection=validate,
         )
         return self.rebuild_task(task_id)
@@ -952,9 +1535,11 @@ class TaskRuntime:
         snapshot_id = str(canonical_snapshot_id)
         if not _SHA256.fullmatch(snapshot_id):
             raise ValueError("canonical_snapshot_id must be a SHA-256 hex digest")
-        if not isinstance(agent_manifest_revision, int) or isinstance(
-            agent_manifest_revision, bool
-        ) or agent_manifest_revision < 1:
+        if (
+            not isinstance(agent_manifest_revision, int)
+            or isinstance(agent_manifest_revision, bool)
+            or agent_manifest_revision < 1
+        ):
             raise ValueError("agent_manifest_revision must be positive")
         if not _SHA256.fullmatch(str(contract_hash)):
             raise ValueError("effective_contract_hash must be a SHA-256 hex digest")
@@ -1046,10 +1631,17 @@ class TaskRuntime:
                     projection,
                     work_item=work_item,
                 )
+            if status == "accepted":
+                self._validate_protocol_work_item_acceptance(
+                    projection,
+                    work_item_id=work_item_id,
+                )
             if status in {"accepted", "failed", "cancelled"} and work_item.get(
                 "active_attempt_id"
             ):
-                raise InvalidTransition("terminal work item transition requires no active attempt")
+                raise InvalidTransition(
+                    "terminal work item transition requires no active attempt"
+                )
             payload["from_status"] = current
 
         self._append_event(
@@ -1123,9 +1715,7 @@ class TaskRuntime:
             )
         data = records[0].get("record_data")
         if not isinstance(data, Mapping):
-            raise InvalidTransition(
-                "narrative user acceptance record is invalid"
-            )
+            raise InvalidTransition("narrative user acceptance record is invalid")
         project_root = self.agentlab_root / "projects" / self.project
         try:
             from agent_runtime.narrative.user_acceptance import (
@@ -1136,12 +1726,8 @@ class TaskRuntime:
                 project_root,
                 project_root / str(data.get("receipt_path") or ""),
                 candidate_set_id=str(data.get("candidate_set_id") or ""),
-                candidate_set_sha256=str(
-                    data.get("candidate_set_sha256") or ""
-                ),
-                evidence_bundle_sha256=str(
-                    data.get("evidence_bundle_sha256") or ""
-                ),
+                candidate_set_sha256=str(data.get("candidate_set_sha256") or ""),
+                evidence_bundle_sha256=str(data.get("evidence_bundle_sha256") or ""),
             )
         except (OSError, ValueError) as exc:
             raise InvalidTransition(
@@ -1196,15 +1782,36 @@ class TaskRuntime:
             if any(work_item.get(field) is not None for field in binding_fields):
                 self._validate_project_agent_binding(
                     assigned_agent_id=work_item.get("assigned_agent_id"),
-                    agent_manifest_revision=work_item.get(
-                        "agent_manifest_revision"
-                    ),
-                    canonical_snapshot_id=work_item.get(
-                        "canonical_snapshot_id"
-                    ),
+                    agent_manifest_revision=work_item.get("agent_manifest_revision"),
+                    canonical_snapshot_id=work_item.get("canonical_snapshot_id"),
                     contract_hash=work_item.get("effective_contract_hash"),
                     execution_role=str(execution_contract.get("role") or ""),
                 )
+            if projection["task"].get("compiled_protocol") is not None:
+                if execution_contract.get("role") != work_item.get("protocol_role"):
+                    raise InvalidTransition(
+                        "Attempt role does not match the compiled protocol binding"
+                    )
+                expected_profile = work_item.get("agent_model_profile")
+                supplied_profile = execution_contract.get("agent_model_profile")
+                if supplied_profile not in {None, expected_profile}:
+                    raise InvalidTransition(
+                        "Attempt model profile does not match the compiled protocol binding"
+                    )
+                expected_execution_kind = work_item.get("execution_kind")
+                if execution_contract.get("executor_type") != expected_execution_kind:
+                    raise InvalidTransition(
+                        "Attempt executor type does not match the compiled protocol binding"
+                    )
+                if expected_execution_kind == "deterministic_tool":
+                    tool = execution_contract.get("deterministic_tool") or {}
+                    expected_tool_id = "agentlab.protocol." + str(
+                        work_item.get("protocol_profile") or work_item_id
+                    )
+                    if tool.get("tool_id") != expected_tool_id:
+                        raise InvalidTransition(
+                            "Attempt deterministic tool does not match the compiled profile"
+                        )
             if attempt_id in projection["attempts"]:
                 raise EntityAlreadyExists(f"attempt {attempt_id!r} already exists")
             if projection["task"]["status"] in {
@@ -1247,15 +1854,18 @@ class TaskRuntime:
                         "execution contract route does not match Task classification"
                     )
                 if not role:
-                    raise InvalidTransition("execution contract must declare its AgentLab role")
+                    raise InvalidTransition(
+                        "execution contract must declare its AgentLab role"
+                    )
                 delegated = (
                     role != "Supervisor"
-                    and execution_contract.get("executor_type")
-                    != "deterministic_tool"
+                    and execution_contract.get("executor_type") != "deterministic_tool"
                 )
                 delegation_mode = str(classification.get("delegation_mode") or "")
                 if delegation_mode == "brain_only" and delegated:
-                    raise InvalidTransition("this tier permits Brain-direct execution only")
+                    raise InvalidTransition(
+                        "this tier permits Brain-direct execution only"
+                    )
                 if delegation_mode == "single_worker_identity" and delegated:
                     delegated_workers = {
                         (attempt["worker"], attempt["provider"])
@@ -1265,14 +1875,19 @@ class TaskRuntime:
                         )
                         != "Supervisor"
                     }
-                    if delegated_workers and (worker, provider) not in delegated_workers:
+                    if (
+                        delegated_workers
+                        and (worker, provider) not in delegated_workers
+                    ):
                         raise InvalidTransition(
                             "this tier permits one delegated worker identity"
                         )
-                pre_worker_records = set(
-                    classification.get("pre_worker_records") or []
-                )
-                if pre_worker_records and delegated:
+                pre_worker_records = set(classification.get("pre_worker_records") or [])
+                if (
+                    pre_worker_records
+                    and delegated
+                    and projection["task"].get("compiled_protocol") is None
+                ):
                     record_types = {
                         record["record_type"]
                         for record in projection["trace_records"].values()
@@ -1340,12 +1955,16 @@ class TaskRuntime:
         record_contract = TaskInputClassifier(self.agentlab_root).trace_record_contract(
             record_type
         )
-        destination = immutable_root / record_id / f"payload{resolved_path.suffix or '.bin'}"
+        destination = (
+            immutable_root / record_id / f"payload{resolved_path.suffix or '.bin'}"
+        )
         payload = {
             "record_type": record_type,
             "producer": producer,
             "producer_role": producer_role,
-            "source_path": resolved_path.relative_to(self._task_dir(task_id)).as_posix(),
+            "source_path": resolved_path.relative_to(
+                self._task_dir(task_id)
+            ).as_posix(),
             "path": destination.relative_to(self._task_dir(task_id)).as_posix(),
             "size_bytes": len(content),
             "sha256": hashlib.sha256(content).hexdigest(),
@@ -1472,9 +2091,7 @@ class TaskRuntime:
                     f"attempt cannot transition from {current!r} to {status!r}"
                 )
             if status == "running":
-                work_item = projection["work_items"].get(
-                    attempt["work_item_id"]
-                )
+                work_item = projection["work_items"].get(attempt["work_item_id"])
                 if work_item is None:
                     raise EntityNotFound(
                         f"work item {attempt['work_item_id']!r} does not exist"
@@ -1485,32 +2102,25 @@ class TaskRuntime:
                     "canonical_snapshot_id",
                     "effective_contract_hash",
                 )
-                if any(
-                    work_item.get(field) is not None
-                    for field in binding_fields
-                ):
+                if any(work_item.get(field) is not None for field in binding_fields):
                     self._validate_project_agent_binding(
                         assigned_agent_id=work_item.get("assigned_agent_id"),
                         agent_manifest_revision=work_item.get(
                             "agent_manifest_revision"
                         ),
-                        canonical_snapshot_id=work_item.get(
-                            "canonical_snapshot_id"
-                        ),
-                        contract_hash=work_item.get(
-                            "effective_contract_hash"
-                        ),
+                        canonical_snapshot_id=work_item.get("canonical_snapshot_id"),
+                        contract_hash=work_item.get("effective_contract_hash"),
                         execution_role=str(
-                            (
-                                attempt.get("execution_contract") or {}
-                            ).get("role")
-                            or ""
+                            (attempt.get("execution_contract") or {}).get("role") or ""
                         ),
                     )
             classification = projection["task"].get("input_classification") or {}
             if (
                 status == "succeeded"
-                and projection["task"].get("legacy_source") is None
+                and (
+                    projection["task"].get("protocol_ref") is not None
+                    or projection["task"].get("legacy_source") is None
+                )
                 and classification.get("enforcement") == "strict"
             ):
                 if execution_origin not in {
@@ -1521,9 +2131,7 @@ class TaskRuntime:
                         "strict Attempt success is owned by RoleAttemptExecutor "
                         "or DeterministicToolExecutor"
                     )
-                if payload["outcome"].get(
-                    "execution_origin"
-                ) != execution_origin:
+                if payload["outcome"].get("execution_origin") != execution_origin:
                     raise InvalidTransition(
                         "Attempt execution origin does not match executor"
                     )
@@ -1600,16 +2208,24 @@ class TaskRuntime:
         resolved_path = Path(path).resolve(strict=True)
         artifacts_root = (self._task_dir(task_id) / "artifacts").resolve(strict=False)
         if not resolved_path.is_relative_to(artifacts_root):
-            raise ValueError("artifact path must be inside the task artifacts directory")
+            raise ValueError(
+                "artifact path must be inside the task artifacts directory"
+            )
         versions_root = artifacts_root / "versions"
         if resolved_path.is_relative_to(versions_root):
-            raise ValueError("artifact source must be outside the immutable versions directory")
+            raise ValueError(
+                "artifact source must be outside the immutable versions directory"
+            )
         content = resolved_path.read_bytes()
-        destination = versions_root / version_id / f"payload{resolved_path.suffix or '.bin'}"
+        destination = (
+            versions_root / version_id / f"payload{resolved_path.suffix or '.bin'}"
+        )
         payload = {
             "artifact_id": artifact_id,
             "attempt_id": attempt_id,
-            "source_path": resolved_path.relative_to(self._task_dir(task_id)).as_posix(),
+            "source_path": resolved_path.relative_to(
+                self._task_dir(task_id)
+            ).as_posix(),
             "path": destination.relative_to(self._task_dir(task_id)).as_posix(),
             "media_type": media_type,
             "size_bytes": len(content),
@@ -1621,17 +2237,28 @@ class TaskRuntime:
             if attempt is None:
                 raise EntityNotFound(f"attempt {attempt_id!r} does not exist")
             if attempt["status"] != "succeeded":
-                raise InvalidTransition("artifacts require a succeeded producer attempt")
+                raise InvalidTransition(
+                    "artifacts require a succeeded producer attempt"
+                )
             if version_id in projection["artifacts"]:
-                raise EntityAlreadyExists(f"artifact version {version_id!r} already exists")
+                raise EntityAlreadyExists(
+                    f"artifact version {version_id!r} already exists"
+                )
             current = resolved_path.read_bytes()
             if hashlib.sha256(current).hexdigest() != payload["sha256"]:
-                raise TaskRuntimeError("artifact source changed while recording its version")
+                raise TaskRuntimeError(
+                    "artifact source changed while recording its version"
+                )
             destination.parent.mkdir(parents=True, exist_ok=True)
             if destination.exists():
                 if destination.is_symlink():
-                    raise LedgerIntegrityError("immutable artifact destination is a symlink")
-                if hashlib.sha256(destination.read_bytes()).hexdigest() != payload["sha256"]:
+                    raise LedgerIntegrityError(
+                        "immutable artifact destination is a symlink"
+                    )
+                if (
+                    hashlib.sha256(destination.read_bytes()).hexdigest()
+                    != payload["sha256"]
+                ):
                     raise EntityAlreadyExists(
                         f"immutable artifact destination already differs: {destination}"
                     )
@@ -1699,14 +2326,18 @@ class TaskRuntime:
         for source_id, digest in source_hashes.items():
             source_id = _validated_id(source_id, field="source_id")
             if not _SHA256.fullmatch(str(digest or "")):
-                raise ValueError(f"source hash for {source_id!r} must be a lowercase SHA256")
+                raise ValueError(
+                    f"source hash for {source_id!r} must be a lowercase SHA256"
+                )
             normalized_sources[source_id] = digest
 
         def validate(projection: dict[str, Any]) -> None:
             if version_id not in projection["artifacts"]:
                 raise EntityNotFound(f"artifact version {version_id!r} does not exist")
             if binding_id in projection["evidence_bindings"]:
-                raise EntityAlreadyExists(f"evidence binding {binding_id!r} already exists")
+                raise EntityAlreadyExists(
+                    f"evidence binding {binding_id!r} already exists"
+                )
 
         self._append_event(
             task_id=task_id,
@@ -1740,7 +2371,10 @@ class TaskRuntime:
         def validate(projection: dict[str, Any]) -> None:
             if version_id not in projection["artifacts"]:
                 raise EntityNotFound(f"artifact version {version_id!r} does not exist")
-            if projection["artifacts"][version_id].get("selection_eligible") is not True:
+            if (
+                projection["artifacts"][version_id].get("selection_eligible")
+                is not True
+            ):
                 raise InvalidTransition(
                     f"artifact version {version_id!r} is not selection eligible"
                 )
@@ -1799,7 +2433,10 @@ class TaskRuntime:
             task_root = self._task_dir(task_id).resolve(strict=False)
             if not resolved_feedback.is_relative_to(task_root):
                 raise ValueError("feedback path must be inside the task directory")
-            if hashlib.sha256(resolved_feedback.read_bytes()).hexdigest() != feedback_digest:
+            if (
+                hashlib.sha256(resolved_feedback.read_bytes()).hexdigest()
+                != feedback_digest
+            ):
                 raise ValueError("feedback path SHA256 does not match feedback_digest")
             feedback_ref = resolved_feedback.relative_to(task_root).as_posix()
 
@@ -1921,7 +2558,9 @@ class TaskRuntime:
     ) -> None:
         if not self.tasks_root.exists():
             return
-        for task_dir in sorted(path for path in self.tasks_root.iterdir() if path.is_dir()):
+        for task_dir in sorted(
+            path for path in self.tasks_root.iterdir() if path.is_dir()
+        ):
             if task_dir.name == task_id:
                 continue
             with self._ledger_lock(task_dir.name):
@@ -1943,9 +2582,15 @@ class TaskRuntime:
         atomic_write_yaml(projection_dir / "jobs.yml", projection["jobs"])
         atomic_write_yaml(projection_dir / "work_items.yml", projection["work_items"])
         atomic_write_yaml(projection_dir / "attempts.yml", projection["attempts"])
-        atomic_write_yaml(projection_dir / "artifact_index.yml", projection["artifacts"])
-        atomic_write_yaml(projection_dir / "evidence.yml", projection["evidence_bindings"])
-        atomic_write_yaml(projection_dir / "trace_records.yml", projection["trace_records"])
+        atomic_write_yaml(
+            projection_dir / "artifact_index.yml", projection["artifacts"]
+        )
+        atomic_write_yaml(
+            projection_dir / "evidence.yml", projection["evidence_bindings"]
+        )
+        atomic_write_yaml(
+            projection_dir / "trace_records.yml", projection["trace_records"]
+        )
         counts: dict[str, int] = {}
         for work_item in projection["work_items"].values():
             status = work_item["status"]
@@ -2032,13 +2677,15 @@ class TaskRuntime:
             )
         type_checks = {
             "string": lambda value: isinstance(value, str),
-            "integer": lambda value: isinstance(value, int)
-            and not isinstance(value, bool),
+            "integer": lambda value: (
+                isinstance(value, int) and not isinstance(value, bool)
+            ),
             "boolean": lambda value: isinstance(value, bool),
             "list": lambda value: isinstance(value, list),
             "mapping": lambda value: isinstance(value, dict),
-            "sha256": lambda value: isinstance(value, str)
-            and bool(_SHA256.fullmatch(value)),
+            "sha256": lambda value: (
+                isinstance(value, str) and bool(_SHA256.fullmatch(value))
+            ),
         }
         for field, rules in (contract.get("fields") or {}).items():
             rules = rules or {}
@@ -2054,13 +2701,9 @@ class TaskRuntime:
                     f"{record_type}.{field} does not match its required value"
                 )
             if "minimum" in rules and value < rules["minimum"]:
-                raise InvalidTransition(
-                    f"{record_type}.{field} is below its minimum"
-                )
+                raise InvalidTransition(f"{record_type}.{field} is below its minimum")
             if "minimum_items" in rules and len(value) < rules["minimum_items"]:
-                raise InvalidTransition(
-                    f"{record_type}.{field} has too few items"
-                )
+                raise InvalidTransition(f"{record_type}.{field} has too few items")
         for relation in contract.get("relations") or []:
             left = data.get(relation.get("left"))
             right = data.get(relation.get("right"))
@@ -2076,9 +2719,7 @@ class TaskRuntime:
                     raise InvalidTransition(
                         f"{record_type} references a non-successful Attempt"
                     )
-                role = str(
-                    (attempt.get("execution_contract") or {}).get("role") or ""
-                )
+                role = str((attempt.get("execution_contract") or {}).get("role") or "")
                 if role == "Supervisor":
                     raise InvalidTransition(
                         f"{record_type} may only link delegated Attempts"
@@ -2093,9 +2734,7 @@ class TaskRuntime:
                     raise InvalidTransition(
                         f"{record_type} Attempt receipt hash does not match the ledger"
                     )
-        producer_attempt_field = str(
-            contract.get("producer_attempt_id_field") or ""
-        )
+        producer_attempt_field = str(contract.get("producer_attempt_id_field") or "")
         if producer_attempt_field:
             producer_attempt_id = str(data.get(producer_attempt_field) or "")
             attempt = projection["attempts"].get(producer_attempt_id)
@@ -2111,9 +2750,7 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"{record_type} producer Attempt identity does not match"
                 )
-            source_hash_field = str(
-                contract.get("source_output_sha256_field") or ""
-            )
+            source_hash_field = str(contract.get("source_output_sha256_field") or "")
             source_hash = str(data.get(source_hash_field) or "")
             if source_hash != (attempt.get("outcome") or {}).get("output_sha256"):
                 raise InvalidTransition(
@@ -2126,7 +2763,9 @@ class TaskRuntime:
             source_record = output.get(source_output_key)
             provenance_fields = {producer_attempt_field, source_hash_field}
             recorded_decision = {
-                key: value for key, value in data.items() if key not in provenance_fields
+                key: value
+                for key, value in data.items()
+                if key not in provenance_fields
             }
             if source_record != recorded_decision:
                 raise InvalidTransition(
@@ -2177,9 +2816,9 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"{record_type} path list and content hashes do not match"
                 )
-            project_root = (
-                self.agentlab_root / "projects" / self.project
-            ).resolve(strict=False)
+            project_root = (self.agentlab_root / "projects" / self.project).resolve(
+                strict=False
+            )
             for relative_path in paths:
                 if not isinstance(relative_path, str) or not relative_path.strip():
                     raise InvalidTransition(
@@ -2259,11 +2898,14 @@ class TaskRuntime:
             "provider": attempt.get("provider"),
             "status": "pass",
         }
-        if execution_origin not in {
-            "role_attempt_executor",
-            "deterministic_tool_executor",
-        } or not isinstance(receipt, dict) or any(
-            receipt.get(field) != value for field, value in expected.items()
+        if (
+            execution_origin
+            not in {
+                "role_attempt_executor",
+                "deterministic_tool_executor",
+            }
+            or not isinstance(receipt, dict)
+            or any(receipt.get(field) != value for field, value in expected.items())
         ):
             raise InvalidTransition("Attempt execution receipt identity is invalid")
         output_candidate = task_root / str(receipt.get("output_path") or "")
@@ -2281,6 +2923,35 @@ class TaskRuntime:
             or outcome.get("output_sha256") != output_hash
         ):
             raise InvalidTransition("Attempt output path or hash is invalid")
+        sealed_sources = receipt.get("sealed_sources")
+        if not isinstance(sealed_sources, list):
+            raise InvalidTransition("Attempt receipt sealed_sources is missing")
+        seen_source_paths: set[str] = set()
+        project_root = (self.agentlab_root / "projects" / self.project).resolve(
+            strict=False
+        )
+        for source in sealed_sources:
+            if not isinstance(source, dict):
+                raise InvalidTransition("Attempt receipt sealed source is invalid")
+            path_value = str(source.get("path") or "")
+            expected_sha256 = str(source.get("sha256") or "")
+            candidate = self.agentlab_root / path_value
+            try:
+                resolved = candidate.resolve(strict=True)
+                actual_sha256 = hashlib.sha256(resolved.read_bytes()).hexdigest()
+            except (OSError, RuntimeError) as exc:
+                raise InvalidTransition("Attempt sealed source is unavailable") from exc
+            if (
+                not path_value
+                or path_value in seen_source_paths
+                or candidate.is_symlink()
+                or not resolved.is_file()
+                or not resolved.is_relative_to(project_root)
+                or not _SHA256.fullmatch(expected_sha256)
+                or actual_sha256 != expected_sha256
+            ):
+                raise InvalidTransition("Attempt sealed source path or hash is invalid")
+            seen_source_paths.add(path_value)
         if deterministic:
             deterministic_tool = contract.get("deterministic_tool")
             receipt_tool = receipt.get("deterministic_tool")
@@ -2292,9 +2963,7 @@ class TaskRuntime:
                 or receipt_tool != deterministic_tool
                 or receipt.get("model_execution") is not None
             ):
-                raise InvalidTransition(
-                    "Attempt deterministic tool binding is invalid"
-                )
+                raise InvalidTransition("Attempt deterministic tool binding is invalid")
             return
         model_execution = receipt.get("model_execution") or {}
         if not isinstance(model_execution, dict):
@@ -2317,7 +2986,9 @@ class TaskRuntime:
             model_receipt_bytes = model_receipt_path.read_bytes()
             model_receipt = yaml.safe_load(model_receipt_bytes.decode("utf-8")) or {}
         except (OSError, RuntimeError, UnicodeDecodeError, yaml.YAMLError) as exc:
-            raise InvalidTransition("Attempt model execution receipt is invalid") from exc
+            raise InvalidTransition(
+                "Attempt model execution receipt is invalid"
+            ) from exc
         if (
             model_receipt_candidate.is_symlink()
             or not model_receipt_path.is_relative_to(attempt_root)
@@ -2342,8 +3013,7 @@ class TaskRuntime:
             or model_receipt.get("worker") != attempt.get("worker")
             or model_receipt.get("invocation_contract")
             != contract.get("invocation_contract")
-            or model_receipt.get("role", contract.get("role"))
-            != contract.get("role")
+            or model_receipt.get("role", contract.get("role")) != contract.get("role")
             or selected_provider != contract.get("runtime_provider")
             or selected_model != contract.get("model_id")
             or profile_binding is not True
@@ -2365,13 +3035,13 @@ class TaskRuntime:
         )
         task_root = self._task_dir(task_id).resolve(strict=False)
         try:
-            receipt_path = (
-                task_root / str(outcome.get("receipt_path") or "")
-            ).resolve(strict=True)
+            receipt_path = (task_root / str(outcome.get("receipt_path") or "")).resolve(
+                strict=True
+            )
             receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
-            output_path = (
-                task_root / str(receipt.get("output_path") or "")
-            ).resolve(strict=True)
+            output_path = (task_root / str(receipt.get("output_path") or "")).resolve(
+                strict=True
+            )
             output = self._parse_attempt_output_mapping(
                 output_path.read_text(encoding="utf-8")
             )
@@ -2456,9 +3126,7 @@ class TaskRuntime:
             for existing in events:
                 if existing.get("idempotency_key") != idempotency_key:
                     continue
-                existing_identity = {
-                    key: existing.get(key) for key in command_identity
-                }
+                existing_identity = {key: existing.get(key) for key in command_identity}
                 ignored_keys = set(idempotency_ignored_payload_keys or set())
                 if expected_task_statuses is not None:
                     ignored_keys.add("from_status")
@@ -2521,7 +3189,9 @@ class TaskRuntime:
             return []
         events: list[dict[str, Any]] = []
         previous_hash: str | None = None
-        for sequence, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), 1):
+        for sequence, line in enumerate(
+            ledger_path.read_text(encoding="utf-8").splitlines(), 1
+        ):
             if not line.strip():
                 continue
             try:
@@ -2533,13 +3203,16 @@ class TaskRuntime:
             if not isinstance(event, dict):
                 raise LedgerIntegrityError(f"ledger line {sequence} is not an object")
             supplied_hash = event.get("event_hash")
-            unhashed = {key: value for key, value in event.items() if key != "event_hash"}
+            unhashed = {
+                key: value for key, value in event.items() if key != "event_hash"
+            }
             checks = {
                 "schema_version": event.get("schema_version") == EVENT_SCHEMA,
                 "sequence": event.get("sequence") == sequence,
                 "task_id": event.get("task_id") == task_id,
                 "project": event.get("project") == self.project,
-                "previous_event_hash": event.get("previous_event_hash") == previous_hash,
+                "previous_event_hash": event.get("previous_event_hash")
+                == previous_hash,
                 "event_hash": supplied_hash == _event_hash(unhashed),
             }
             failed = [name for name, passed in checks.items() if not passed]
@@ -2559,11 +3232,14 @@ class TaskRuntime:
         artifacts: dict[str, dict[str, Any]] = {}
         evidence_bindings: dict[str, dict[str, Any]] = {}
         trace_records: dict[str, dict[str, Any]] = {}
+        protocol_gates: dict[str, dict[str, Any]] = {}
         selected_artifact_version: str | None = None
         for event in events:
             if event["event_type"] == "TASK_CREATED":
                 if task is not None:
-                    raise LedgerIntegrityError("task ledger contains multiple TASK_CREATED events")
+                    raise LedgerIntegrityError(
+                        "task ledger contains multiple TASK_CREATED events"
+                    )
                 task = {
                     "task_id": task_id,
                     "project": self.project,
@@ -2602,9 +3278,7 @@ class TaskRuntime:
                 continue
             if event["event_type"] == "USER_INSTRUCTION_APPENDED":
                 if task is None:
-                    raise LedgerIntegrityError(
-                        "user instruction precedes TASK_CREATED"
-                    )
+                    raise LedgerIntegrityError("user instruction precedes TASK_CREATED")
                 instruction_id = _validated_id(
                     event["entity_id"],
                     field="instruction_id",
@@ -2641,12 +3315,16 @@ class TaskRuntime:
                         "compiled protocol precedes TASK_CREATED"
                     )
                 if task.get("compiled_protocol") is not None:
-                    raise LedgerIntegrityError("task ledger binds multiple compiled protocols")
+                    raise LedgerIntegrityError(
+                        "task ledger binds multiple compiled protocols"
+                    )
                 compiled_graph = event["payload"].get("compiled_graph")
                 if not isinstance(compiled_graph, dict):
                     raise LedgerIntegrityError("compiled protocol payload is malformed")
                 if compiled_graph.get("protocol_ref") != task.get("protocol_ref"):
-                    raise LedgerIntegrityError("compiled protocol ref does not match task")
+                    raise LedgerIntegrityError(
+                        "compiled protocol ref does not match task"
+                    )
                 task["compiled_protocol"] = compiled_graph
                 task["updated_at"] = event["recorded_at"]
                 continue
@@ -2655,9 +3333,10 @@ class TaskRuntime:
                     raise LedgerIntegrityError("task transition precedes TASK_CREATED")
                 from_status = str(event["payload"].get("from_status") or "")
                 to_status = str(event["payload"].get("status") or "")
-                if (
-                    task["status"] != from_status
-                    or to_status not in TASK_TRANSITIONS.get(from_status, set())
+                if task[
+                    "status"
+                ] != from_status or to_status not in TASK_TRANSITIONS.get(
+                    from_status, set()
                 ):
                     raise LedgerIntegrityError(
                         f"invalid task transition in ledger: {from_status!r} -> {to_status!r}"
@@ -2680,15 +3359,14 @@ class TaskRuntime:
                         "input classification producer is not succeeded"
                     )
                 contract = attempt.get("execution_contract") or {}
-                if contract.get("role") != "Supervisor" or contract.get(
-                    "purpose"
-                ) != "input_classification":
+                if (
+                    contract.get("role") != "Supervisor"
+                    or contract.get("purpose") != "input_classification"
+                ):
                     raise LedgerIntegrityError(
                         "input classification producer is not a Supervisor intake"
                     )
-                task["input_classification"] = event["payload"][
-                    "input_classification"
-                ]
+                task["input_classification"] = event["payload"]["input_classification"]
                 task["input_classification_attempt_id"] = attempt_id
                 task["updated_at"] = event["recorded_at"]
                 continue
@@ -2707,6 +3385,45 @@ class TaskRuntime:
                 )
                 if not isinstance(entries, list) or not entries:
                     raise LedgerIntegrityError("work item batch is empty or malformed")
+                compiled = task.get("compiled_protocol") if task else None
+                materialization_hash = event["payload"].get(
+                    "protocol_materialization_sha256"
+                )
+                if isinstance(compiled, dict):
+                    expected_hash = hashlib.sha256(
+                        _canonical_json(compiled).encode("utf-8")
+                    ).hexdigest()
+                    if (
+                        event["event_type"] != "WORK_ITEMS_CREATED"
+                        or materialization_hash != expected_hash
+                        or work_items
+                    ):
+                        raise LedgerIntegrityError(
+                            "compiled protocol graph has invalid WorkItem materialization"
+                        )
+                    expected_entries = [
+                        {
+                            "work_item_id": binding["node_id"],
+                            "job_id": "job-main",
+                            "kind": binding["work_item_kind"],
+                            "title": binding["title"],
+                            "depends_on": list(binding.get("depends_on") or []),
+                            "requires_user_acceptance": False,
+                            "protocol_role": binding["role"],
+                            "protocol_profile": binding.get("profile"),
+                            "agent_model_profile": binding.get("agent_model_profile"),
+                            "execution_kind": binding.get("execution_kind"),
+                        }
+                        for binding in compiled.get("role_bindings") or []
+                    ]
+                    if entries != expected_entries:
+                        raise LedgerIntegrityError(
+                            "WorkItems differ from the compiled protocol graph"
+                        )
+                elif materialization_hash is not None:
+                    raise LedgerIntegrityError(
+                        "protocol materialization token has no compiled protocol"
+                    )
                 for entry in entries:
                     if not isinstance(entry, dict):
                         raise LedgerIntegrityError("work item entry is malformed")
@@ -2737,6 +3454,10 @@ class TaskRuntime:
                         "requires_user_acceptance": bool(
                             entry.get("requires_user_acceptance", False)
                         ),
+                        "protocol_role": entry.get("protocol_role"),
+                        "protocol_profile": entry.get("protocol_profile"),
+                        "agent_model_profile": entry.get("agent_model_profile"),
+                        "execution_kind": entry.get("execution_kind"),
                         "status": (
                             "ready"
                             if not dependencies
@@ -2785,9 +3506,10 @@ class TaskRuntime:
                     )
                 from_status = str(event["payload"].get("from_status") or "")
                 to_status = str(event["payload"].get("status") or "")
-                if (
-                    work_item["status"] != from_status
-                    or to_status not in WORK_ITEM_TRANSITIONS.get(from_status, set())
+                if work_item[
+                    "status"
+                ] != from_status or to_status not in WORK_ITEM_TRANSITIONS.get(
+                    from_status, set()
                 ):
                     raise LedgerIntegrityError(
                         f"invalid work item transition in ledger: {from_status!r} -> {to_status!r}"
@@ -2829,7 +3551,9 @@ class TaskRuntime:
                     "worker": event["payload"]["worker"],
                     "provider": event["payload"]["provider"],
                     "execution_contract": event["payload"]["execution_contract"],
-                    "execution_contract_hash": event["payload"]["execution_contract_hash"],
+                    "execution_contract_hash": event["payload"][
+                        "execution_contract_hash"
+                    ],
                     "status": "scheduled",
                     "outcome": {},
                     "created_at": event["recorded_at"],
@@ -2847,9 +3571,10 @@ class TaskRuntime:
                     )
                 from_status = str(event["payload"].get("from_status") or "")
                 to_status = str(event["payload"].get("status") or "")
-                if (
-                    attempt["status"] != from_status
-                    or to_status not in ATTEMPT_TRANSITIONS.get(from_status, set())
+                if attempt[
+                    "status"
+                ] != from_status or to_status not in ATTEMPT_TRANSITIONS.get(
+                    from_status, set()
                 ):
                     raise LedgerIntegrityError(
                         f"invalid attempt transition in ledger: {from_status!r} -> {to_status!r}"
@@ -2862,15 +3587,183 @@ class TaskRuntime:
                     work_item["active_attempt_id"] = None
                 work_item["updated_at"] = event["recorded_at"]
                 continue
+            if event["event_type"] == "PROTOCOL_GATE_RECORDED":
+                gate_id = _validated_id(event["entity_id"], field="gate_id")
+                if gate_id in protocol_gates:
+                    raise LedgerIntegrityError(f"duplicate protocol gate: {gate_id}")
+                compiled = task.get("compiled_protocol") if task else None
+                if not isinstance(compiled, dict):
+                    raise LedgerIntegrityError(
+                        "protocol gate precedes compiled protocol"
+                    )
+                binding = next(
+                    (
+                        item
+                        for item in compiled.get("promotion_gate_bindings") or []
+                        if item.get("gate_id") == gate_id
+                    ),
+                    None,
+                )
+                work_item_id = event["payload"].get("work_item_id")
+                attempt_id = event["payload"].get("attempt_id")
+                attempt = attempts.get(str(attempt_id or ""))
+                version_ids = event["payload"].get("subject_version_ids") or []
+                subjects = {
+                    str(artifacts[version_id].get("artifact_id") or ""): str(
+                        artifacts[version_id].get("sha256") or ""
+                    )
+                    for version_id in version_ids
+                    if version_id in artifacts
+                }
+                expected_digest = hashlib.sha256(
+                    _canonical_json(subjects).encode("utf-8")
+                ).hexdigest()
+                evidence_kind = event["payload"].get("evidence_kind")
+                contract = (attempt or {}).get("execution_contract") or {}
+                approval = event["payload"].get("approval_receipt")
+                approval_document = (
+                    approval.get("document") if isinstance(approval, dict) else None
+                )
+                outcome = (attempt or {}).get("outcome") or {}
+                try:
+                    attempt_receipt = (
+                        yaml.safe_load(
+                            (
+                                self._task_dir(task_id)
+                                / str(outcome.get("receipt_path") or "")
+                            ).read_text(encoding="utf-8")
+                        )
+                        or {}
+                    )
+                except (OSError, UnicodeDecodeError, yaml.YAMLError):
+                    attempt_receipt = {}
+                sealed_subjects = {
+                    str(source.get("path") or ""): str(source.get("sha256") or "")
+                    for source in attempt_receipt.get("sealed_sources") or []
+                    if isinstance(source, dict)
+                }
+                unsealed_subject = False
+                for version_id in version_ids:
+                    artifact = artifacts.get(version_id) or {}
+                    if artifact.get("producer_attempt_id") == attempt_id:
+                        continue
+                    absolute_subject = self._task_dir(task_id) / str(
+                        artifact.get("path") or ""
+                    )
+                    try:
+                        subject_path = (
+                            absolute_subject.resolve(strict=True)
+                            .relative_to(self.agentlab_root)
+                            .as_posix()
+                        )
+                    except (OSError, RuntimeError, ValueError):
+                        unsealed_subject = True
+                        break
+                    if sealed_subjects.get(subject_path) != artifact.get("sha256"):
+                        unsealed_subject = True
+                        break
+                subject_identities = {
+                    (
+                        attempts[
+                            str(artifacts[version_id].get("producer_attempt_id") or "")
+                        ].get("worker"),
+                        attempts[
+                            str(artifacts[version_id].get("producer_attempt_id") or "")
+                        ].get("provider"),
+                    )
+                    for version_id in version_ids
+                    if version_id in artifacts
+                    and str(artifacts[version_id].get("producer_attempt_id") or "")
+                    in attempts
+                }
+                if (
+                    not isinstance(binding, dict)
+                    or binding.get("work_item_id") != work_item_id
+                    or binding.get("evidence_kind")
+                    != event["payload"].get("evidence_kind")
+                    or event["payload"].get("status") != "pass"
+                    or not _SHA256.fullmatch(
+                        str(event["payload"].get("evidence_sha256") or "")
+                    )
+                    or attempt is None
+                    or attempt.get("work_item_id") != work_item_id
+                    or attempt.get("status") != "succeeded"
+                    or len(subjects) != len(version_ids)
+                    or set(subjects) != set(binding.get("subject_artifact_types") or [])
+                    or event["payload"].get("evidence_sha256") != expected_digest
+                    or unsealed_subject
+                    or (
+                        evidence_kind == "deterministic"
+                        and contract.get("executor_type") != "deterministic_tool"
+                    )
+                    or (
+                        evidence_kind == "automated"
+                        and contract.get("executor_type")
+                        not in {"cli_agent", "deterministic_tool"}
+                    )
+                    or (
+                        evidence_kind == "independent"
+                        and contract.get("role")
+                        not in {"Reviewer", "TesterAuditor", "Verifier"}
+                    )
+                    or (
+                        evidence_kind == "independent"
+                        and (
+                            (attempt or {}).get("worker"),
+                            (attempt or {}).get("provider"),
+                        )
+                        in subject_identities
+                    )
+                    or (
+                        evidence_kind == "human"
+                        and (
+                            not isinstance(approval, dict)
+                            or not isinstance(approval.get("signature_authority"), dict)
+                            or not isinstance(approval_document, dict)
+                            or approval_document.get("task_id")
+                            != str(task.get("task_id") or "")
+                            or approval_document.get("gate_id") != gate_id
+                            or approval_document.get("actor")
+                            != event["payload"].get("actor")
+                            or approval_document.get("decision") != "approved"
+                            or approval_document.get("evidence_sha256")
+                            != expected_digest
+                            or approval_document.get("subject_artifacts") != subjects
+                        )
+                    )
+                ):
+                    raise LedgerIntegrityError(
+                        "protocol gate does not match its compiled evidence binding"
+                    )
+                protocol_gates[gate_id] = {
+                    "gate_id": gate_id,
+                    "work_item_id": work_item_id,
+                    "status": "pass",
+                    "evidence_kind": event["payload"]["evidence_kind"],
+                    "evidence_sha256": event["payload"]["evidence_sha256"],
+                    "attempt_id": attempt_id,
+                    "subject_version_ids": list(version_ids),
+                    "approval_receipt": event["payload"].get("approval_receipt"),
+                    "actor": event["payload"]["actor"],
+                    "created_at": event["recorded_at"],
+                }
+                continue
             if event["event_type"] == "ARTIFACT_VERSION_RECORDED":
                 version_id = _validated_id(event["entity_id"], field="version_id")
                 attempt_id = _validated_id(
                     event["payload"].get("attempt_id"), field="attempt_id"
                 )
                 if version_id in artifacts:
-                    raise LedgerIntegrityError(f"duplicate artifact version: {version_id}")
-                if attempt_id not in attempts or attempts[attempt_id]["status"] != "succeeded":
-                    raise LedgerIntegrityError("artifact producer attempt is not succeeded")
+                    raise LedgerIntegrityError(
+                        f"duplicate artifact version: {version_id}"
+                    )
+                if (
+                    attempt_id not in attempts
+                    or attempts[attempt_id]["status"] != "succeeded"
+                ):
+                    raise LedgerIntegrityError(
+                        "artifact producer attempt is not succeeded"
+                    )
                 artifacts[version_id] = {
                     "artifact_id": event["payload"]["artifact_id"],
                     "version_id": version_id,
@@ -2911,9 +3804,13 @@ class TaskRuntime:
                     event["payload"].get("version_id"), field="version_id"
                 )
                 if binding_id in evidence_bindings:
-                    raise LedgerIntegrityError(f"duplicate evidence binding: {binding_id}")
+                    raise LedgerIntegrityError(
+                        f"duplicate evidence binding: {binding_id}"
+                    )
                 if version_id not in artifacts:
-                    raise LedgerIntegrityError("evidence references missing artifact version")
+                    raise LedgerIntegrityError(
+                        "evidence references missing artifact version"
+                    )
                 evidence_bindings[binding_id] = {
                     "binding_id": binding_id,
                     "version_id": version_id,
@@ -2944,7 +3841,9 @@ class TaskRuntime:
                     event["payload"].get("version_id"), field="version_id"
                 )
                 if version_id not in artifacts:
-                    raise LedgerIntegrityError("selected artifact version does not exist")
+                    raise LedgerIntegrityError(
+                        "selected artifact version does not exist"
+                    )
                 if artifacts[version_id].get("selection_eligible") is not True:
                     raise LedgerIntegrityError(
                         "selected artifact version is not selection eligible"
@@ -2953,7 +3852,9 @@ class TaskRuntime:
                     binding["version_id"] == version_id
                     for binding in evidence_bindings.values()
                 ):
-                    raise LedgerIntegrityError("selected artifact version has no evidence")
+                    raise LedgerIntegrityError(
+                        "selected artifact version has no evidence"
+                    )
                 selected_artifact_version = version_id
                 continue
             if event["event_type"] == "ARTIFACT_VERSION_DISPOSITION_CHANGED":
@@ -2965,16 +3866,12 @@ class TaskRuntime:
                     raise LedgerIntegrityError(
                         "artifact disposition references missing artifact version"
                     )
-                from_disposition = str(
-                    event["payload"].get("from_disposition") or ""
-                )
+                from_disposition = str(event["payload"].get("from_disposition") or "")
                 disposition = str(event["payload"].get("disposition") or "")
                 if (
                     artifact.get("disposition") != from_disposition
                     or disposition
-                    not in ARTIFACT_DISPOSITION_TRANSITIONS.get(
-                        from_disposition, set()
-                    )
+                    not in ARTIFACT_DISPOSITION_TRANSITIONS.get(from_disposition, set())
                 ):
                     raise LedgerIntegrityError(
                         "invalid artifact disposition transition in ledger"
@@ -3002,9 +3899,10 @@ class TaskRuntime:
                         )
                     from_status = str(task_transition.get("from_status") or "")
                     to_status = str(task_transition.get("status") or "")
-                    if (
-                        task["status"] != from_status
-                        or to_status not in TASK_TRANSITIONS.get(from_status, set())
+                    if task[
+                        "status"
+                    ] != from_status or to_status not in TASK_TRANSITIONS.get(
+                        from_status, set()
                     ):
                         raise LedgerIntegrityError(
                             "artifact disposition has invalid task lifecycle transition"
@@ -3024,6 +3922,7 @@ class TaskRuntime:
             "artifacts": artifacts,
             "evidence_bindings": evidence_bindings,
             "trace_records": trace_records,
+            "protocol_gates": protocol_gates,
             "selected_artifact_version": selected_artifact_version,
             "last_event_sequence": events[-1]["sequence"],
             "last_event_hash": events[-1]["event_hash"],

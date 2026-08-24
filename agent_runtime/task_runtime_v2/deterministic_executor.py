@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import Any, Mapping
 import hashlib
 
-import yaml
-
 from agent_runtime.atomic_io import atomic_write_yaml
 from agent_runtime.narrative.metric_universe import (
     TOOL_ID,
@@ -163,6 +161,7 @@ class DeterministicToolExecutor:
             "status": "pass",
             "output_path": output_path.relative_to(task_root).as_posix(),
             "output_sha256": output_sha256,
+            "sealed_sources": [],
             "deterministic_tool": deterministic_tool,
             "model_execution": None,
         }
@@ -189,9 +188,7 @@ class DeterministicToolExecutor:
             "status": "pass",
             "idempotent_replay": False,
             "artifact": result["artifact"],
-            "receipt_path": receipt_path.relative_to(
-                self.agentlab_root
-            ).as_posix(),
+            "receipt_path": receipt_path.relative_to(self.agentlab_root).as_posix(),
             "projection": projection,
             **verified,
         }

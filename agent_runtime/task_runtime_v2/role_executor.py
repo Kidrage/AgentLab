@@ -72,34 +72,39 @@ class RoleAttemptExecutor:
         resolved_sources: list[Path] = []
         total_source_bytes = 0
         read_scope = self._bound_read_scope(work_item, role=role_name)
-        if source_paths and read_scope is None:
-            raise ValueError(
-                "source_paths require an assigned active Project Agent"
-            )
+        protocol_bound = isinstance(projection["task"].get("compiled_protocol"), dict)
+        if source_paths and read_scope is None and not protocol_bound:
+            raise ValueError("source_paths require an assigned active Project Agent")
         for source_path in source_paths or []:
             candidate = Path(source_path)
             if candidate.is_symlink():
                 raise ValueError("source_paths may not contain symlinks")
             resolved = candidate.resolve(strict=True)
+            protocol_source = protocol_bound and self._source_allowed_by_protocol(
+                resolved,
+                projection=projection,
+                work_item=work_item,
+                task_id=task_id,
+            )
             source_kind = self._source_kind(resolved, task_id=task_id)
+            if source_kind is None and protocol_source:
+                source_kind = "PROTOCOL_DECLARED_SOURCE"
             if source_kind is None:
                 raise ValueError(
                     "source_paths is outside governed project source roots"
                 )
-            if not self._source_allowed_by_manifest(
-                resolved,
-                task_id=task_id,
-                read_scope=read_scope or (),
+            if read_scope is not None and not self._source_allowed_by_manifest(
+                resolved, task_id=task_id, read_scope=read_scope
             ):
                 raise ValueError(
                     "source_paths is outside the assigned Agent read scope"
                 )
+            if read_scope is None and not protocol_source:
+                raise ValueError("source_paths is outside the compiled protocol inputs")
             content = resolved.read_text(encoding="utf-8")
             total_source_bytes += len(content.encode("utf-8"))
             if total_source_bytes > int(self._source_policy["max_total_bytes"]):
-                raise ValueError(
-                    "sealed source_paths exceed the governed intake limit"
-                )
+                raise ValueError("sealed source_paths exceed the governed intake limit")
             resolved_sources.append(resolved)
             sealed_messages.append(
                 {
@@ -169,6 +174,7 @@ class RoleAttemptExecutor:
             )
         execution_contract = {
             "role": role_name,
+            "executor_type": "cli_agent",
             "input_tier": classification.get("tier"),
             "route": classification.get("route"),
             "invocation_contract": profile.get("invocation_contract"),
@@ -220,12 +226,8 @@ class RoleAttemptExecutor:
                 != "narrative-outbound-transfer/v1"
                 or external_context_contract.get("status")
                 not in {"pending_approval", "pass"}
-                or not str(
-                    external_context_contract.get("recipient") or ""
-                ).strip()
-                or not str(
-                    external_context_contract.get("purpose") or ""
-                ).strip()
+                or not str(external_context_contract.get("recipient") or "").strip()
+                or not str(external_context_contract.get("purpose") or "").strip()
                 or len(scope_sha256) != 64
             ):
                 raise ValueError("external context contract is invalid")
@@ -237,8 +239,7 @@ class RoleAttemptExecutor:
                 "external_context_scope_contract_valid": True,
                 "external_context_scope_sha256": scope_sha256,
                 "external_context_approval_signature_path": str(
-                    external_context_request.get("approval_signature_path")
-                    or ""
+                    external_context_request.get("approval_signature_path") or ""
                 ),
                 "external_context_transfer": {
                     "recipient": external_context_contract["recipient"],
@@ -258,9 +259,7 @@ class RoleAttemptExecutor:
                 expires_at=str(external_context_request.get("expires_at") or ""),
             )
             if auto_approval["status"] == "pass":
-                plan.execution_policy[
-                    "external_context_auto_approval"
-                ] = auto_approval
+                plan.execution_policy["external_context_auto_approval"] = auto_approval
         try:
             result = self._cli_runner(
                 plan,
@@ -330,14 +329,21 @@ class RoleAttemptExecutor:
                     output_path.relative_to(self.runtime.tasks_root / task_id)
                 ),
                 "output_sha256": output_sha256,
+                "sealed_sources": [
+                    {
+                        "path": path.relative_to(self.root).as_posix(),
+                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    }
+                    for path in resolved_sources
+                ],
                 "usage": {
                     "input_tokens": getattr(result, "input_tokens", None),
                     "output_tokens": getattr(result, "output_tokens", None),
                     "total_tokens": getattr(result, "total_tokens", None),
                 },
-                "model_execution_receipt": (
-                    getattr(result, "raw_usage", {}) or {}
-                ).get("model_execution_receipt"),
+                "model_execution_receipt": (getattr(result, "raw_usage", {}) or {}).get(
+                    "model_execution_receipt"
+                ),
             }
             atomic_write_yaml(receipt_path, receipt)
             receipt_sha256 = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
@@ -383,9 +389,7 @@ class RoleAttemptExecutor:
             return None
         self.runtime._validate_project_agent_binding(
             assigned_agent_id=agent_id,
-            agent_manifest_revision=work_item.get(
-                "agent_manifest_revision"
-            ),
+            agent_manifest_revision=work_item.get("agent_manifest_revision"),
             canonical_snapshot_id=work_item.get("canonical_snapshot_id"),
             contract_hash=work_item.get("effective_contract_hash"),
             execution_role=role,
@@ -409,10 +413,84 @@ class RoleAttemptExecutor:
     ) -> bool:
         project_root = (self.root / "projects" / self.project).resolve()
         relative = path.relative_to(project_root).as_posix()
-        return any(
-            fnmatch.fnmatchcase(relative, pattern)
-            for pattern in read_scope
+        return any(fnmatch.fnmatchcase(relative, pattern) for pattern in read_scope)
+
+    def _source_allowed_by_protocol(
+        self,
+        path: Path,
+        *,
+        projection: dict[str, Any],
+        work_item: dict[str, Any],
+        task_id: str,
+    ) -> bool:
+        compiled = projection["task"].get("compiled_protocol") or {}
+        node_id = str(work_item.get("work_item_id") or "")
+        fact_names = (compiled.get("source_fact_bindings") or {}).get(node_id) or []
+        facts = projection["task"].get("input_profile") or {}
+        for fact_name in fact_names:
+            raw_root = facts.get(fact_name)
+            if not isinstance(raw_root, str) or not raw_root.strip():
+                continue
+            candidate = Path(raw_root)
+            roots = (
+                [candidate]
+                if candidate.is_absolute()
+                else [
+                    self.root / candidate,
+                    self.root / "projects" / self.project / candidate,
+                ]
+            )
+            for source_root in roots:
+                if source_root.is_symlink() or not source_root.exists():
+                    continue
+                resolved_root = source_root.resolve(strict=True)
+                project_root = (self.root / "projects" / self.project).resolve(
+                    strict=True
+                )
+                if not resolved_root.is_relative_to(project_root):
+                    continue
+                relative_root = resolved_root.relative_to(project_root)
+                if not relative_root.parts or relative_root.parts[0] not in set(
+                    self._source_policy.get("project_roots") or []
+                ):
+                    continue
+                if path == resolved_root or path.is_relative_to(resolved_root):
+                    return True
+        task_root = self.runtime._task_dir(task_id)
+        gate_subject_types = {
+            str(artifact_type)
+            for gate in compiled.get("promotion_gate_bindings") or []
+            if gate.get("work_item_id") == node_id
+            for artifact_type in gate.get("subject_artifact_types") or []
+        }
+        gate_subject_paths = {
+            (task_root / str(artifact.get("path") or "")).resolve(strict=False)
+            for artifact in projection["artifacts"].values()
+            if artifact.get("artifact_id") in gate_subject_types
+        }
+        if path in gate_subject_paths:
+            return True
+        dependencies = set(work_item.get("depends_on") or [])
+        if not dependencies:
+            return False
+        dependency_attempt_ids = {
+            attempt_id
+            for attempt_id, attempt in projection["attempts"].items()
+            if attempt.get("work_item_id") in dependencies
+            and attempt.get("status") == "succeeded"
+        }
+        governed_paths = {
+            (task_root / "attempt_logs" / attempt_id / "output.md").resolve(
+                strict=False
+            )
+            for attempt_id in dependency_attempt_ids
+        }
+        governed_paths.update(
+            (task_root / str(artifact.get("path") or "")).resolve(strict=False)
+            for artifact in projection["artifacts"].values()
+            if artifact.get("producer_attempt_id") in dependency_attempt_ids
         )
+        return path in governed_paths
 
     def _resolve_bound_profile(
         self,
@@ -421,8 +499,14 @@ class RoleAttemptExecutor:
     ) -> tuple[dict[str, Any], str, str | None]:
         agent_id = work_item.get("assigned_agent_id")
         if agent_id is None:
-            profile, provider = self._resolve_profile(role)
-            return profile, provider, None
+            protocol_model_profile = str(
+                work_item.get("agent_model_profile") or ""
+            ).strip()
+            profile, provider = self._resolve_profile(
+                role,
+                model_profile=protocol_model_profile or None,
+            )
+            return profile, provider, protocol_model_profile or None
 
         binding = {
             "assigned_agent_id": agent_id,
@@ -461,9 +545,7 @@ class RoleAttemptExecutor:
         )
         tier_policy = profiles.get("tier_policy") or {}
         tier_definitions = tier_policy.get("tiers") or {}
-        professional_profiles = (
-            profiles.get("professional_role_profiles") or {}
-        )
+        professional_profiles = profiles.get("professional_role_profiles") or {}
         requested = str(model_profile or "").strip().lower()
         tier = str(tier_policy.get("default_tier") or "performance")
         professional: Mapping[str, Any] | None = None
@@ -475,12 +557,8 @@ class RoleAttemptExecutor:
                     raise InvalidTransition(
                         "Project Agent profile is not a CLI execution profile"
                     )
-                if professional.get("base_role_key") != normalize_role_key(
-                    role
-                ):
-                    raise InvalidTransition(
-                        "Project Agent profile/base role mismatch"
-                    )
+                if professional.get("base_role_key") != normalize_role_key(role):
+                    raise InvalidTransition("Project Agent profile/base role mismatch")
                 tier = str(professional.get("execution_tier") or "")
             else:
                 matched = next(
@@ -520,18 +598,19 @@ class RoleAttemptExecutor:
                 raise InvalidTransition(
                     "professional CLI profile requires an explicit capacity route"
                 )
-            capacity = yaml.safe_load(
-                (self.root / "config" / "model_capacity.yml").read_text(
-                    encoding="utf-8"
+            capacity = (
+                yaml.safe_load(
+                    (self.root / "config" / "model_capacity.yml").read_text(
+                        encoding="utf-8"
+                    )
                 )
-            ) or {}
+                or {}
+            )
             route = (capacity.get("routes") or {}).get(strict_route)
             expected = {
                 "role": normalize_role_key(role),
                 "worker": str(profile.get("cli_agent") or ""),
-                "invocation_contract": str(
-                    profile.get("invocation_contract") or ""
-                ),
+                "invocation_contract": str(profile.get("invocation_contract") or ""),
                 "model_key": str(profile.get("default") or ""),
             }
             if not isinstance(route, Mapping) or any(
@@ -609,8 +688,7 @@ class RoleAttemptExecutor:
         if (
             len(parts) >= 4
             and parts[0] == "runs"
-            and parts[2]
-            in set(self._source_policy.get("candidate_run_roots") or [])
+            and parts[2] in set(self._source_policy.get("candidate_run_roots") or [])
         ):
             return "GOVERNED_CANDIDATE_SOURCE"
         runtime_prefix = ("runtime", "tasks", task_id)
@@ -656,10 +734,14 @@ class RoleAttemptExecutor:
             "qwen_provider_model_mismatch",
             "grok_provider_model_mismatch",
         }
-        if not isinstance(usage, dict) or any(
-            usage.get(field) != value for field, value in expected_usage.items()
-        ) or any(usage.get(flag) for flag in mismatch_flags):
-            raise InvalidTransition("CLI model execution metadata does not match the route")
+        if (
+            not isinstance(usage, dict)
+            or any(usage.get(field) != value for field, value in expected_usage.items())
+            or any(usage.get(flag) for flag in mismatch_flags)
+        ):
+            raise InvalidTransition(
+                "CLI model execution metadata does not match the route"
+            )
         receipt_value = str(usage.get("model_execution_receipt") or "")
         try:
             receipt_candidate = Path(receipt_value)
@@ -667,7 +749,9 @@ class RoleAttemptExecutor:
             receipt_bytes = receipt_path.read_bytes()
             receipt = yaml.safe_load(receipt_bytes.decode("utf-8")) or {}
         except (OSError, RuntimeError, UnicodeDecodeError, yaml.YAMLError) as exc:
-            raise InvalidTransition("model execution receipt is missing or invalid") from exc
+            raise InvalidTransition(
+                "model execution receipt is missing or invalid"
+            ) from exc
         if (
             receipt_candidate.is_symlink()
             or not receipt_path.is_relative_to(attempt_root.resolve(strict=False))
@@ -697,7 +781,9 @@ class RoleAttemptExecutor:
             or receipt.get("exit_code") != 0
             or receipt.get("issues") not in (None, [])
         ):
-            raise InvalidTransition("model execution receipt does not prove the selected route")
+            raise InvalidTransition(
+                "model execution receipt does not prove the selected route"
+            )
         provider_binding = receipt.get("provider_model_binding_verified")
         if provider_binding is False:
             raise InvalidTransition("provider-reported model binding failed")

@@ -17,7 +17,7 @@ from agent_runtime.background_job_worker import execute_action
 from agent_runtime.narrative.audit.gate import SealDecision
 from agent_runtime.narrative.jobs.crown_adapter import create_crown_audit_job_from_contract
 from agent_runtime.narrative.jobs.lifecycle import next_after_heavy_audit
-from tests.narrative_test_authority import (
+from narrative_test_authority import (
     install_narrative_test_authority,
     narrative_action_config,
 )

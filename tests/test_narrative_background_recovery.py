@@ -11,7 +11,7 @@ from agent_runtime.background_job_controller import (
     schedule_next_attempt,
     write_process_receipt,
 )
-from tests.narrative_test_authority import install_narrative_test_authority
+from narrative_test_authority import install_narrative_test_authority
 
 
 def test_receipt_completed_after_attempt_deadline_cannot_advance_job(

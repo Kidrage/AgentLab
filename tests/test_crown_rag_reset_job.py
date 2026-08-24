@@ -13,7 +13,7 @@ from agent_runtime.background_job_controller import (
 )
 from agent_runtime.background_job_worker import _continuous_audit_manifest, execute_action
 from agent_runtime.narrative.audit.integrity import verify_audit_source_integrity
-from tests.narrative_test_authority import (
+from narrative_test_authority import (
     install_narrative_test_authority,
     narrative_action_config,
 )

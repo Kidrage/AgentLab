@@ -148,17 +148,33 @@ compiled graph before any role runs:
 ./agentlab.sh task create --project Demo --task-id task-code-001 \
   --title "Large code change" --goal "Produce a tested candidate patch" \
   --protocol-ref code.large.v1 \
-  --input-profile-json '{"kind":"code_build","scope":"large","repository":"Demo"}' \
+  --input-profile-json '{"kind":"code_build","scope":"large","target_count":6,"canon_impact":"none","risk_flags":[],"repository":"projects/Demo/production/repository"}' \
   --idempotency-key create-task-code-001
 ./agentlab.sh task execute --project Demo --task-id task-code-001
+./agentlab.sh task execute --project Demo --task-id task-code-001 --live \
+  --work-item-id supervisor_plan \
+  --messages-path projects/Demo/runtime/tasks/task-code-001/requests/supervisor.json \
+  --external-context-request projects/Demo/runtime/tasks/task-code-001/requests/context.yml \
+  --idempotency-key execute-supervisor-001
 ./agentlab.sh runtime protocol-canary --iterations 10 \
   --state-root /tmp/agentlab-protocol-canaries
 ```
 
-`task execute` compiles and materializes governed WorkItems; it does not bypass
-Attempt receipts or call the legacy pipeline. The architecture decision and the
-code/narrative/film production ladder are documented in
+Without `--live`, `task execute` only compiles and materializes governed
+WorkItems. Live execution enters `RoleAttemptExecutor` for CLI roles or the
+kernel deterministic executor for deterministic profiles, records successful
+outputs against declared artifact contracts, and pauses at `waiting_review`
+until every node-bound gate is recorded with `protocol-gate record`. Gate
+commands bind one successful Attempt and the exact reviewed ArtifactVersion(s);
+human gates additionally require a receipt and detached external signature.
+It never bypasses Attempt receipts or calls the legacy pipeline. The architecture
+decision and the code/narrative/film production ladder are documented in
 `docs/PRODUCTION_PROTOCOL_STRATEGY.zh-CN.md`.
+
+Protocol source facts are paths staged under the owning Project's canonical
+`production/`, `project_brain/`, or `reset_manifests/` roots. A live node may
+read only selected files beneath its declared source fact plus immutable outputs
+from accepted predecessor nodes.
 
 Every mutating command requires an idempotency key, including Task
 pause/resume/cancel. A later pause after a resume must use a new key; retrying the

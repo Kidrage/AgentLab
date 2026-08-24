@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-88711770bd8f`
+- Repository ID: `AgentLab-kernel-stabilization-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab`
+- Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-24T06:52:59.841789+00:00`
+- Generated at: `2026-08-24T10:42:25.869963+00:00`
 
 ## Current State
 
 - Branch: `codex/kernel-stabilization`
-- HEAD: `1a1fc6d`
-- Indexed paths: 2079
+- HEAD: `803ac0f`
+- Indexed paths: 2080
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -48,7 +48,7 @@
 | `docs` | 348 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
-| `config` | 129 |
+| `config` | 130 |
 | `tests/fixtures` | 110 |
 | `agent_runtime/narrative` | 75 |
 | `skills` | 47 |
@@ -88,15 +88,15 @@
 
 ### Categories
 
-- code: 1088 files, 11080389 bytes
-- literature: 424 files, 2427665 bytes
+- code: 1088 files, 11210679 bytes
+- literature: 424 files, 2430751 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 552 files, 3225803 bytes
+- structured_data: 553 files, 3233054 bytes
 
 ### Common Extensions
 
 - `.py`: 1073
-- `.yml`: 520
+- `.yml`: 521
 - `.md`: 385
 - `.txt`: 39
 - `.json`: 27
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `803ac0f 2026-08-24 feat(runtime): stabilize versioned production protocols`
 - `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
 - `91cb273 2026-08-01 feat(narrative): materialize strict professional chapter DAGs`
 - `9e41606 2026-08-01 fix(background): bind Crown jobs to governed model settings`
@@ -251,48 +252,34 @@
 - `01d8585 2026-07-31 fix(frontdesk): probe OpenClaw runtime health`
 - `6ab6f14 2026-07-31 Harden professional narrative task execution`
 - `8e57041 2026-07-31 fix(frontdesk): honor negated mutation requests`
-- `27dcff4 2026-07-31 fix(frontdesk): ground OpenClaw routing and reports`
 
 ## Current Changes
 
 - `## codex/kernel-stabilization`
+- ` M PROJECT_HANDOFF.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/agent_runner.py`
 - ` M agent_runtime/cli/task_runtime_v2.py`
-- ` M agent_runtime/command_runner.py`
-- ` M agent_runtime/incident_manager.py`
-- ` M agent_runtime/llm_provider.py`
-- ` M agent_runtime/narrative/professional_chapter_runtime.py`
-- ` M agent_runtime/operational_uploader.py`
-- ` M agent_runtime/performance_evaluator.py`
-- ` M agent_runtime/pipeline_runner.py`
-- ` M agent_runtime/production_pack_registry.py`
-- ` M agent_runtime/progress_tracker.py`
-- ` M agent_runtime/provider_guard.py`
-- ` M agent_runtime/run_task.py`
+- ` M agent_runtime/production_protocols.py`
+- ` M agent_runtime/protocol_canary.py`
+- ` M agent_runtime/task_runtime_v2/deterministic_executor.py`
+- ` M agent_runtime/task_runtime_v2/narrative_projection_executor.py`
+- ` M agent_runtime/task_runtime_v2/role_executor.py`
 - ` M agent_runtime/task_runtime_v2/runtime.py`
 - ` M config/production_packs.yml`
-- ` M config/repository_hygiene.yml`
+- ` M config/task_input_tiers.yml`
+- ` M docs/PRODUCTION_PROTOCOL_STRATEGY.zh-CN.md`
 - ` M docs/TASK_RUNTIME.md`
-- ` M tests/task_runtime_v2_support.py`
+- ` M examples/novel_canary/task_facts.yml`
 - ` M tests/test_crown_rag_reset_job.py`
 - ` M tests/test_narrative_audit_closure.py`
 - ` M tests/test_narrative_background_recovery.py`
 - ` M tests/test_narrative_efficiency.py`
 - ` M tests/test_narrative_job_semantics.py`
 - ` M tests/test_narrative_quality_gate.py`
-- ` M tests/test_production_pack_registry.py`
-- ` M tests/test_professional_chapter_runtime.py`
-- ` M tests/test_repo_hygiene.py`
-- ` M tests/test_task_runtime_v2.py`
+- ` M tests/test_production_protocols.py`
+- ` M tests/test_protocol_canary.py`
 - ` M tests/test_task_runtime_v2_cli.py`
-- `?? agent_runtime/production_protocols.py`
-- `?? agent_runtime/protocol_canary.py`
-- `?? docs/PRODUCTION_PROTOCOL_STRATEGY.zh-CN.md`
-- `?? examples/novel_canary/`
-- `?? tests/narrative_test_authority.py`
-- `?? tests/test_production_protocols.py`
-- `?? tests/test_protocol_canary.py`
+- `?? config/production_role_profiles.yml`
 
 ## Related Repositories
 

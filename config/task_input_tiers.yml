@@ -117,6 +117,8 @@ classification:
     creative_patch: L1
     consistency_patch: L2
     prose_build: L3
+    code_build: L3
+    film_build: L3
     structural_change: L3
     audit_review: L3
     canon_promotion: L3
@@ -127,6 +129,9 @@ classification:
     cross_artifact: L3
     multi_chapter: L3
     project_wide: L3
+    single_chapter: L3
+    large: L3
+    feature: L3
     unknown: L3
   canon_impact_minimum:
     none: L0

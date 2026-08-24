@@ -100,7 +100,12 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
 def test_task_cli_creates_and_prepares_exact_protocol(tmp_path: Path) -> None:
     config = tmp_path / "config"
     config.mkdir()
-    for name in ("production_packs.yml", "task_input_tiers.yml"):
+    for name in (
+        "production_packs.yml",
+        "task_input_tiers.yml",
+        "agent_model_profiles.yml",
+        "production_role_profiles.yml",
+    ):
         shutil.copy2(ROOT / "config" / name, config / name)
     app = typer.Typer()
     register_task_runtime_commands(app, tmp_path, Console(width=120))
@@ -108,6 +113,9 @@ def test_task_cli_creates_and_prepares_exact_protocol(tmp_path: Path) -> None:
     facts = {
         "kind": "code_build",
         "scope": "large",
+        "target_count": 6,
+        "canon_impact": "none",
+        "risk_flags": [],
         "repository": "fixture-repository",
     }
 
@@ -226,9 +234,7 @@ def test_work_item_cli_materializes_project_agent_collaboration(
 ) -> None:
     init_project(tmp_path, "Demo", "narrative_project", "Demo")
     project_root = tmp_path / "projects" / "Demo"
-    project = yaml.safe_load(
-        (project_root / "project.yml").read_text(encoding="utf-8")
-    )
+    project = yaml.safe_load((project_root / "project.yml").read_text(encoding="utf-8"))
     project["features"] = {
         "project_truth_mode": "enforced",
         "enable_project_agents": True,

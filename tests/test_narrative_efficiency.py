@@ -43,7 +43,7 @@ from agent_runtime.narrative.production.context_compiler import (
     ContextCompiler,
     ContextRequest,
 )
-from tests.narrative_test_authority import (
+from narrative_test_authority import (
     install_narrative_test_authority,
     narrative_action_config,
 )
