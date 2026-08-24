@@ -11,6 +11,8 @@ import typer
 import yaml
 from rich.console import Console
 
+from agent_runtime.protocol_canary import run_protocol_canaries
+from agent_runtime.production_protocols import ProductionProtocolRunner
 from agent_runtime.task_runtime_v2 import (
     AttemptLogRetention,
     LegacyRunMigrator,
@@ -70,6 +72,7 @@ def register_task_runtime_commands(
         task_id: str = typer.Option(..., "--task-id"),
         title: str = typer.Option(..., "--title"),
         goal: str = typer.Option(..., "--goal"),
+        protocol_ref: str | None = typer.Option(None, "--protocol-ref"),
         input_profile_json: str | None = typer.Option(None, "--input-profile-json"),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
         allow_duplicate_goal: bool = typer.Option(False, "--allow-duplicate-goal"),
@@ -82,6 +85,7 @@ def register_task_runtime_commands(
                 task_id=task_id,
                 title=title,
                 user_goal=goal,
+                protocol_ref=protocol_ref,
                 input_profile=(
                     json_mapping(input_profile_json, field="input_profile")
                     if input_profile_json is not None
@@ -91,6 +95,20 @@ def register_task_runtime_commands(
                 allow_duplicate_goal=allow_duplicate_goal,
                 independent_boundary_reason=independent_boundary_reason,
             )["task"]
+        )
+
+    @task_app.command("execute")
+    def task_execute(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+    ) -> None:
+        """Compile and materialize the Task's exact production protocol."""
+
+        emit(
+            ProductionProtocolRunner(
+                current_root(),
+                project=project,
+            ).prepare(task_id)
         )
 
     @task_app.command("classify")
@@ -515,6 +533,21 @@ def register_task_runtime_commands(
     @runtime_app.command("doctor")
     def runtime_doctor(project: str = typer.Option(..., "--project")) -> None:
         report = runtime(project).doctor_project()
+        emit(report)
+        if not report["ok"]:
+            raise typer.Exit(code=1)
+
+    @runtime_app.command("protocol-canary")
+    def runtime_protocol_canary(
+        iterations: int = typer.Option(10, "--iterations", min=1),
+        state_root: Path | None = typer.Option(None, "--state-root"),
+    ) -> None:
+        target = state_root or current_root() / ".agentlab_runtime" / "protocol_canaries"
+        report = run_protocol_canaries(
+            current_root(),
+            state_root=target,
+            iterations=iterations,
+        )
         emit(report)
         if not report["ok"]:
             raise typer.Exit(code=1)

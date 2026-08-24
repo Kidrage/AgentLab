@@ -21,11 +21,11 @@ RUNTIME_DIR = Path(__file__).resolve().parent
 if str(RUNTIME_DIR) not in sys.path:
     sys.path.insert(0, str(RUNTIME_DIR))
 
-from artifact_contract import validate_artifacts, write_artifact_manifest
-from config_loader import load_agentlab_configs
-from lifecycle_graph import LIFECYCLE_NODES, create_lifecycle, save_lifecycle
-from schemas import AgentName
-from workflow_plan import build_workflow_plan
+from agent_runtime.artifact_contract import validate_artifacts, write_artifact_manifest
+from agent_runtime.config_loader import load_agentlab_configs
+from agent_runtime.lifecycle_graph import LIFECYCLE_NODES, create_lifecycle, save_lifecycle
+from agent_runtime.schemas import AgentName
+from agent_runtime.workflow_plan import build_workflow_plan
 
 
 REPORT = "PERFORMANCE_EVALUATION.md"

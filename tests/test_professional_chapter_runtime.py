@@ -19,6 +19,14 @@ from agent_runtime.task_runtime_v2 import TaskRuntime
 
 
 ROOT = Path(__file__).resolve().parents[1]
+BASE_CHAPTER_ROLES = {
+    "authorial_director",
+    "canon_timeline_steward",
+    "arc_scene_planner",
+    "writer",
+    "senior_editor",
+    "state_projector",
+}
 
 
 def _professional_project(root: Path) -> tuple[TaskRuntime, str]:
@@ -106,7 +114,7 @@ def _professional_project(root: Path) -> tuple[TaskRuntime, str]:
     return runtime, snapshot_id
 
 
-def test_materializes_snapshot_bound_full_professional_chapter_dag(
+def test_materializes_snapshot_bound_minimum_professional_chapter_dag(
     tmp_path: Path,
 ) -> None:
     runtime, snapshot_id = _professional_project(tmp_path)
@@ -128,10 +136,8 @@ def test_materializes_snapshot_bound_full_professional_chapter_dag(
         for key, value in projection["work_items"].items()
         if key.startswith(prefix) and key.endswith("-v3")
     }
-    assert len(chapter_items) == len(REQUIRED_AUTHOR_ROLES)
-    assert {item["assigned_agent_id"] for item in chapter_items.values()} == set(
-        REQUIRED_AUTHOR_ROLES
-    )
+    assert len(chapter_items) == len(BASE_CHAPTER_ROLES)
+    assert {item["assigned_agent_id"] for item in chapter_items.values()} == BASE_CHAPTER_ROLES
     assert {item["canonical_snapshot_id"] for item in chapter_items.values()} == {
         snapshot_id
     }
@@ -140,10 +146,7 @@ def test_materializes_snapshot_bound_full_professional_chapter_dag(
     projector = chapter_items["chapter-002-state-projector-v3"]
     assert director["depends_on"] == ["chapter-001-state-projector"]
     assert writer["depends_on"] == ["chapter-002-arc-scene-planner-v3"]
-    assert projector["depends_on"] == [
-        "chapter-002-senior-editor-v3",
-        "chapter-002-reader-simulation-panel-v3",
-    ]
+    assert projector["depends_on"] == ["chapter-002-senior-editor-v3"]
     assert projector["requires_user_acceptance"] is True
     assert director["status"] == "ready"
 
@@ -174,3 +177,26 @@ def test_resumes_after_preexisting_director_without_duplicate_role(
     )
 
     assert second == first
+
+
+def test_materializes_full_team_only_for_declared_major_risk(tmp_path: Path) -> None:
+    _professional_project(tmp_path)
+
+    projection = materialize_professional_chapter_dag(
+        tmp_path,
+        project="Novel",
+        task_id="task-part-one",
+        job_id="job-chapter-002",
+        chapter=2,
+        revision=3,
+        previous_state_projector_id="chapter-001-state-projector",
+        idempotency_key="chapter-002-battle-v3",
+        risk_flags=("battle",),
+    )
+
+    chapter_items = {
+        value["assigned_agent_id"]
+        for key, value in projection["work_items"].items()
+        if key.startswith("chapter-002-") and key.endswith("-v3")
+    }
+    assert chapter_items == set(REQUIRED_AUTHOR_ROLES)

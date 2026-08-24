@@ -11,6 +11,7 @@ from agent_runtime.background_job_controller import (
     schedule_next_attempt,
     write_process_receipt,
 )
+from tests.narrative_test_authority import install_narrative_test_authority
 
 
 def test_receipt_completed_after_attempt_deadline_cannot_advance_job(
@@ -25,6 +26,7 @@ def test_receipt_completed_after_attempt_deadline_cannot_advance_job(
         start_chapter=1,
         end_chapter=3,
         writer_worker="fake-writer",
+        **install_narrative_test_authority(tmp_path, writer="fake-writer"),
         chapter_state_plan="runs/shared/chapter_state_plan.yml",
         attempt_lease_seconds=60,
         now="2026-07-19T10:00:00+00:00",

@@ -218,6 +218,28 @@ def test_create_task_appends_authoritative_event_and_rebuilds_projection(
     assert yaml.safe_load(projection_path.read_text(encoding="utf-8")) == created
 
 
+def test_create_task_persists_exact_protocol_and_declared_facts(tmp_path: Path) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    facts = {
+        **_GOVERNED_PROFILE,
+        "chapter": 1,
+        "repository": "fixture-repository",
+    }
+
+    created = runtime.create_task(
+        task_id="task-protocol-001",
+        title="Run one governed protocol",
+        user_goal="Execute one exact versioned protocol.",
+        protocol_ref="narrative.chapter.v1",
+        input_profile=facts,
+        idempotency_key="request-protocol-001",
+    )
+
+    assert created["task"]["protocol_ref"] == "narrative.chapter.v1"
+    assert created["task"]["input_profile"] == facts
+    assert runtime.rebuild_task("task-protocol-001")["task"]["input_profile"] == facts
+
+
 def test_user_acceptance_work_item_cannot_run_without_signed_gate(
     tmp_path: Path,
 ) -> None:

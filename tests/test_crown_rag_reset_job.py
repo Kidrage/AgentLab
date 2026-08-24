@@ -13,6 +13,10 @@ from agent_runtime.background_job_controller import (
 )
 from agent_runtime.background_job_worker import _continuous_audit_manifest, execute_action
 from agent_runtime.narrative.audit.integrity import verify_audit_source_integrity
+from tests.narrative_test_authority import (
+    install_narrative_test_authority,
+    narrative_action_config,
+)
 
 
 def _complete(
@@ -55,6 +59,7 @@ def test_crown_reset_parent_job_persists_20_chapter_rag_cadence(tmp_path: Path) 
         continuity_checkpoint_cadence=5,
         heavy_audit_cadence=20,
         writer_worker="claude_code",
+        **install_narrative_test_authority(tmp_path, writer="claude_code"),
         chapter_state_plan="production/chapter_cards/index.yml",
         parent_task_id="task_crown_rag_reset_ch01_ch20",
         knowledge_contract_required=True,
@@ -86,6 +91,7 @@ def test_crown_reset_job_rejects_checkpoint_cadence_that_differs_from_batch(
             continuity_checkpoint_cadence=5,
             heavy_audit_cadence=20,
             writer_worker="claude_code",
+            **install_narrative_test_authority(tmp_path, writer="claude_code"),
             chapter_state_plan="production/chapter_cards/index.yml",
             knowledge_contract_required=True,
         )
@@ -104,6 +110,7 @@ def test_first_five_chapters_schedule_checkpoint_not_heavy_audit(tmp_path: Path)
         continuity_checkpoint_cadence=5,
         heavy_audit_cadence=20,
         writer_worker="claude_code",
+        **install_narrative_test_authority(tmp_path, writer="claude_code"),
         chapter_state_plan="production/chapter_cards/index.yml",
         parent_task_id="task_crown_rag_reset_ch01_ch20",
         knowledge_contract_required=True,
@@ -219,6 +226,7 @@ def test_generation_requires_chapter_knowledge_contract_for_reset_job(tmp_path: 
         "production_allowed": False,
         "batch": {"number": 1, "start": 1, "end": 5},
         "config": {
+            **narrative_action_config(tmp_path, writer="claude_code"),
             "narrative_adapter": "crown",
             "suite": "crown-rag-reset-v1",
             "eval_id": "crown-rag-reset-20260721",
@@ -251,6 +259,7 @@ def test_final_heavy_audit_request_covers_the_full_twenty_chapter_window(
         continuity_checkpoint_cadence=5,
         heavy_audit_cadence=20,
         writer_worker="claude_code",
+        **install_narrative_test_authority(tmp_path, writer="claude_code"),
         chapter_state_plan="production/chapter_cards/index.yml",
         parent_task_id="task_crown_rag_reset_ch01_ch20",
         knowledge_contract_required=True,
@@ -479,6 +488,7 @@ def test_grouped_rewrite_for_rag_reset_forces_full_twenty_chapter_reaudit(
         continuity_checkpoint_cadence=5,
         heavy_audit_cadence=20,
         writer_worker="claude_code",
+        **install_narrative_test_authority(tmp_path, writer="claude_code"),
         chapter_state_plan="production/chapter_cards/index.yml",
         parent_task_id="task_crown_rag_reset_ch01_ch20",
         knowledge_contract_required=True,

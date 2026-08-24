@@ -43,6 +43,10 @@ from agent_runtime.narrative.production.context_compiler import (
     ContextCompiler,
     ContextRequest,
 )
+from tests.narrative_test_authority import (
+    install_narrative_test_authority,
+    narrative_action_config,
+)
 from agent_runtime.schemas import AgentRoute, LLMCallResult, WorkflowPlan
 
 
@@ -772,6 +776,7 @@ def test_background_attempt_persists_risk_tier_plan_without_text_rerouting(
         end_chapter=26,
         batch_size=2,
         writer_worker="claude_code",
+        **install_narrative_test_authority(tmp_path, writer="claude_code"),
         chapter_state_plan="plan.yml",
         risk_signals={26: ["key_reveal"]},
         now="2026-01-01T00:00:00+00:00",
@@ -826,6 +831,7 @@ def test_ordinary_background_audit_uses_single_judge_runner(
             "attempt_id": "attempt-ordinary",
             "batch": {"start": 25, "end": 25},
             "config": {
+                **narrative_action_config(tmp_path, writer="fake-writer"),
                 "eval_id": "eval-tiered",
                 "narrative_adapter": "crown",
                 "transient_retry_seconds": 1,
@@ -908,7 +914,11 @@ def test_background_audit_runs_deterministic_precheck_before_any_judge(
             "job_id": "job-precheck",
             "attempt_id": "attempt-precheck",
             "batch": {"start": 25, "end": 25},
-            "config": {"eval_id": "eval", "narrative_adapter": "crown"},
+            "config": {
+                **narrative_action_config(tmp_path, writer="fake-writer"),
+                "eval_id": "eval",
+                "narrative_adapter": "crown",
+            },
             "narrative_execution_plan": {
                 "chapters": [{"chapter_id": 25, "judge_count": 1}]
             },
@@ -959,7 +969,11 @@ def test_mixed_risk_batch_adds_second_judge_only_for_high_risk_chapter(
             "job_id": "job-mixed",
             "attempt_id": "attempt-mixed",
             "batch": {"start": 25, "end": 26},
-            "config": {"eval_id": "eval", "narrative_adapter": "crown"},
+            "config": {
+                **narrative_action_config(tmp_path, writer="fake-writer"),
+                "eval_id": "eval",
+                "narrative_adapter": "crown",
+            },
             "narrative_execution_plan": {
                 "chapters": [
                     {"chapter_id": 25, "judge_count": 1},
@@ -1098,6 +1112,7 @@ def test_rewrite_result_persists_incremental_window_for_independent_reaudit(
         start_chapter=21,
         end_chapter=30,
         writer_worker="fake",
+        **install_narrative_test_authority(tmp_path, writer="fake"),
         chapter_state_plan="plan.yml",
         now="2026-01-01T00:00:00+00:00",
     )

@@ -1,0 +1,10 @@
+protocol_ref: narrative.chapter.v1
+task_id: task_novel_canary_01
+title: 雾灯记忆局第一章
+user_goal: 生成一个隔离世界中的单章候选，并验证 AgentLab 协议内核的恢复能力。
+input_profile:
+  kind: prose_build
+  scope: single_chapter
+  chapter: 1
+  risk_flags: []
+source_story_bible: examples/novel_canary/story_bible.yml

@@ -67,6 +67,21 @@ packs:
       - validation_evidence
       - regression_risk
       - artifact_promotion
+    protocol:
+      ref: code.large.v1
+      required_facts: [kind, scope, repository]
+      role_selection: static
+      role_bindings:
+        - {node_id: supervisor_plan, role: Supervisor, depends_on: []}
+        - {node_id: repository_context, role: RepoScout, depends_on: [supervisor_plan]}
+        - {node_id: interface_contract, role: InterfaceMapper, depends_on: [repository_context]}
+        - {node_id: implementation, role: Coder, depends_on: [interface_contract]}
+        - {node_id: independent_validation, role: TesterAuditor, depends_on: [implementation]}
+        - {node_id: promotion_verification, role: Verifier, depends_on: [independent_validation]}
+      artifact_contracts:
+        - {artifact_type: source_patch, producer_node: implementation, candidate_only: true}
+        - {artifact_type: validation_report, producer_node: independent_validation, candidate_only: true}
+      promotion_gates: [tests_pass, independent_review, ci_or_human_acceptance]
 
   - pack_id: narrative_longform
     name: Longform Narrative Production
@@ -206,6 +221,19 @@ packs:
       - timeline
       - foreshadowing
       - no_production_write_before_promotion
+    protocol:
+      ref: narrative.chapter.v1
+      required_facts: [kind, scope, chapter]
+      role_selection: narrative_author_team
+      artifact_contracts:
+        - {artifact_type: prose_candidate, producer_node: writer, candidate_only: true}
+        - {artifact_type: editorial_review, producer_node: senior_editor, candidate_only: true}
+        - {artifact_type: narrative_state_delta, producer_node: state_projector, candidate_only: true}
+      promotion_gates:
+        - candidate_hash_bound
+        - independent_editor_acceptance
+        - deterministic_state_projection
+        - user_acceptance
 
   - pack_id: article_light
     name: Article Light Draft
@@ -311,16 +339,26 @@ packs:
       - SELF_CHECK
       - FINALIZE
     domain_phases:
+      - source_story_lock
+      - screenplay_adaptation_and_lock
       - script_breakdown
       - episode_plan
       - character_visual_bible
+      - world_visual_bible
+      - sound_bible
       - scene_and_asset_registry
       - shot_list
+      - storyboard_and_animatic
       - prompt_pack
-      - generation_ledger
+      - picture_and_sound_generation
+      - edit_vfx_color_subtitles_mix
       - continuity_qc
-      - promotion_after_acceptance
+      - master_after_human_acceptance
     required_outputs:
+      - locked_screenplay.yml
+      - production_design_bible.yml
+      - sound_bible.yml
+      - animatic_manifest.yml
       - episode_plan.yml
       - shot_list.yml
       - character_visual_bible.yml
@@ -337,6 +375,9 @@ packs:
       - visual_acceptance_candidate.yml
       - visual_acceptance_decision.yml
       - narrative_media_delivery_receipt.yml
+      - edit_timeline.yml
+      - sound_mix_manifest.yml
+      - master_candidate_manifest.yml
     memory_contract:
       - source_script
       - show_bible
@@ -352,6 +393,12 @@ packs:
       - visual_review_report
       - media_qc_report
       - visual_acceptance_decision
+      - locked_screenplay
+      - production_design_bible
+      - sound_bible
+      - animatic_manifest
+      - edit_timeline
+      - master_candidate_manifest
     quality_gates:
       - character_visual_consistency
       - shot_continuity
@@ -360,6 +407,34 @@ packs:
       - producer_receipts_bound_to_real_asset_hashes
       - independent_observer_reviewer_verifier_acceptance
       - qa_or_human_acceptance_before_project_artifact_promotion
+    protocol:
+      ref: film.production.v1
+      required_facts: [kind, scope, source_story_artifact]
+      role_selection: static
+      role_bindings:
+        - {node_id: screenplay_lock, role: Writer, profile: screenplay_adapter, depends_on: []}
+        - {node_id: production_design, role: ArtifactProducer, profile: production_designer, depends_on: [screenplay_lock]}
+        - {node_id: director_previs, role: ArtifactProducer, profile: previs_director, depends_on: [screenplay_lock, production_design]}
+        - {node_id: picture_generation, role: ArtifactProducer, profile: picture_producer, depends_on: [director_previs]}
+        - {node_id: sound_generation, role: ArtifactProducer, profile: sound_producer, depends_on: [director_previs]}
+        - {node_id: post_production, role: ArtifactProducer, profile: post_producer, depends_on: [picture_generation, sound_generation]}
+        - {node_id: independent_qc, role: Reviewer, profile: film_qc_reviewer, depends_on: [post_production]}
+        - {node_id: master_verification, role: Verifier, profile: master_verifier, depends_on: [independent_qc]}
+      artifact_contracts:
+        - {artifact_type: locked_screenplay, producer_node: screenplay_lock, candidate_only: true}
+        - {artifact_type: production_design_bible, producer_node: production_design, candidate_only: true}
+        - {artifact_type: animatic_manifest, producer_node: director_previs, candidate_only: true}
+        - {artifact_type: picture_asset_manifest, producer_node: picture_generation, candidate_only: true}
+        - {artifact_type: sound_asset_manifest, producer_node: sound_generation, candidate_only: true}
+        - {artifact_type: master_candidate_manifest, producer_node: post_production, candidate_only: true}
+        - {artifact_type: film_qc_report, producer_node: independent_qc, candidate_only: true}
+      promotion_gates:
+        - screenplay_locked
+        - production_bibles_locked
+        - asset_provenance_verified
+        - audiovisual_sync_verified
+        - independent_qc_passed
+        - human_master_approval
 
   - pack_id: media_generation
     name: Single Media Generation

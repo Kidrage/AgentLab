@@ -146,10 +146,31 @@ def _write_role_config(tmp_path: Path) -> None:
                         "execution_kind": "cli_agent",
                         "base_role_key": "reviewer",
                         "execution_tier": "performance",
+                        "capacity_route": "TestReviewerStrict",
                     }
                 },
                 "modes": {
                     "full_cli": {"tiers": {"performance": profiles}}
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    reviewer = _ROLES["Reviewer"]
+    (config / "model_capacity.yml").write_text(
+        yaml.safe_dump(
+            {
+                "routes": {
+                    "TestReviewerStrict": {
+                        "role": "reviewer",
+                        "worker": reviewer["worker"],
+                        "invocation_contract": reviewer["invocation_contract"],
+                        "model_key": reviewer["model_key"],
+                        "pool": "test",
+                        "approved_fallbacks": [],
+                        "fallback_on": [],
+                    }
                 }
             },
             sort_keys=False,

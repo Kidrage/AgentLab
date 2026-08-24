@@ -155,6 +155,7 @@ class TaskRuntime:
         user_goal: str,
         idempotency_key: str,
         input_profile: dict[str, Any] | None = None,
+        protocol_ref: str | None = None,
         legacy_source: dict[str, Any] | None = None,
         allow_duplicate_goal: bool = False,
         independent_boundary_reason: str | None = None,
@@ -170,6 +171,11 @@ class TaskRuntime:
             raise ValueError("legacy_source must be a mapping")
         if input_profile is not None and not isinstance(input_profile, dict):
             raise ValueError("input_profile must be a mapping")
+        resolved_protocol_ref = str(protocol_ref or "").strip()
+        if protocol_ref is not None and not resolved_protocol_ref:
+            raise ValueError("protocol_ref must be non-empty when provided")
+        if resolved_protocol_ref and input_profile is None:
+            raise ValueError("protocol-bound tasks require an input_profile")
         boundary_reason = str(independent_boundary_reason or "").strip()
         if allow_duplicate_goal and not boundary_reason:
             raise ValueError(
@@ -187,6 +193,8 @@ class TaskRuntime:
             "input_profile": declared_input_profile,
             "input_classification": input_classification,
         }
+        if resolved_protocol_ref:
+            payload["protocol_ref"] = resolved_protocol_ref
         if legacy_source is not None:
             payload["legacy_source"] = legacy_source
         if allow_duplicate_goal:
@@ -206,6 +214,43 @@ class TaskRuntime:
                 idempotency_key=idempotency_key,
                 payload=payload,
             )
+        return self.rebuild_task(task_id)
+
+    def bind_compiled_protocol(
+        self,
+        task_id: str,
+        *,
+        compiled_graph: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Bind one immutable compiled protocol graph to its Task."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        if not isinstance(compiled_graph, dict):
+            raise ValueError("compiled_graph must be a mapping")
+        document = json.loads(_canonical_json(compiled_graph))
+        if document.get("schema_version") != "compiled-task-graph/v1":
+            raise ValueError("compiled_graph schema is unsupported")
+
+        def validate(projection: dict[str, Any]) -> None:
+            task = projection["task"]
+            if not task.get("protocol_ref"):
+                raise InvalidTransition("Task is not protocol-bound")
+            if task["protocol_ref"] != document.get("protocol_ref"):
+                raise InvalidTransition("compiled protocol does not match Task protocol_ref")
+            existing = task.get("compiled_protocol")
+            if existing is not None and existing != document:
+                raise InvalidTransition("Task already has a different compiled protocol")
+
+        self._append_event(
+            task_id=task_id,
+            event_type="PROTOCOL_COMPILED",
+            entity_type="task",
+            entity_id=task_id,
+            idempotency_key=idempotency_key,
+            payload={"compiled_graph": document},
+            validate_projection=validate,
+        )
         return self.rebuild_task(task_id)
 
     def classify_task_input(
@@ -2534,6 +2579,11 @@ class TaskRuntime:
                     task["input_classification"] = event["payload"][
                         "input_classification"
                     ]
+                if event["payload"].get("protocol_ref") is not None:
+                    task["protocol_ref"] = event["payload"]["protocol_ref"]
+                    task["input_profile"] = dict(
+                        event["payload"].get("input_profile") or {}
+                    )
                 if event["payload"].get("legacy_source") is not None:
                     task["legacy_source"] = event["payload"]["legacy_source"]
                 if event["payload"].get("duplicate_goal_override") is not None:
@@ -2583,6 +2633,21 @@ class TaskRuntime:
                         "recorded_at": event["recorded_at"],
                     }
                 )
+                task["updated_at"] = event["recorded_at"]
+                continue
+            if event["event_type"] == "PROTOCOL_COMPILED":
+                if task is None:
+                    raise LedgerIntegrityError(
+                        "compiled protocol precedes TASK_CREATED"
+                    )
+                if task.get("compiled_protocol") is not None:
+                    raise LedgerIntegrityError("task ledger binds multiple compiled protocols")
+                compiled_graph = event["payload"].get("compiled_graph")
+                if not isinstance(compiled_graph, dict):
+                    raise LedgerIntegrityError("compiled protocol payload is malformed")
+                if compiled_graph.get("protocol_ref") != task.get("protocol_ref"):
+                    raise LedgerIntegrityError("compiled protocol ref does not match task")
+                task["compiled_protocol"] = compiled_graph
                 task["updated_at"] = event["recorded_at"]
                 continue
             if event["event_type"] == "TASK_STATUS_CHANGED":

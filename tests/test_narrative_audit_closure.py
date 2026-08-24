@@ -17,6 +17,10 @@ from agent_runtime.background_job_worker import execute_action
 from agent_runtime.narrative.audit.gate import SealDecision
 from agent_runtime.narrative.jobs.crown_adapter import create_crown_audit_job_from_contract
 from agent_runtime.narrative.jobs.lifecycle import next_after_heavy_audit
+from tests.narrative_test_authority import (
+    install_narrative_test_authority,
+    narrative_action_config,
+)
 
 
 NOW = "2026-07-19T10:00:00+00:00"
@@ -160,6 +164,7 @@ def _create_generation_job(root: Path, *, end_chapter: int = 10) -> None:
         start_chapter=1,
         end_chapter=end_chapter,
         writer_worker="fake-writer",
+        **install_narrative_test_authority(root, writer="fake-writer"),
         chapter_state_plan="runs/shared/chapter_state_plan.yml",
         now=NOW,
     )
@@ -462,7 +467,11 @@ def test_worker_independent_reaudit_receipt_is_bound_to_fresh_run_and_hash(
         "production_allowed": False,
         "agentlab_root": str(tmp_path),
         "batch": {"number": 1, "start": 1, "end": 10},
-        "config": {"narrative_adapter": "crown", "eval_id": "eval-v1"},
+        "config": {
+            **narrative_action_config(tmp_path, writer="fake-writer"),
+            "narrative_adapter": "crown",
+            "eval_id": "eval-v1",
+        },
         "require_independent_reaudit": True,
         "prior_results": {"heavy_audit": {"task_id": "audit-before-rewrite"}},
     }

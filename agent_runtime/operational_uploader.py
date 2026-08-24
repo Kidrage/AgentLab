@@ -9,7 +9,7 @@ import re
 import subprocess
 from urllib.parse import urlparse
 
-from schemas import LLMCallResult, WorkflowPlan
+from agent_runtime.schemas import LLMCallResult, WorkflowPlan
 
 
 @dataclass

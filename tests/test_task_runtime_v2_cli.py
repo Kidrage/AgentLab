@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
+import shutil
 
 import typer
 import yaml
@@ -12,6 +14,9 @@ from agent_runtime.cli.task_runtime_v2 import register_task_runtime_commands
 from agent_runtime.project_agents import ProjectAgentFactory, ProjectAgentRegistry
 from agent_runtime.project_ops.project_router import init_project
 from agent_runtime.project_truth import ProjectTruthStore
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
@@ -90,6 +95,81 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
     assert doctor.exit_code == 0, doctor.output
     assert compatibility_help.exit_code == 0, compatibility_help.output
     assert "ok: true" in doctor.output.lower()
+
+
+def test_task_cli_creates_and_prepares_exact_protocol(tmp_path: Path) -> None:
+    config = tmp_path / "config"
+    config.mkdir()
+    for name in ("production_packs.yml", "task_input_tiers.yml"):
+        shutil.copy2(ROOT / "config" / name, config / name)
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+    facts = {
+        "kind": "code_build",
+        "scope": "large",
+        "repository": "fixture-repository",
+    }
+
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "CodeCanary",
+            "--task-id",
+            "task-code-canary",
+            "--title",
+            "Repair fixture",
+            "--goal",
+            "Produce one tested patch.",
+            "--protocol-ref",
+            "code.large.v1",
+            "--input-profile-json",
+            json.dumps(facts),
+            "--idempotency-key",
+            "create-code-canary",
+        ],
+    )
+    executed = runner.invoke(
+        app,
+        [
+            "task",
+            "execute",
+            "--project",
+            "CodeCanary",
+            "--task-id",
+            "task-code-canary",
+        ],
+    )
+
+    assert created.exit_code == 0, created.output
+    assert "protocol_ref: code.large.v1" in created.output
+    assert executed.exit_code == 0, executed.output
+    assert "compiled_protocol:" in executed.output
+    assert "promotion_verification:" in executed.output
+
+
+def test_runtime_cli_runs_both_protocol_canaries(tmp_path: Path) -> None:
+    app = typer.Typer()
+    register_task_runtime_commands(app, ROOT, Console(width=120))
+    result = CliRunner().invoke(
+        app,
+        [
+            "runtime",
+            "protocol-canary",
+            "--iterations",
+            "1",
+            "--state-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "schema_version: protocol-canary-report/v1" in result.output
+    assert "canary: NovelCanary" in result.output
+    assert "canary: CodeCanary" in result.output
 
 
 def test_work_item_cli_can_require_user_acceptance(tmp_path: Path) -> None:

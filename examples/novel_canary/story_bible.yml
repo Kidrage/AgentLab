@@ -1,0 +1,15 @@
+schema_version: novel-canary-story-bible/v1
+project: NovelCanary
+title: 雾灯记忆局
+isolation: new_world_no_existing_canon
+premise: >-
+  近未来海岛的守灯人替逝者保管最后一段记忆，却发现下一份待归档的记忆属于仍然活着的自己。
+chapter_one:
+  goal: 守灯人林岚接收异常记忆匣，并决定在潮汐封港前查明来源。
+  viewpoint: 林岚
+  location: 第七码头灯塔
+  irreversible_change: 林岚私自拆开标有自己姓名的记忆匣。
+constraints:
+  - 不引用任何既有 AgentLab 小说项目设定。
+  - 只生成候选章节，不修改 production。
+  - 章节结尾必须形成可验证的新问题，而不是解释全部谜底。

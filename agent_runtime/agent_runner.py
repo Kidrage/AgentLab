@@ -13,13 +13,20 @@ from uuid import uuid4
 
 import yaml
 
-from cli_executor import CliAgentNotAvailable, resolve_cli_profile, run_cli_agent
-from config_loader import load_agentlab_configs
-from llm_provider import generate_text, resolve_env_value, resolve_llm_settings
-from policies import assert_path_allowed
-from repository_handoff import discover_handoff
-from role_keys import normalize_role_key
-from schemas import LLMCallResult, LLMSettings, WorkflowPlan
+try:  # Preserve one exception-class identity for legacy top-level imports.
+    from cli_executor import CliAgentNotAvailable, resolve_cli_profile, run_cli_agent
+except ModuleNotFoundError:  # Normal package import path.
+    from agent_runtime.cli_executor import (
+        CliAgentNotAvailable,
+        resolve_cli_profile,
+        run_cli_agent,
+    )
+from agent_runtime.config_loader import load_agentlab_configs
+from agent_runtime.llm_provider import generate_text, resolve_env_value, resolve_llm_settings
+from agent_runtime.policies import assert_path_allowed
+from agent_runtime.repository_handoff import discover_handoff
+from agent_runtime.role_keys import normalize_role_key
+from agent_runtime.schemas import LLMCallResult, LLMSettings, WorkflowPlan
 
 
 DEFAULT_REPORT_BY_AGENT = {
@@ -2936,7 +2943,7 @@ def run_agent_model(
     allow_cli_api_fallback: bool = False,
 ):
     diagnostics_interval_started = monotonic()
-    from operational_uploader import maybe_run_operational_agent
+    from agent_runtime.operational_uploader import maybe_run_operational_agent
 
     operational_result = maybe_run_operational_agent(plan, agent_name)
     if operational_result is not None:
@@ -3515,7 +3522,7 @@ def run_agent_model(
             return _blocked_artifact_capability_result(blocked_profile)
 
     # ── Budget enforcement: block before model call if agent exceeds stop threshold ──
-    from brain_governor import evaluate_token_status
+    from agent_runtime.brain_governor import evaluate_token_status
     token_statuses = evaluate_token_status(plan, agentlab_root)
     agent_tokens = token_statuses.get(agent_name, {})
     if agent_tokens.get("state") == "ask_user":
@@ -3793,8 +3800,11 @@ def run_agent_model(
     )
 
     if agent_name == "Archivist" and result.status == "completed" and result.content:
-        from memory_writer import apply_archivist_memory_edits, format_memory_write_section
-        from patch_applicator import strip_edit_blocks_from_report
+        from agent_runtime.memory_writer import (
+            apply_archivist_memory_edits,
+            format_memory_write_section,
+        )
+        from agent_runtime.patch_applicator import strip_edit_blocks_from_report
 
         memory_summary = apply_archivist_memory_edits(
             agentlab_root=agentlab_root,
@@ -3854,8 +3864,11 @@ def _apply_agent_result_patches(
     ):
         return result
 
-    from patch_applicator import apply_all_patches, strip_edit_blocks_from_report
-    from artifact_contract import has_unclosed_structured_edit_block
+    from agent_runtime.patch_applicator import (
+        apply_all_patches,
+        strip_edit_blocks_from_report,
+    )
+    from agent_runtime.artifact_contract import has_unclosed_structured_edit_block
 
     if has_unclosed_structured_edit_block(result.content):
         result.raw_usage = {

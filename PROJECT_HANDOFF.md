@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-31T15:05:00+00:00`
+- Generated at: `2026-08-24T06:52:59.841789+00:00`
 
 ## Current State
 
-- Branch: `agentlab/unified-stable`
-- HEAD: `b0de95b6`
-- Indexed paths: 2066
+- Branch: `codex/kernel-stabilization`
+- HEAD: `1a1fc6d`
+- Indexed paths: 2079
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,14 +43,14 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 642 |
-| `tests` | 491 |
-| `docs` | 347 |
+| `agent_runtime` | 648 |
+| `tests` | 496 |
+| `docs` | 348 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
-| `config` | 130 |
+| `config` | 129 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 73 |
+| `agent_runtime/narrative` | 75 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 44 |
@@ -80,24 +80,24 @@
 | `agent_runtime/costs` | 11 |
 | `agent_runtime/execution_economy` | 11 |
 | `agent_runtime/skills` | 11 |
+| `examples` | 11 |
 | `acceptance_runs/e2e_minimal_task` | 10 |
 | `acceptance_runs/p2_provider_governance` | 10 |
-| `acceptance_runs/s0_remote_raw_repair` | 10 |
 
 ## Data and File Structure
 
 ### Categories
 
-- code: 1077 files, 10811269 bytes
-- literature: 423 files, 2421592 bytes
+- code: 1088 files, 11080389 bytes
+- literature: 424 files, 2427665 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 551 files, 3219969 bytes
+- structured_data: 552 files, 3225803 bytes
 
 ### Common Extensions
 
-- `.py`: 1062
-- `.yml`: 519
-- `.md`: 384
+- `.py`: 1073
+- `.yml`: 520
+- `.md`: 385
 - `.txt`: 39
 - `.json`: 27
 - `.sh`: 10
@@ -232,38 +232,76 @@
 
 ## Change History
 
-- `de5bddf3 2026-07-31 fix(frontdesk): report OpenClaw startup reason`
-- `01d85852 2026-07-31 fix(frontdesk): probe OpenClaw runtime health`
-- `8e570416 2026-07-31 fix(frontdesk): honor negated mutation requests`
-- `27dcff42 2026-07-31 fix(frontdesk): ground OpenClaw routing and reports`
-- `a1430e41 2026-07-31 test: define openclaw frontdesk grounding contract`
-- `1105bbcc 2026-07-29 feat(narrative): close signed release governance loop`
-- `3e5f5a4b 2026-07-29 feat(narrative): add evidence-bound P0-P5 release gate`
-- `3cb73e6c 2026-07-29 feat(narrative): govern authorial audit revision contracts`
-- `20153777 2026-07-29 feat(narrative): compile rights-bound role context packs`
-- `5585fb72 2026-07-29 feat(narrative): govern professional author team registration`
-- `f1f01e14 2026-07-29 fix(governance): enforce supply chain state boundaries`
-- `7f5272e4 2026-07-29 fix(cli): honor runtime root in blueprint validation`
-- `1a44c170 2026-07-29 test(capabilities): avoid local path audit false positive`
-- `715bc5e2 2026-07-29 feat(capabilities): schedule private radar evidence`
-- `bb955801 2026-07-29 feat(frontdesk): add durable local service`
-- `1df7e4c7 2026-07-29 feat(narrative): learn reversible authorial preferences`
-- `26e2d613 2026-07-29 feat(narrative): project long-term story state`
-- `21b86a94 2026-07-29 feat(narrative): add professional author team contracts`
-- `e47e1139 2026-07-29 feat(capabilities): govern promotion and rollback`
-- `f027363f 2026-07-29 feat(frontdesk): add intent v2 route tiers`
+- `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
+- `91cb273 2026-08-01 feat(narrative): materialize strict professional chapter DAGs`
+- `9e41606 2026-08-01 fix(background): bind Crown jobs to governed model settings`
+- `307a6cc 2026-08-01 fix(background): bind Crown jobs to governed model settings`
+- `0520e7d 2026-08-01 Merge remote-tracking branch 'refs/remotes/github/unified-stable' into codex/relay-memory-github-reconcile-250`
+- `810b42a 2026-08-01 Automate detached narrative acceptance`
+- `9d02aa8 2026-08-01 Merge GitHub unified-stable into 250 relay work`
+- `1cf89cb 2026-07-31 Expose user acceptance gate in work-item CLI`
+- `1c67167 2026-07-31 docs: record relay watcher activation`
+- `601afb3 2026-07-31 Deliver Agy Writer packets by explicit path`
+- `2757abe 2026-07-31 docs: refresh relay memory handoff`
+- `b0de95b 2026-07-31 fix: report outbound rsync updates accurately`
+- `d81e12d 2026-07-31 feat: add verified project memory relay sync`
+- `efdc92d 2026-07-31 Handle sealed role output edge cases`
+- `e520a1e 2026-07-31 docs: refresh remote AgentLab handoff`
+- `de5bddf 2026-07-31 fix(frontdesk): report OpenClaw startup reason`
+- `01d8585 2026-07-31 fix(frontdesk): probe OpenClaw runtime health`
+- `6ab6f14 2026-07-31 Harden professional narrative task execution`
+- `8e57041 2026-07-31 fix(frontdesk): honor negated mutation requests`
+- `27dcff4 2026-07-31 fix(frontdesk): ground OpenClaw routing and reports`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/agentlab/unified-stable [ahead 8]`
-- `?? config/change_request.yml`
+- `## codex/kernel-stabilization`
+- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/cli/task_runtime_v2.py`
+- ` M agent_runtime/command_runner.py`
+- ` M agent_runtime/incident_manager.py`
+- ` M agent_runtime/llm_provider.py`
+- ` M agent_runtime/narrative/professional_chapter_runtime.py`
+- ` M agent_runtime/operational_uploader.py`
+- ` M agent_runtime/performance_evaluator.py`
+- ` M agent_runtime/pipeline_runner.py`
+- ` M agent_runtime/production_pack_registry.py`
+- ` M agent_runtime/progress_tracker.py`
+- ` M agent_runtime/provider_guard.py`
+- ` M agent_runtime/run_task.py`
+- ` M agent_runtime/task_runtime_v2/runtime.py`
+- ` M config/production_packs.yml`
+- ` M config/repository_hygiene.yml`
+- ` M docs/TASK_RUNTIME.md`
+- ` M tests/task_runtime_v2_support.py`
+- ` M tests/test_crown_rag_reset_job.py`
+- ` M tests/test_narrative_audit_closure.py`
+- ` M tests/test_narrative_background_recovery.py`
+- ` M tests/test_narrative_efficiency.py`
+- ` M tests/test_narrative_job_semantics.py`
+- ` M tests/test_narrative_quality_gate.py`
+- ` M tests/test_production_pack_registry.py`
+- ` M tests/test_professional_chapter_runtime.py`
+- ` M tests/test_repo_hygiene.py`
+- ` M tests/test_task_runtime_v2.py`
+- ` M tests/test_task_runtime_v2_cli.py`
+- `?? agent_runtime/production_protocols.py`
+- `?? agent_runtime/protocol_canary.py`
+- `?? docs/PRODUCTION_PROTOCOL_STRATEGY.zh-CN.md`
+- `?? examples/novel_canary/`
+- `?? tests/narrative_test_authority.py`
+- `?? tests/test_production_protocols.py`
+- `?? tests/test_protocol_canary.py`
 
 ## Related Repositories
 
 ### Remotes
 
-- `origin https://github.com/Kidrage/AgentLab.git (fetch)`
-- `origin https://github.com/Kidrage/AgentLab.git (push)`
+- `250 ssh://10.147.17.250/home/admin/AgentLab (fetch)`
+- `250 ssh://10.147.17.250/home/admin/AgentLab (push)`
+- `origin github.com:Kidrage/AgentLab.git (fetch)`
+- `origin github.com:Kidrage/AgentLab.git (push)`
 
 ### Submodules
 
@@ -340,7 +378,7 @@
 <!-- AGENT_NOTES_START -->
 # 2026-07-31 cloud-250 Relay memory delivery
 
-- Scope remained bounded to `/home/admin/AgentLab` on cloud endpoint 250, plus
+- Scope remained bounded to the registered AgentLab workspace on cloud endpoint 250, plus
   required receipts/recovery artifacts in the Codex Truenas namespace. The
   user-owned untracked `config/change_request.yml` was preserved.
 - `d81e12d` adds governed project-memory Relay sync with stable source snapshots,
@@ -348,7 +386,7 @@
   read-only dry runs, fair/rate-limited watching, and durable task events.
   `b0de95b` fixes Linux outbound rsync updates (`<f`) being mislabeled unchanged.
 - Endpoint-local `backup_policy.local.yml` now targets the nested canonical
-  `/mnt/hdd2/AgentLab_WorkSpace/AgentLab` path and enables endpoint `cloud_250`.
+  the registered Relay Hub workspace and enables endpoint `cloud_250`.
   TrueNAS status passed with SSH connectivity and a writable probe.
 - Initial executed reconciliation completed with `status: synced`, 17 governed
   files, 0 problems, and a verified remote SHA-256 for every file across active
@@ -713,7 +751,7 @@ Ch25 has not passed literary review or anonymous A/B selection, and Ch26/27 have
 not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
 User-positive calibration is still missing and ten human blind pairs at 70% new
 system preference remain required before Gate 2 scaling or Phase 5.
-- 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to `/Users/saintpeter/AgentLab_Archive/task_cleanup_20260722_non_crown/`: 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
+- 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to a local archive (path redacted): 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
 - 2026-07-25 CST: Unified-stable convergence is locally complete. AgentLab now has
   generic project-specific narrative blueprint sealing/publication, immutable
   Runtime v2 task packets and append-only pre-execution instructions, Project
@@ -736,7 +774,7 @@ system preference remain required before Gate 2 scaling or Phase 5.
   preceding three-project snapshot. `projects/` now contains only `AgentLab` and
   `Crown_of_Ash`; nine retired project directories, including NovelGen's clean
   nested Git repository, were moved intact to the recoverable local Trash pack
-  `/Users/saintpeter/.Trash/AgentLab_projects_cleanup_20260725-013259/`.
+  a local recoverable Trash location (path redacted).
   `config/knowledge_system.yml` now allowlists only AgentLab and Crown, while
   content governance has only Crown active. Cleanup/model-governance checkpoint
   knowledge rebuild receipt

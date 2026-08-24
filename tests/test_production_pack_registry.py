@@ -334,6 +334,34 @@ def test_pack_catalog_audit_flags_equal_specificity_route_collision(tmp_path: Pa
     assert report["selector_overlaps"][0]["status"] == "ambiguous_equal_specificity"
 
 
+def test_pack_catalog_audit_flags_duplicate_lifecycle_nodes(tmp_path: Path) -> None:
+    catalog = tmp_path / "production_packs.yml"
+    atomic_write_yaml(
+        catalog,
+        {
+            "schema_version": 1,
+            "packs": [
+                {
+                    "pack_id": "article_a",
+                    "routes": ["article_light_draft"],
+                    "lifecycle_nodes": [
+                        "INIT_TASK",
+                        "PREPARE_PLAN",
+                        "PREPARE_PLAN",
+                        "SUPERVISOR_PLAN",
+                        "FINALIZE",
+                    ],
+                }
+            ],
+        },
+    )
+
+    report = audit_pack_catalog(catalog)
+
+    assert report["status"] == "fail"
+    assert "pack article_a has duplicate lifecycle_nodes: PREPARE_PLAN" in report["issues"]
+
+
 def test_pack_catalog_audit_allows_disambiguated_route_overlap(tmp_path: Path) -> None:
     report = audit_pack_catalog(ROOT / "config" / "production_packs.yml")
     media_overlap = next(

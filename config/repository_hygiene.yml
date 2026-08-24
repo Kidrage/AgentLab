@@ -1,5 +1,6 @@
 root_policy:
   allowed_root_files:
+    - .git
     - .gitignore
     - AGENTS.md
     - CLAUDE.md
@@ -12,6 +13,7 @@ root_policy:
     - USAGE_PLAN.md
     - agentlab.sh
     - agentlab_app.py
+    - run_crown_ep1.sh
     - pyproject.toml
     - requirements.txt
     - requirements-dev.txt
@@ -47,6 +49,7 @@ root_policy:
     - agentlab_tui
     - config
     - docs
+    - deploy
     - examples
     - memory
     - observability

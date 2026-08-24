@@ -141,6 +141,25 @@ The v2 commands are registered on `agentlab.sh`:
 ./agentlab.sh runtime doctor --project Demo
 ```
 
+Versioned production protocols bind structured task facts to one immutable
+compiled graph before any role runs:
+
+```bash
+./agentlab.sh task create --project Demo --task-id task-code-001 \
+  --title "Large code change" --goal "Produce a tested candidate patch" \
+  --protocol-ref code.large.v1 \
+  --input-profile-json '{"kind":"code_build","scope":"large","repository":"Demo"}' \
+  --idempotency-key create-task-code-001
+./agentlab.sh task execute --project Demo --task-id task-code-001
+./agentlab.sh runtime protocol-canary --iterations 10 \
+  --state-root /tmp/agentlab-protocol-canaries
+```
+
+`task execute` compiles and materializes governed WorkItems; it does not bypass
+Attempt receipts or call the legacy pipeline. The architecture decision and the
+code/narrative/film production ladder are documented in
+`docs/PRODUCTION_PROTOCOL_STRATEGY.zh-CN.md`.
+
 Every mutating command requires an idempotency key, including Task
 pause/resume/cancel. A later pause after a resume must use a new key; retrying the
 same pause request reuses its original key. For strict-tier Tasks, `attempt

@@ -11,7 +11,7 @@ from typing import Optional
 
 import yaml
 
-from atomic_io import atomic_write_yaml, safe_read_yaml
+from agent_runtime.atomic_io import atomic_write_yaml, safe_read_yaml
 
 
 DEFAULT_AGENT_WEIGHTS = {

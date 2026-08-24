@@ -7,6 +7,7 @@ proposals and appends an approved pack to ``config/production_packs.yml``.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -330,6 +331,16 @@ def audit_pack_catalog(
         if pack_id in seen_ids:
             issues.append(f"duplicate pack_id: {pack_id}")
         seen_ids[pack_id] = index
+        duplicate_nodes = sorted(
+            node
+            for node, count in Counter(pack.get("lifecycle_nodes") or []).items()
+            if count > 1
+        )
+        if duplicate_nodes:
+            issues.append(
+                f"pack {pack_id} has duplicate lifecycle_nodes: "
+                + ", ".join(str(node) for node in duplicate_nodes)
+            )
 
     for left_index, left in enumerate(normalized):
         for right in normalized[left_index + 1 :]:

@@ -3840,6 +3840,32 @@ def run_pipeline(
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
 
+    from agent_runtime.production_protocols import prepare_protocol_task_if_present
+
+    protocol_projection = prepare_protocol_task_if_present(
+        agentlab_root,
+        project=project_name,
+        task_id=task_id,
+    )
+    if protocol_projection is not None:
+        if execute:
+            console.print(
+                "[red]Protocol-bound Tasks cannot fall back to the legacy live pipeline.[/red]"
+            )
+            console.print(
+                "Use the protocol-native task/attempt executors for ready WorkItems."
+            )
+            raise typer.Exit(code=1)
+        console.print("[bold]Task Runtime Protocol Preparation[/bold]")
+        console.print(
+            yaml.safe_dump(
+                protocol_projection,
+                sort_keys=False,
+                allow_unicode=True,
+            ).rstrip()
+        )
+        return
+
     if execution_backend in ("langgraph",):
         from langgraph_workflow import build_agentlab_graph, run_agentlab_graph
         plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend, budget_mode=budget)

@@ -17,6 +17,7 @@ from agent_runtime.narrative.jobs.crown_adapter import (
     create_crown_audit_job_from_contract,
     upgrade_crown_job_state,
 )
+from tests.narrative_test_authority import install_narrative_test_authority
 
 
 NOW = "2026-07-19T10:00:00+00:00"
@@ -60,6 +61,7 @@ def test_background_attempt_copies_persisted_identity_without_reclassification(
         start_chapter=1,
         end_chapter=3,
         writer_worker="fake_writer",
+        **install_narrative_test_authority(tmp_path, writer="fake_writer"),
         chapter_state_plan="runs/shared/chapter_state_plan.yml",
         candidate_set_id="candidate-set-001",
         now=NOW,
@@ -94,6 +96,7 @@ def test_expired_attempt_lease_cannot_overwrite_authoritative_state(
         start_chapter=1,
         end_chapter=3,
         writer_worker="fake_writer",
+        **install_narrative_test_authority(tmp_path, writer="fake_writer"),
         chapter_state_plan="runs/shared/chapter_state_plan.yml",
         now=NOW,
     )

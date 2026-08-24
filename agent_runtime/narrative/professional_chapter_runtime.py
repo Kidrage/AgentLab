@@ -11,29 +11,11 @@ from agent_runtime.project_agents.contract import AgentContract, effective_contr
 from agent_runtime.project_truth import ProjectTruthStore
 from agent_runtime.task_runtime_v2 import TaskRuntime
 
-from .author_team import REQUIRED_AUTHOR_ROLES
-
-
-_DEPENDENCIES: dict[str, tuple[str, ...]] = {
-    "authorial_director": (),
-    "canon_timeline_steward": ("authorial_director",),
-    "plot_causality_architect": ("canon_timeline_steward",),
-    "character_ensemble_director": ("canon_timeline_steward",),
-    "relationship_director": ("character_ensemble_director",),
-    "world_archaeologist": ("canon_timeline_steward",),
-    "foreshadow_mystery_keeper": ("plot_causality_architect",),
-    "research_style_curator": ("authorial_director",),
-    "arc_scene_planner": (
-        "world_archaeologist",
-        "relationship_director",
-        "foreshadow_mystery_keeper",
-        "research_style_curator",
-    ),
-    "writer": ("arc_scene_planner",),
-    "senior_editor": ("writer", "canon_timeline_steward"),
-    "reader_simulation_panel": ("writer",),
-    "state_projector": ("senior_editor", "reader_simulation_panel"),
-}
+from .author_team import (
+    REQUIRED_AUTHOR_ROLES,
+    load_author_team_contract,
+    select_author_team,
+)
 
 _ROLE_ORDER = (
     "authorial_director",
@@ -82,8 +64,9 @@ def materialize_professional_chapter_dag(
     revision: int,
     previous_state_projector_id: str | None,
     idempotency_key: str,
+    risk_flags: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    """Create or resume one complete 13-role chapter DAG atomically.
+    """Create or resume the smallest governed professional chapter DAG.
 
     Every generative WorkItem is bound to one current Project Truth snapshot.
     A partially materialized DAG may be resumed only when its existing nodes
@@ -97,12 +80,21 @@ def materialize_professional_chapter_dag(
     key = str(idempotency_key or "").strip()
     if not key:
         raise ValueError("idempotency_key is required")
-    if set(_DEPENDENCIES) != set(REQUIRED_AUTHOR_ROLES) or set(_ROLE_ORDER) != set(
-        REQUIRED_AUTHOR_ROLES
-    ):
+    if set(_ROLE_ORDER) != set(REQUIRED_AUTHOR_ROLES):
         raise ValueError("professional chapter DAG does not match author-team authority")
 
     root = Path(agentlab_root).resolve()
+    selection = select_author_team(
+        load_author_team_contract(root),
+        risk_flags=risk_flags,
+    )
+    if selection["status"] != "pass":
+        raise ValueError(
+            "professional chapter role selection is blocked: "
+            + ",".join(selection["issues"])
+        )
+    active_roles = tuple(selection["active_roles"])
+    active_role_set = set(active_roles)
     project_root = root / "projects" / project
     runtime = TaskRuntime(root, project=project)
     registry = ProjectAgentRegistry(ProjectTruthStore(project_root))
@@ -113,15 +105,26 @@ def materialize_professional_chapter_dag(
 
     with registry.truth.current_snapshot_lease() as current:
         items: list[dict[str, Any]] = []
-        for role_id in _ROLE_ORDER:
+        for role_id in active_roles:
             manifest = manifests.get(role_id)
             if manifest is None:
                 raise ValueError(f"professional role is not registered: {role_id}")
             AgentContract(manifest).assert_active()
             item_id = _work_item_id(chapter, role_id, revision)
+            declared_dependencies = tuple(
+                manifest.collaboration.get("dependencies") or ()
+            )
+            missing_dependencies = sorted(
+                set(declared_dependencies) - active_role_set
+            )
+            if missing_dependencies:
+                raise ValueError(
+                    f"selected role graph omits dependencies for {role_id}: "
+                    + ",".join(missing_dependencies)
+                )
             dependencies = [
                 _work_item_id(chapter, dependency, revision)
-                for dependency in _DEPENDENCIES[role_id]
+                for dependency in declared_dependencies
             ]
             if role_id == "authorial_director" and previous_state_projector_id:
                 dependencies = [str(previous_state_projector_id)]
