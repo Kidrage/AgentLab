@@ -41,6 +41,11 @@ from agent_runtime.narrative.blueprint_lifecycle import (
     seal_project_blueprint,
     validate_project_blueprint,
 )
+from agent_runtime.narrative.blueprint_bootstrap import (
+    authorize_blueprint_outbound,
+    create_blueprint_task,
+)
+from agent_runtime.narrative.progress import build_narrative_progress
 from agent_runtime.narrative.state_store import (
     NarrativeStateError,
     NarrativeStateStore,
@@ -427,6 +432,52 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
         )
 
+    @narrative_app.command("generate-blueprint")
+    def generate_blueprint_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        request: Path = typer.Option(
+            ...,
+            "--request",
+            help="Structured narrative-blueprint-request/v1 YAML.",
+        ),
+    ) -> None:
+        """Prepare a full-team blueprint task before project canon exists."""
+
+        try:
+            result = create_blueprint_task(
+                active_project_root(),
+                project=project,
+                task_id=task_id,
+                request_path=request,
+            )
+        except (OSError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @narrative_app.command("authorize-blueprint-outbound")
+    def authorize_blueprint_outbound_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        authorized_by: str = typer.Option(..., "--authorized-by"),
+    ) -> None:
+        """Record task-scoped user authority for candidate-only model calls."""
+
+        try:
+            result = authorize_blueprint_outbound(
+                active_project_root(),
+                project=project,
+                task_id=task_id,
+                authorized_by=authorized_by,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
     @narrative_app.command("append-task-instruction")
     def append_task_instruction_command(
         project: str = typer.Option(..., "--project"),
@@ -486,6 +537,29 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         except (OSError, ValueError, NarrativeStateError) as exc:
             raise typer.BadParameter(str(exc)) from exc
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @narrative_app.command("progress")
+    def narrative_progress_command(
+        project: str = typer.Option(..., "--project"),
+        verify_ledger: bool = typer.Option(
+            True,
+            "--verify-ledger",
+            help="Verify the append-only event chain before reporting progress.",
+        ),
+    ) -> None:
+        """Rebuild chapter progress from hash-bound task and state evidence."""
+
+        try:
+            result = build_narrative_progress(
+                active_project_root(),
+                project=project,
+                verify_ledger=verify_ledger,
+            )
+        except (OSError, ValueError, NarrativeStateError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @planning_window_app.command("propose")
     def propose_planning_window_command(

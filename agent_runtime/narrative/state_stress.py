@@ -146,7 +146,7 @@ def run_pseudoprose_state_stress(
     task_id: str,
     chapter_count: int,
 ) -> dict[str, Any]:
-    """Execute 100–500 verified commits against the production state store."""
+    """Execute 100–600 verified commits against the production state store."""
 
     if not _PROJECT_ID.fullmatch(project):
         raise ValueError("project identifier is invalid")
@@ -155,9 +155,9 @@ def run_pseudoprose_state_stress(
     if (
         isinstance(chapter_count, bool)
         or not isinstance(chapter_count, int)
-        or not 100 <= chapter_count <= 500
+        or not 100 <= chapter_count <= 600
     ):
-        raise ValueError("chapter_count must be between 100 and 500")
+        raise ValueError("chapter_count must be between 100 and 600")
     root = Path(agentlab_root).resolve()
     projects_root = root / "projects"
     raw_project_root = projects_root / project

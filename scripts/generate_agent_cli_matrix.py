@@ -450,6 +450,30 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
 
     if errors:
         raise ValueError("Invalid AgentLab matrix references:\n- " + "\n- ".join(errors))
+    full_cli_authorities = "|".join(
+        (
+            "config/agent_model_profiles.yml",
+            "config/model_catalog.yml",
+            "config/model_capacity.yml",
+            "config/worker_invocation_contracts.yml",
+            "config/agent_role_bindings.yml",
+            "config/runtime_cli_requirements.yml",
+            "config/artifact_task_policy.yml",
+        )
+    )
+    cli_authorities = "|".join(
+        (
+            "config/runtime_cli_requirements.yml",
+            "config/worker_invocation_contracts.yml",
+            "config/agent_role_bindings.yml",
+        )
+    )
+    for row in matrix_rows:
+        row["generated_non_authoritative"] = "true"
+        row["authority_paths"] = full_cli_authorities
+    for row in cli_rows:
+        row["generated_non_authoritative"] = "true"
+        row["authority_paths"] = cli_authorities
     return matrix_rows, cli_rows
 
 

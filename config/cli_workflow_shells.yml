@@ -266,7 +266,7 @@ shells:
         agentlab_use: health, observability, and preflight diagnostics
       media_backend_shell:
         examples:
-          - hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z <prompt>
+          - hermes --ignore-rules --provider xai-oauth -m grok-4.6 -z <prompt>
         agentlab_use: Grok OAuth media backend shell behind ArtifactProducer/grok
     allowed_roles:
       - Supervisor
@@ -703,7 +703,7 @@ shells:
     command_families:
       media_and_agent:
         examples:
-          - hermes --provider xai-oauth -m grok-4.5 -z <prompt>
+          - hermes --provider xai-oauth -m grok-4.6 -z <prompt>
         agentlab_use: Separate sourced Researcher and candidate-only media tool contracts
       auth_and_capacity:
         examples:

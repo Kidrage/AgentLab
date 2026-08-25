@@ -21,6 +21,49 @@ _REAL_SUBPROCESS_RUN = subprocess.run
 if TYPE_CHECKING:
     from agent_runtime.schemas import WorkflowPlan
 
+
+def test_hermes_classic_chat_exports_redacted_session_metadata(tmp_path: Path):
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _export_hermes_session_metadata
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    def fake_export(argv, **_kwargs):
+        assert argv[:3] == ["hermes", "-p", "agentlabalter"]
+        export_path = Path(argv[-1])
+        export_path.write_text(
+            json.dumps(
+                {
+                    "id": "20260825_143920_999180",
+                    "model": "grok-4.6",
+                    "billing_provider": "xai-oauth",
+                    "model_config": '{"reasoning_config":{"effort":"high"}}',
+                    "api_call_count": 3,
+                    "input_tokens": 169526,
+                    "output_tokens": 18050,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    with patch("cli_executor.subprocess.run", side_effect=fake_export):
+        metadata = _export_hermes_session_metadata(
+            "stderr diagnostic\nsession_id: 20260825_143920_999180\n",
+            run_dir=run_dir,
+            preflight={"workflow_shell_profile": "agentlabalter"},
+            process_env={},
+        )
+
+    assert metadata["model"] == "grok-4.6"
+    assert metadata["provider"] == "xai-oauth"
+    assert metadata["api_calls"] == 3
+    assert metadata["total_tokens"] == 187576
+    assert metadata["metadata_source"] == "hermes_redacted_session_export"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -357,7 +400,7 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
     config_path.write_text(
         yaml.safe_dump(
             {
-                "model": {"provider": "xai-oauth", "default": "grok-4.5"},
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
                 "agent": {"reasoning_effort": "high"},
                 "fallback_providers": [],
             },
@@ -368,7 +411,7 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
     role_profile = {
         "cli_agent": "hermes",
         "invocation_contract": "hermes_alter_high",
-        "default": "grok_4_5_hermes_oauth",
+        "default": "grok_4_6_hermes_oauth",
         "capacity_route": "AlterCoder",
     }
     argv = [
@@ -380,7 +423,7 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
         "--provider",
         "xai-oauth",
         "-m",
-        "grok-4.5",
+        "grok-4.6",
         "--ignore-rules",
         "--max-turns",
         "90",
@@ -389,8 +432,8 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
     ]
     model_values = {
         "provider": "xai-oauth",
-        "model_id": "grok-4.5",
-        "model_key": "grok_4_5_hermes_oauth",
+        "model_id": "grok-4.6",
+        "model_key": "grok_4_6_hermes_oauth",
     }
 
     preflight = _hermes_supervisor_preflight(
@@ -409,7 +452,7 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
     config_path.write_text(
         yaml.safe_dump(
             {
-                "model": {"provider": "xai-oauth", "default": "grok-4.5"},
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
                 "agent": {"reasoning_effort": "medium"},
                 "fallback_providers": [],
             },
@@ -431,7 +474,7 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
     config_path.write_text(
         yaml.safe_dump(
             {
-                "model": {"provider": "xai-oauth", "default": "grok-4.5"},
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
                 "agent": {"reasoning_effort": "high"},
                 "fallback_providers": [
                     {"provider": "openrouter", "model": "other-model"}
@@ -451,6 +494,168 @@ def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) ->
     )
     assert fallback_drifted["status"] == "fail"
     assert "profile_state_mismatch:fallback_providers" in fallback_drifted["issues"]
+
+
+def test_hermes_alter_runtime_verifies_session_metadata_from_stderr(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import run_cli_agent
+
+    plan = _make_plan(tmp_path)
+    Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "grok_4_6_hermes_oauth": {
+                        "provider": "xai_oauth",
+                        "runtime_provider": "xai-oauth",
+                        "cli_provider": "xai-oauth",
+                        "model_id": "grok-4.6",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_alter_high": {
+                        "worker_id": "hermes",
+                        "workflow_shell_profile": "agentlabalter",
+                        "template": (
+                            "hermes -p agentlabalter chat -Q --provider {provider} "
+                            "-m {model_id} --ignore-rules --max-turns 90 "
+                            "-q \"Read {task_packet_path}\""
+                        ),
+                        "required_shell_state": {
+                            "model.provider": "xai-oauth",
+                            "model.default": "grok-4.6",
+                            "agent.reasoning_effort": "high",
+                            "fallback_providers": [],
+                            "fallback_model": None,
+                        },
+                        "requested_reasoning_label": "high",
+                        "resolved_reasoning_effort": "high",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    hermes_home = tmp_path / "hermes-home"
+    profile = hermes_home / "profiles" / "agentlabalter"
+    profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
+                "agent": {"reasoning_effort": "high"},
+                "fallback_providers": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_alter_high",
+        "default": "grok_4_6_hermes_oauth",
+    }
+
+    def fake_run(argv, **_kwargs):
+        if "sessions" in argv:
+            Path(argv[-1]).write_text(
+                json.dumps(
+                    {
+                        "id": "alter-session-001",
+                        "model": "grok-4.6",
+                        "billing_provider": "xai-oauth",
+                        "api_call_count": 2,
+                        "input_tokens": 100,
+                        "output_tokens": 20,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            "# Alter report\n",
+            "session_id: alter-session-001\n",
+        )
+
+    with patch.dict(
+        "os.environ", {"HERMES_HOME": str(hermes_home)}, clear=False
+    ), patch(
+        "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+    ), patch(
+        "cli_executor.subprocess.run", side_effect=fake_run
+    ):
+        result = run_cli_agent(plan, "Coder", role_profile)
+
+    assert result.status == "completed"
+    assert result.raw_usage["hermes_session_metadata"]["model"] == "grok-4.6"
+    assert result.raw_usage["hermes_session_metadata"]["provider"] == "xai-oauth"
+    receipt = yaml.safe_load(
+        Path(result.raw_usage["model_execution_receipt"]).read_text(encoding="utf-8")
+    )
+    assert receipt["provider_model_binding_verified"] is True
+    assert receipt["provider_metadata_source"] == "hermes_redacted_session_export"
+    assert receipt["provider_session_id"] == "alter-session-001"
+
+
+def test_hermes_usage_file_captures_provider_reported_model(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _ensure_hermes_usage_file_arg, _load_hermes_usage_file
+
+    argv = [
+        "hermes",
+        "--ignore-rules",
+        "--provider",
+        "xai-oauth",
+        "-m",
+        "grok-4.6",
+        "-z",
+        "probe",
+    ]
+    usage_path = _ensure_hermes_usage_file_arg(argv, tmp_path, "hermes")
+
+    assert usage_path is not None
+    assert argv[argv.index("-z") - 2 : argv.index("-z")] == [
+        "--usage-file",
+        str(usage_path),
+    ]
+    usage_path.write_text(
+        json.dumps(
+            {
+                "model": "grok-4.6",
+                "provider": "xai-oauth",
+                "completed": True,
+                "input_tokens": 12,
+                "output_tokens": 3,
+                "total_tokens": 15,
+            }
+        ),
+        encoding="utf-8",
+    )
+    usage = _load_hermes_usage_file(usage_path, tmp_path)
+    assert usage["model"] == "grok-4.6"
+    assert usage["provider"] == "xai-oauth"
 
 
 def test_codex_supervisor_preflight_derives_model_binding_from_config(
@@ -630,6 +835,42 @@ def test_contract_env_preserves_explicit_proxy_for_agy_governed_contract(
 
     assert process_env["HTTPS_PROXY"] == "http://localhost:49468"
     assert process_env.get("HTTP_PROXY") is None
+
+
+def test_contract_env_sets_bounded_hermes_stale_timeout(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _contract_process_environment
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_alter_high": {
+                        "worker_id": "hermes",
+                        "environment": {
+                            "set": {"HERMES_API_CALL_STALE_TIMEOUT": "300"}
+                        },
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_alter_high",
+    }
+
+    with patch.dict("cli_executor.os.environ", {}, clear=True):
+        process_env, applied = _contract_process_environment(role_profile, tmp_path)
+
+    assert process_env["HERMES_API_CALL_STALE_TIMEOUT"] == "300"
+    assert applied == ["HERMES_API_CALL_STALE_TIMEOUT"]
 
 
 def test_agy_oauth_preflight_reports_proxy_url_and_source(
@@ -988,7 +1229,7 @@ class TestResolveCliProfileSchemaV4:
         assert result["resolved_tier"] == "alter"
         assert result["cli_agent"] == "hermes"
         assert result["invocation_contract"] == "hermes_alter_high"
-        assert result["default"] == "grok_4_5_hermes_oauth"
+        assert result["default"] == "grok_4_6_hermes_oauth"
         assert result["reasoning_effort"] == "high"
         assert result["capacity_route"] == "AlterSupervisor"
         assert "fallback" not in result

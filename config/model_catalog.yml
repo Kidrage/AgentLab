@@ -149,11 +149,11 @@ models:
     notes: >
       Agy Gemini 3.6 Flash High model for Agy worker roles.
 
-  grok_4_5_hermes_oauth:
+  grok_4_6_hermes_oauth:
     provider: hermes_xai_oauth
     runtime_provider: xai-oauth
     cli_provider: xai-oauth
-    model_id: grok-4.5
+    model_id: grok-4.6
     reasoning_effort: high
     capacity_pool: xai_subscription_shared
     strengths: [planning, reasoning, repository_analysis, coding, testing, verification, social_research, web_research, x_search, media_tool_orchestration, current_events]
@@ -170,7 +170,7 @@ models:
       currency: subscription_or_oauth_quota
       billing_source: xai_oauth
     notes: >
-      Grok 4.5 at high reasoning through the Hermes xAI OAuth provider.
+      Grok 4.6 at high reasoning through the Hermes xAI OAuth provider.
 
   grok_4_5_high_cli_oauth:
     provider: grok_cli_oauth
@@ -673,7 +673,7 @@ providers:
     auth: local_hermes_oauth_session
     command: hermes
     runtime_provider: xai-oauth
-    default_model: grok-4.5
+    default_model: grok-4.6
     capacity_source: config/model_capacity.yml
     notes: >
       Used separately by Grok Researcher and Grok media-tool contracts. Runtime

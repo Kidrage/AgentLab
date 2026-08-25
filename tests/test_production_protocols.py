@@ -10,6 +10,7 @@ import yaml
 
 from agent_runtime.production_protocols import (
     ProductionProtocolRunner,
+    _artifact_output_issues,
     compile_production_protocol,
     prepare_protocol_task_if_present,
 )
@@ -277,6 +278,93 @@ def test_compiles_narrative_protocol_with_minimum_risk_selected_team() -> None:
     )
 
 
+def test_compiles_blueprint_protocol_with_full_professional_team() -> None:
+    graph = compile_production_protocol(
+        ROOT,
+        protocol_ref="narrative.blueprint.v1",
+        task_facts={
+            "kind": "blueprint_build",
+            "scope": "longform",
+            "target_count": 600,
+            "canon_impact": "new_project",
+            "risk_flags": [],
+            "project": "ShanHeYouJia",
+            "source_creative_brief": "examples/shanhe_youjia/creative_brief.yml",
+            "source_creative_brief_sha256": "a" * 64,
+        },
+    )
+
+    assert graph.pack_id == "narrative_blueprint"
+    assert [binding.profile for binding in graph.role_bindings] == [
+        "authorial_director",
+        "canon_timeline_steward",
+        "plot_causality_architect",
+        "character_ensemble_director",
+        "relationship_director",
+        "world_archaeologist",
+        "foreshadow_mystery_keeper",
+        "arc_scene_planner",
+        "research_style_curator",
+        "writer",
+        "senior_editor",
+        "reader_simulation_panel",
+        "state_projector",
+    ]
+    projector = graph.role_bindings[-1]
+    assert set(projector.depends_on) == {"senior_editor", "reader_simulation_panel"}
+    assert graph.result_artifact_type == "narrative_bootstrap_manifest"
+    assert graph.promotion_gates == (
+        "candidate_hash_bound",
+        "independent_blueprint_review",
+        "deterministic_bootstrap_projection",
+        "user_blueprint_acceptance",
+    )
+    foreshadow = next(
+        binding
+        for binding in graph.role_bindings
+        if binding.node_id == "foreshadow_mystery_keeper"
+    )
+    assert "Evolve promises" in " ".join(
+        foreshadow.role_contract["professional_duties"]
+    )
+    promise_contract = next(
+        contract
+        for contract in graph.artifact_contracts
+        if contract.artifact_type == "promise_registry"
+    )
+    assert promise_contract.required_markers == (
+        "promise_id",
+        "due_window",
+        "payoff",
+    )
+    assert promise_contract.unique_content is True
+
+
+def test_protocol_artifact_validation_rejects_duplicate_role_output() -> None:
+    content = "promise_id: p-001\ndue_window: [10, 20]\npayoff: reveal\n"
+    digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    issues = _artifact_output_issues(
+        {
+            "artifact_type": "promise_registry",
+            "required_markers": ["promise_id", "due_window", "payoff"],
+            "minimum_bytes": 20,
+            "unique_content": True,
+        },
+        content,
+        existing_artifacts={
+            "version-causality": {
+                "artifact_id": "causality_blueprint",
+                "sha256": digest,
+            }
+        },
+    )
+
+    assert issues == [
+        "artifact_content_duplicates_existing_type:promise_registry:causality_blueprint"
+    ]
+
+
 def test_compiles_film_protocol_as_locked_staged_dry_run() -> None:
     graph = compile_production_protocol(
         ROOT,
@@ -360,9 +448,25 @@ def test_protocol_runner_binds_graph_and_materializes_work_items_idempotently(
 
     runner = ProductionProtocolRunner(tmp_path, project="CodeCanary")
     first = runner.prepare("task-code-canary")
+    catalog_path = config / "production_packs.yml"
+    catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    code_pack = next(pack for pack in catalog["packs"] if pack["pack_id"] == "code_factory")
+    source_patch = next(
+        contract
+        for contract in code_pack["protocol"]["artifact_contracts"]
+        if contract["artifact_type"] == "source_patch"
+    )
+    source_patch["minimum_bytes"] = 999
+    atomic_write_yaml(catalog_path, catalog)
     second = runner.prepare("task-code-canary")
 
     assert second == first
+    bound_source_patch = next(
+        contract
+        for contract in second["task"]["compiled_protocol"]["artifact_contracts"]
+        if contract["artifact_type"] == "source_patch"
+    )
+    assert bound_source_patch["minimum_bytes"] == 1
     assert first["task"]["compiled_protocol"]["protocol_ref"] == "code.large.v1"
     assert list(first["work_items"]) == [
         "supervisor_plan",
@@ -493,11 +597,34 @@ def test_protocol_acceptance_requires_attempt_artifacts_and_gates(
         )
 
     def succeed(node_id: str, role: str) -> None:
-        _succeed_deterministically(
+        projection, output = _succeed_deterministically(
             runtime,
             task_id="task-enforced",
             node_id=node_id,
             role=role,
+        )
+        attempt_id = f"attempt-{node_id}"
+        validation_receipt = output.parent / "artifact_validation_receipt.yml"
+        atomic_write_yaml(
+            validation_receipt,
+            {
+                "schema_version": "protocol-artifact-validation/v1",
+                "status": "pass",
+                "task_id": "task-enforced",
+                "attempt_id": attempt_id,
+                "output_sha256": projection["attempts"][attempt_id]["outcome"][
+                    "output_sha256"
+                ],
+                "issues": [],
+            },
+        )
+        runtime.record_attempt_output_validation(
+            "task-enforced",
+            attempt_id=attempt_id,
+            status="pass",
+            validation_receipt_path=validation_receipt,
+            issues=[],
+            idempotency_key=f"validate-{node_id}",
         )
 
     succeed("supervisor_plan", "Supervisor")
@@ -620,12 +747,7 @@ def test_protocol_acceptance_requires_attempt_artifacts_and_gates(
         status="running",
         idempotency_key="start-promotion",
     )
-    _succeed_deterministically(
-        runtime,
-        task_id="task-enforced",
-        node_id="promotion_verification",
-        role="Verifier",
-    )
+    succeed("promotion_verification", "Verifier")
     verification_path = artifact_path.with_name("verification_report.md")
     verification_path.write_text("review: pass\n", encoding="utf-8")
     runtime.record_artifact_version(
@@ -687,10 +809,12 @@ def test_protocol_runner_executes_one_bound_node_through_executor_seam(
         idempotency_key="create-live",
     )
     calls: list[str] = []
+    received_messages: list[dict[str, str]] = []
 
     class FixtureExecutor:
         def execute(self, **kwargs):
             calls.append(kwargs["role"])
+            received_messages.extend(kwargs["messages"])
             projection, output = _succeed_deterministically(
                 runtime,
                 task_id=kwargs["task_id"],
@@ -722,6 +846,169 @@ def test_protocol_runner_executes_one_bound_node_through_executor_seam(
     assert result["status"] == "accepted"
     assert result["projection"]["work_items"]["supervisor_plan"]["status"] == "accepted"
     assert calls == ["Supervisor"]
+    assert received_messages[0]["content"].startswith("PROTOCOL_ROLE_CONTRACT/v1")
+    assert received_messages[1] == {"role": "user", "content": "Plan the work."}
+
+
+def test_protocol_runner_validates_sources_before_starting_work_item(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config"
+    config.mkdir()
+    for name in (
+        "production_packs.yml",
+        "task_input_tiers.yml",
+        "agent_model_profiles.yml",
+        "production_role_profiles.yml",
+    ):
+        shutil.copy2(ROOT / "config" / name, config / name)
+    runtime = TaskRuntime(tmp_path, project="SourceAdmission")
+    runtime.create_task(
+        task_id="task-source-admission",
+        title="Validate source before mutation",
+        user_goal="Reject missing governed sources without starting work.",
+        protocol_ref="code.large.v1",
+        input_profile={
+            "kind": "code_build",
+            "scope": "large",
+            "target_count": 6,
+            "canon_impact": "none",
+            "risk_flags": [],
+            "repository": "missing-repository",
+        },
+        idempotency_key="create-source-admission",
+    )
+
+    class FixtureExecutor:
+        def execute(self, **kwargs):
+            projection, output = _succeed_deterministically(
+                runtime,
+                task_id=kwargs["task_id"],
+                node_id=kwargs["work_item_id"],
+                role=kwargs["role"],
+                attempt_id=kwargs["attempt_id"],
+                source_paths=kwargs["source_paths"],
+            )
+            return {"projection": projection, "output_path": str(output)}
+
+    runner = ProductionProtocolRunner(
+        tmp_path,
+        project="SourceAdmission",
+        role_executor_factory=lambda _root, _project: FixtureExecutor(),
+    )
+    runner.execute_node(
+        "task-source-admission",
+        work_item_id="supervisor_plan",
+        messages=[{"role": "user", "content": "Plan."}],
+        source_paths=[],
+        external_context_request={"purpose": "fixture"},
+        idempotency_key="execute-source-plan",
+    )
+
+    with pytest.raises(InvalidTransition, match="source fact is unavailable"):
+        runner.execute_node(
+            "task-source-admission",
+            work_item_id="repository_context",
+            messages=[{"role": "user", "content": "Read source."}],
+            source_paths=[],
+            external_context_request={"purpose": "fixture"},
+            idempotency_key="execute-missing-source",
+        )
+
+    projection = runtime.load_task("task-source-admission")
+    assert projection["work_items"]["repository_context"]["status"] == "ready"
+    assert projection["work_items"]["repository_context"]["active_attempt_id"] is None
+
+
+def test_protocol_runner_rejects_absolute_source_before_reading_outside_root(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config"
+    config.mkdir()
+    for name in (
+        "production_packs.yml",
+        "task_input_tiers.yml",
+        "agent_model_profiles.yml",
+        "production_role_profiles.yml",
+    ):
+        shutil.copy2(ROOT / "config" / name, config / name)
+    runtime = TaskRuntime(tmp_path, project="OutsideSource")
+    runtime.create_task(
+        task_id="task-outside-source",
+        title="Reject outside source",
+        user_goal="Never inspect an absolute source outside AgentLab.",
+        protocol_ref="code.large.v1",
+        input_profile={
+            "kind": "code_build",
+            "scope": "large",
+            "target_count": 6,
+            "canon_impact": "none",
+            "risk_flags": [],
+            "repository": "/etc/passwd",
+        },
+        idempotency_key="create-outside-source",
+    )
+
+    with pytest.raises(InvalidTransition, match="outside the AgentLab root"):
+        ProductionProtocolRunner(tmp_path, project="OutsideSource").execute_node(
+            "task-outside-source",
+            work_item_id="repository_context",
+            messages=[{"role": "user", "content": "Do not read it."}],
+            source_paths=[Path("/etc/passwd")],
+            external_context_request={"purpose": "fixture"},
+            idempotency_key="execute-outside-source",
+        )
+
+    projection = runtime.load_task("task-outside-source")
+    assert projection["work_items"]["repository_context"]["status"] == "pending"
+    assert projection["attempts"] == {}
+
+
+def test_protocol_runner_rejects_sensitive_source_before_reading(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config"
+    config.mkdir()
+    for name in (
+        "production_packs.yml",
+        "task_input_tiers.yml",
+        "agent_model_profiles.yml",
+        "production_role_profiles.yml",
+    ):
+        shutil.copy2(ROOT / "config" / name, config / name)
+    sensitive = tmp_path / ".env"
+    sensitive.write_text("PRIVATE_FIXTURE=never-read\n", encoding="utf-8")
+    expected_hash = hashlib.sha256(sensitive.read_bytes()).hexdigest()
+    runtime = TaskRuntime(tmp_path, project="SensitiveSource")
+    runtime.create_task(
+        task_id="task-sensitive-source",
+        title="Reject sensitive source",
+        user_goal="Never inspect sensitive sources even with a matching hash.",
+        protocol_ref="code.large.v1",
+        input_profile={
+            "kind": "code_build",
+            "scope": "large",
+            "target_count": 6,
+            "canon_impact": "none",
+            "risk_flags": [],
+            "repository": str(sensitive),
+            "repository_sha256": expected_hash,
+        },
+        idempotency_key="create-sensitive-source",
+    )
+
+    with pytest.raises(InvalidTransition, match="source fact is sensitive"):
+        ProductionProtocolRunner(tmp_path, project="SensitiveSource").execute_node(
+            "task-sensitive-source",
+            work_item_id="repository_context",
+            messages=[{"role": "user", "content": "Do not read it."}],
+            source_paths=[sensitive],
+            external_context_request={"purpose": "fixture"},
+            idempotency_key="execute-sensitive-source",
+        )
+
+    projection = runtime.load_task("task-sensitive-source")
+    assert projection["attempts"] == {}
 
 
 def test_compiled_protocol_binding_is_compiler_authoritative_and_repeat_safe(
@@ -936,6 +1223,10 @@ def test_runner_executes_deterministic_protocol_profile_without_cli(
                         "artifact_type": "state_delta",
                         "producer_node": "state_projection",
                         "candidate_only": True,
+                        "required_markers": [
+                            "source_artifacts",
+                            "progress_cursor",
+                        ],
                     }
                 ],
                 "result_artifact_type": "state_delta",
@@ -981,8 +1272,144 @@ def test_runner_executes_deterministic_protocol_profile_without_cli(
     assert result["status"] == "waiting_review"
     attempt = result["projection"]["attempts"]["attempt-state_projection-001"]
     assert attempt["status"] == "succeeded"
+    assert attempt["output_validation"]["status"] == "pass"
     assert attempt["execution_contract"]["executor_type"] == "deterministic_tool"
     assert any(
         artifact["artifact_id"] == "state_delta"
         for artifact in result["projection"]["artifacts"].values()
     )
+
+
+def test_protocol_artifact_rejection_is_recorded_in_authoritative_ledger(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config"
+    config.mkdir()
+    for name in (
+        "production_packs.yml",
+        "task_input_tiers.yml",
+        "agent_model_profiles.yml",
+        "production_role_profiles.yml",
+    ):
+        shutil.copy2(ROOT / "config" / name, config / name)
+    catalog_path = config / "production_packs.yml"
+    catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    catalog["packs"].append(
+        {
+            "pack_id": "validation_fixture",
+            "protocol": {
+                "ref": "test.validation.v1",
+                "required_facts": [
+                    "kind",
+                    "scope",
+                    "target_count",
+                    "canon_impact",
+                    "risk_flags",
+                ],
+                "role_selection": "static",
+                "role_bindings": [
+                    {
+                        "node_id": "producer",
+                        "role": "Reviewer",
+                        "profile": "source_story_locker",
+                        "depends_on": [],
+                    }
+                ],
+                "source_fact_bindings": {},
+                "artifact_contracts": [
+                    {
+                        "artifact_type": "validated_output",
+                        "producer_node": "producer",
+                        "candidate_only": True,
+                        "required_markers": ["REQUIRED_MARKER"],
+                    }
+                ],
+                "result_artifact_type": "validated_output",
+                "promotion_gates": ["validated"],
+                "promotion_gate_bindings": {
+                    "validated": {
+                        "work_item_id": "producer",
+                        "evidence_kind": "automated",
+                        "subject_artifact_types": ["validated_output"],
+                    }
+                },
+            },
+        }
+    )
+    atomic_write_yaml(catalog_path, catalog)
+    runtime = TaskRuntime(tmp_path, project="ValidationLedger")
+    runtime.create_task(
+        task_id="task-validation-ledger",
+        title="Reject invalid artifact",
+        user_goal="Record output validation in the event ledger.",
+        protocol_ref="test.validation.v1",
+        input_profile={
+            "kind": "code_build",
+            "scope": "large",
+            "target_count": 1,
+            "canon_impact": "none",
+            "risk_flags": [],
+        },
+        idempotency_key="create-validation-ledger",
+    )
+
+    class FixtureExecutor:
+        def execute(self, **kwargs):
+            projection, output = _succeed_deterministically(
+                runtime,
+                task_id=kwargs["task_id"],
+                node_id=kwargs["work_item_id"],
+                role=kwargs["role"],
+                attempt_id=kwargs["attempt_id"],
+                source_paths=kwargs["source_paths"],
+            )
+            return {"projection": projection, "output_path": str(output)}
+
+    result = ProductionProtocolRunner(
+        tmp_path,
+        project="ValidationLedger",
+        role_executor_factory=lambda _root, _project: FixtureExecutor(),
+    ).execute_node(
+        "task-validation-ledger",
+        work_item_id="producer",
+        messages=[{"role": "user", "content": "Produce."}],
+        source_paths=[],
+        external_context_request={"purpose": "fixture"},
+        idempotency_key="execute-validation-ledger",
+    )
+
+    assert result["status"] == "artifact_rejected"
+    attempt = result["projection"]["attempts"]["attempt-producer-001"]
+    assert attempt["status"] == "succeeded"
+    assert attempt["output_validation"]["status"] == "fail"
+    assert attempt["output_validation"]["issues"] == [
+        "artifact_required_marker_missing:validated_output:REQUIRED_MARKER"
+    ]
+    rebuilt = TaskRuntime(tmp_path, project="ValidationLedger").load_task(
+        "task-validation-ledger"
+    )
+    assert rebuilt["attempts"]["attempt-producer-001"]["output_validation"] == (
+        attempt["output_validation"]
+    )
+    manual_source = (
+        tmp_path
+        / "projects"
+        / "ValidationLedger"
+        / "runtime"
+        / "tasks"
+        / "task-validation-ledger"
+        / "artifacts"
+        / "manual.md"
+    )
+    manual_source.parent.mkdir(parents=True, exist_ok=True)
+    manual_source.write_text("REQUIRED_MARKER\n", encoding="utf-8")
+    with pytest.raises(InvalidTransition, match="passed output validation"):
+        runtime.record_artifact_version(
+            "task-validation-ledger",
+            artifact_id="validated_output",
+            version_id="validated-output-manual-v1",
+            attempt_id="attempt-producer-001",
+            path=manual_source,
+            media_type="text/markdown",
+            idempotency_key="manual-bypass",
+        )

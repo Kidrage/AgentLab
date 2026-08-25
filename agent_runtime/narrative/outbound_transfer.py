@@ -162,19 +162,25 @@ def evaluate_narrative_auto_approval(
 
     allowed_recipients = constraints.get("allowed_recipients")
     allowed_roles = constraints.get("allowed_roles")
+    allowed_task_ids = constraints.get("allowed_task_ids")
     allowed_task_prefixes = constraints.get("allowed_task_prefixes")
     allowed_source_roots = constraints.get("allowed_source_roots")
     if not isinstance(allowed_recipients, list) or recipient not in allowed_recipients:
         issues.append("recipient_not_allowed")
     if not isinstance(allowed_roles, list) or role not in allowed_roles:
         issues.append("role_not_allowed")
-    if (
-        not isinstance(allowed_task_prefixes, list)
-        or not any(
+    exact_task_allowed = (
+        isinstance(allowed_task_ids, list) and task_id in allowed_task_ids
+    )
+    legacy_prefix_allowed = (
+        allowed_task_ids is None
+        and isinstance(allowed_task_prefixes, list)
+        and any(
             isinstance(prefix, str) and task_id.startswith(prefix)
             for prefix in allowed_task_prefixes
         )
-    ):
+    )
+    if not (exact_task_allowed or legacy_prefix_allowed):
         issues.append("task_not_allowed")
     if not purpose.strip():
         issues.append("purpose_required")

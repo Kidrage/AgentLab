@@ -1344,6 +1344,109 @@ def _ensure_cli_log_file_arg(argv: list[str], run_dir: Path, cli_agent_name: str
     return log_path
 
 
+def _ensure_hermes_usage_file_arg(
+    argv: list[str], run_dir: Path, cli_agent_name: str
+) -> Path | None:
+    """Ask Hermes one-shot mode for provider/model usage metadata."""
+
+    if cli_agent_name != "hermes" or "--usage-file" in argv:
+        return None
+    prompt_indexes = [
+        index for index, value in enumerate(argv) if value in {"-z", "--oneshot"}
+    ]
+    if not prompt_indexes:
+        return None
+    usage_dir = run_dir / "command_logs"
+    usage_dir.mkdir(parents=True, exist_ok=True)
+    usage_path = usage_dir / f"hermes_usage_{uuid4().hex[:12]}.json"
+    insert_at = prompt_indexes[0]
+    argv[insert_at:insert_at] = ["--usage-file", str(usage_path)]
+    return usage_path
+
+
+def _load_hermes_usage_file(path: Path | None, run_dir: Path) -> dict[str, Any]:
+    if path is None or path.is_symlink() or not path.is_file():
+        return {}
+    resolved = path.resolve(strict=True)
+    if not resolved.is_relative_to(run_dir.resolve(strict=True)):
+        return {}
+    try:
+        value = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _export_hermes_session_metadata(
+    process_output: str,
+    *,
+    run_dir: Path,
+    preflight: dict[str, Any],
+    process_env: dict[str, str],
+) -> dict[str, Any]:
+    """Read redacted Hermes session metadata for the classic chat path."""
+
+    match = re.search(
+        r"(?m)^session_id:\s*([A-Za-z0-9_.-]+)\s*$", process_output
+    )
+    profile = str(preflight.get("workflow_shell_profile") or "").strip()
+    if match is None or not profile:
+        return {}
+    session_id = match.group(1)
+    resolved_run_dir = Path(run_dir).resolve(strict=True)
+    export_root = resolved_run_dir / "command_logs"
+    export_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="hermes-session-export-",
+        dir=export_root,
+    ) as temp_dir:
+        export_path = Path(temp_dir) / "session.jsonl"
+        try:
+            completed = subprocess.run(
+                [
+                    "hermes",
+                    "-p",
+                    profile,
+                    "sessions",
+                    "export",
+                    "--format",
+                    "jsonl",
+                    "--redact",
+                    "--session-id",
+                    session_id,
+                    str(export_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=resolved_run_dir,
+                env=process_env,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return {}
+        if completed.returncode != 0 or not export_path.is_file():
+            return {}
+        try:
+            first_line = export_path.read_text(encoding="utf-8").splitlines()[0]
+            exported = json.loads(first_line)
+        except (OSError, UnicodeError, IndexError, json.JSONDecodeError):
+            return {}
+    if not isinstance(exported, dict) or exported.get("id") != session_id:
+        return {}
+    return {
+        "session_id": session_id,
+        "model": str(exported.get("model") or "").strip(),
+        "provider": str(exported.get("billing_provider") or "").strip(),
+        "model_config": exported.get("model_config"),
+        "api_calls": int(exported.get("api_call_count") or 0),
+        "input_tokens": int(exported.get("input_tokens") or 0),
+        "output_tokens": int(exported.get("output_tokens") or 0),
+        "total_tokens": int(exported.get("input_tokens") or 0)
+        + int(exported.get("output_tokens") or 0),
+        "metadata_source": "hermes_redacted_session_export",
+    }
+
+
 def _read_cli_log_excerpt(path: Path | None, limit: int = 4000) -> str:
     if not path or not path.exists():
         return ""
@@ -1560,6 +1663,21 @@ def _contract_process_environment(
         if was_present:
             applied.append(normalized)
 
+    contract_name = str(role_profile.get("invocation_contract") or "").strip()
+    if (
+        str(role_profile.get("cli_agent") or "").strip() == "hermes"
+        and contract_name in {"hermes_alter_high", "hermes_alter_artifact"}
+        and isinstance(environment, dict)
+    ):
+        configured_sets = environment.get("set")
+        if isinstance(configured_sets, dict):
+            stale_timeout = str(
+                configured_sets.get("HERMES_API_CALL_STALE_TIMEOUT") or ""
+            ).strip()
+            if stale_timeout.isdigit() and 120 <= int(stale_timeout) <= 900:
+                process_env["HERMES_API_CALL_STALE_TIMEOUT"] = stale_timeout
+                applied.append("HERMES_API_CALL_STALE_TIMEOUT")
+
     if str(role_profile.get("cli_agent") or "").strip() == "agy":
         governed_contracts = {
             "agy_observer",
@@ -1569,7 +1687,6 @@ def _contract_process_environment(
             "agy_reviewer",
             "agy_scribe",
         }
-        contract_name = str(role_profile.get("invocation_contract") or "").strip()
         if contract_name in governed_contracts:
             has_proxy = any(
                 str(process_env.get(name) or "").strip() for name in _AGY_PROXY_ENV_VARS
@@ -3317,12 +3434,28 @@ def _write_hermes_supervisor_model_receipt(
     exit_code: int | None = None,
     stdout_nonempty: bool = False,
     timed_out: bool = False,
+    usage: dict[str, Any] | None = None,
     extra_issues: list[str] | None = None,
 ) -> str | None:
     if not preflight.get("applicable"):
         return None
     issues = sorted(
         set(str(item) for item in (preflight.get("issues") or []) + (extra_issues or []))
+    )
+    usage = usage if isinstance(usage, dict) else {}
+    requested_provider = (preflight.get("required_shell_state") or {}).get(
+        "model.provider"
+    )
+    requested_model = (preflight.get("required_shell_state") or {}).get(
+        "model.default"
+    )
+    reported_model = str(usage.get("model") or "").strip()
+    reported_provider = str(usage.get("provider") or "").strip()
+    response_metadata_observed = bool(reported_model and reported_provider)
+    provider_model_binding_verified = bool(
+        response_metadata_observed
+        and reported_model == str(requested_model or "")
+        and reported_provider == str(requested_provider or "")
     )
     receipt = {
         "schema_version": 1,
@@ -3331,8 +3464,12 @@ def _write_hermes_supervisor_model_receipt(
         "worker": preflight.get("worker") or "hermes",
         "invocation_contract": preflight.get("invocation_contract") or "hermes_supervisor",
         "requested_reasoning_label": preflight.get("requested_reasoning_label"),
-        "provider": (preflight.get("required_shell_state") or {}).get("model.provider"),
-        "model": (preflight.get("required_shell_state") or {}).get("model.default"),
+        "provider": requested_provider,
+        "model": requested_model,
+        "requested_model_id": requested_model,
+        "provider_reported_model_ids": [reported_model] if reported_model else [],
+        "provider_reported_provider": reported_provider or None,
+        "provider_model_binding_verified": provider_model_binding_verified,
         "reasoning_effort": preflight.get("resolved_reasoning_effort"),
         "workflow_shell_profile": preflight.get("workflow_shell_profile"),
         "profile_config_path": preflight.get("profile_config_path"),
@@ -3341,8 +3478,10 @@ def _write_hermes_supervisor_model_receipt(
         "command_binding_verified": preflight.get("command_binding_verified") is True,
         "fallback_chain": [],
         "provider_process_started": provider_process_started,
-        "provider_response_metadata_observed": False,
+        "provider_response_metadata_observed": response_metadata_observed,
         "evidence_source": preflight.get("evidence_source") or "runtime_verified_supervisor_argv",
+        "provider_metadata_source": usage.get("metadata_source") or None,
+        "provider_session_id": usage.get("session_id") or None,
         "exit_code": exit_code,
         "stdout_nonempty": stdout_nonempty,
         "timed_out": timed_out,
@@ -4769,6 +4908,11 @@ def run_cli_agent(
                 execution_cwd.chmod(0o500)
                 research_workspace_read_only = True
 
+        hermes_usage_path = _ensure_hermes_usage_file_arg(
+            argv,
+            run_dir,
+            cli_agent_name,
+        )
         if agent_name == "Supervisor" or str(
             role_profile.get("invocation_contract") or ""
         ) in {"hermes_alter_high", "hermes_alter_artifact"}:
@@ -5437,6 +5581,55 @@ def run_cli_agent(
         proc.stdout or "",
         stderr_text or proc.stderr or "",
     )
+    hermes_usage = _load_hermes_usage_file(hermes_usage_path, run_dir)
+    hermes_session_metadata = _export_hermes_session_metadata(
+        "\n".join((proc.stdout or "", stderr_text or proc.stderr or "")),
+        run_dir=run_dir,
+        preflight=hermes_preflight,
+        process_env=process_env,
+    )
+    hermes_observed_metadata = hermes_usage or hermes_session_metadata
+    if hermes_observed_metadata:
+        usage_estimate.update(
+            {
+                "input_tokens": int(
+                    hermes_observed_metadata.get("input_tokens") or 0
+                ),
+                "output_tokens": int(
+                    hermes_observed_metadata.get("output_tokens") or 0
+                ),
+                "total_tokens": int(
+                    hermes_observed_metadata.get("total_tokens") or 0
+                ),
+                "usage_source": str(
+                    hermes_observed_metadata.get("metadata_source")
+                    or "hermes_usage_file"
+                ),
+            }
+        )
+    hermes_required = hermes_preflight.get("required_shell_state") or {}
+    hermes_alter_metadata_required = bool(
+        hermes_preflight.get("applicable")
+        and hermes_preflight.get("workflow_shell_profile") == "agentlabalter"
+        and hermes_usage_path is None
+    )
+    hermes_provider_model_mismatch = bool(
+        (hermes_alter_metadata_required and not hermes_observed_metadata)
+        or (
+            (hermes_usage_path is not None or hermes_session_metadata)
+            and hermes_observed_metadata
+            and (
+                str(hermes_observed_metadata.get("model") or "")
+                != str(hermes_required.get("model.default") or "")
+                or str(hermes_observed_metadata.get("provider") or "")
+                != str(hermes_required.get("model.provider") or "")
+                or (
+                    hermes_usage
+                    and hermes_usage.get("completed") is not True
+                )
+            )
+        )
+    )
     model_resolution_failed = (
         cli_agent_name == "agy"
         and _agy_model_resolution_failed(
@@ -5476,6 +5669,7 @@ def run_cli_agent(
         and not claude_provider_model_mismatch
         and not qwen_provider_model_mismatch
         and not grok_provider_model_mismatch
+        and not hermes_provider_model_mismatch
         and not artifact_materialization_failed
         and not writer_packet_refused
         and artifact_input_postflight_issue is None
@@ -5499,6 +5693,7 @@ def run_cli_agent(
                     or claude_provider_model_mismatch
                     or qwen_provider_model_mismatch
                     or grok_provider_model_mismatch
+                    or hermes_provider_model_mismatch
                 )
                 else classify_cli_error(
                 proc.returncode,
@@ -5516,6 +5711,12 @@ def run_cli_agent(
     receipt_failure_issues = (
         [] if success else [f"failure_class:{failure_class or 'unknown'}"]
     )
+    if hermes_provider_model_mismatch:
+        receipt_failure_issues.append(
+            "hermes_provider_metadata_missing"
+            if hermes_alter_metadata_required and not hermes_observed_metadata
+            else "hermes_provider_model_binding_mismatch"
+        )
     if writer_packet_refused:
         receipt_failure_issues.append("writer_missing_sealed_packet")
     if staged_input_postflight_issue:
@@ -5633,6 +5834,7 @@ def run_cli_agent(
         exit_code=proc.returncode,
         stdout_nonempty=bool(stdout_text),
         timed_out=False,
+        usage=hermes_observed_metadata,
         extra_issues=receipt_failure_issues,
     )
     if hermes_receipt_path:
@@ -5743,6 +5945,17 @@ def run_cli_agent(
             "provider_model_mismatch": claude_provider_model_mismatch,
             "qwen_provider_model_mismatch": qwen_provider_model_mismatch,
             "grok_provider_model_mismatch": grok_provider_model_mismatch,
+            "hermes_provider_model_mismatch": hermes_provider_model_mismatch,
+            **(
+                {"hermes_usage_file": str(hermes_usage_path)}
+                if hermes_usage_path
+                else {}
+            ),
+            **(
+                {"hermes_session_metadata": hermes_session_metadata}
+                if hermes_session_metadata
+                else {}
+            ),
             **({"failure_class": failure_class} if failure_class else {}),
             "task_packet_path": str(packet_path),
             "sealed_context": bounded_messages,

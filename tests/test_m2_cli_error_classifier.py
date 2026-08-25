@@ -8,6 +8,10 @@ def test_classify_binary_missing():
 
 def test_classify_timeout():
     assert classify_cli_error(None, "", "", timeout_occurred=True) == CliErrorClass.TIMEOUT
+    assert (
+        classify_cli_error(1, "", "Print mode: timed out after 1492 polls")
+        == CliErrorClass.TIMEOUT
+    )
 
 def test_classify_invalid_invocation():
     # exit code 2 and usage patterns

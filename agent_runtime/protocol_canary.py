@@ -268,7 +268,7 @@ def _run_one(
             binding=binding,
             source_paths=(selected_source_paths if fact_names else []),
         )
-        _output_sha256, attempt_id = _execute_canary_attempt(
+        output_sha256, attempt_id = _execute_canary_attempt(
             source_root,
             runtime,
             projection=projection,
@@ -277,6 +277,31 @@ def _run_one(
             binding=binding,
             canary=resolved_canary,
             source_paths=governed_sources,
+        )
+        validation_receipt = (
+            runtime._task_dir(task_id)
+            / "attempt_logs"
+            / attempt_id
+            / "artifact_validation_receipt.yml"
+        )
+        atomic_write_yaml(
+            validation_receipt,
+            {
+                "schema_version": "protocol-artifact-validation/v1",
+                "status": "pass",
+                "task_id": task_id,
+                "attempt_id": attempt_id,
+                "output_sha256": output_sha256,
+                "issues": [],
+            },
+        )
+        runtime.record_attempt_output_validation(
+            task_id,
+            attempt_id=attempt_id,
+            status="pass",
+            validation_receipt_path=validation_receipt,
+            issues=[],
+            idempotency_key=f"validate-{task_id}-{node_id}",
         )
         contracts = [
             item

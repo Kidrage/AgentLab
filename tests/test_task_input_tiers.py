@@ -96,6 +96,23 @@ def test_prose_build_cannot_be_downgraded_below_governed_pipeline(
     assert "requested_tier_below_required" in decision["escalation_reasons"]
 
 
+def test_new_project_blueprint_is_known_and_admission_ready(tmp_path: Path) -> None:
+    decision = TaskInputClassifier(tmp_path).classify(
+        {
+            "kind": "blueprint_build",
+            "scope": "longform",
+            "target_count": 600,
+            "canon_impact": "new_project",
+            "risk_flags": ["major_reveal"],
+        }
+    )
+
+    assert decision["tier"] == "L3"
+    assert decision["route"] == "governed_pipeline"
+    assert decision["admission_ready"] is True
+    assert decision["escalation_reasons"] == ["target_count_exceeds_local_limit"]
+
+
 def test_task_runtime_records_input_classification_in_authoritative_creation_event(
     tmp_path: Path,
 ) -> None:

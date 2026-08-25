@@ -72,12 +72,12 @@ def test_models_show_lists_observer_supervisor_and_grok_research_routes():
     assert "agy" in observer.output
     assert "gemini_3_6_flash_high_agy_oauth" in observer.output
     assert supervisor.exit_code == 0
-    assert "grok_4_5_hermes_oauth" in supervisor.output
+    assert "grok_4_6_hermes_oauth" in supervisor.output
     assert "hermes" in supervisor.output
     assert "SupervisorDeepSeek" in supervisor.output
     assert researcher.exit_code == 0
     assert "hermes" in researcher.output
-    assert "grok_4_5_hermes_oauth" in researcher.output
+    assert "grok_4_6_hermes_oauth" in researcher.output
 
 
 def test_models_capacity_keeps_unobserved_remaining_and_reset_null():
@@ -478,7 +478,7 @@ def test_models_doctor_rejects_route_contract_and_model_pool_drift(tmp_path):
 
     catalog_path = root / "config" / "model_catalog.yml"
     catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
-    catalog["models"]["grok_4_5_hermes_oauth"]["capacity_pool"] = "wrong_pool"
+    catalog["models"]["grok_4_6_hermes_oauth"]["capacity_pool"] = "wrong_pool"
     _write_yaml(catalog_path, catalog)
 
     issues = _doctor_issues(root)
@@ -598,7 +598,7 @@ def test_recommended_brain_topology_and_model_facts_match_current_roles():
         "writer": "gemini_3_6_flash_high_agy_oauth",
         "multimodal_observer": "gemini_3_6_flash_high_agy_oauth",
         "observer_fallback": "claude_sonnet_4_6_agy_oauth",
-        "social_web_research": "grok_4_5_hermes_oauth",
+        "social_web_research": "grok_4_6_hermes_oauth",
         "artifact_producer": "codex_gpt_5_6_sol_medium_cli_oauth",
         "performance_narrative_planner": "gemini_3_6_flash_high_agy_oauth",
         "full_narrative_planner": "gemini_3_6_flash_high_agy_oauth",
@@ -623,7 +623,7 @@ def test_recommended_brain_topology_and_model_facts_match_current_roles():
     assert "registered_video_tool_orchestration" in grok["strengths"]
     assert "image_generation" not in grok["strengths"]
 
-    assert "context_window" not in catalog["models"]["grok_4_5_hermes_oauth"]
+    assert "context_window" not in catalog["models"]["grok_4_6_hermes_oauth"]
 
     providers_text = (ROOT / "config" / "model_providers.yml").read_text(encoding="utf-8")
     assert "$1.74/M输入, $3.48/M输出" not in providers_text

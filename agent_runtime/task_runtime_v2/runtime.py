@@ -407,6 +407,10 @@ class TaskRuntime:
                 raise InvalidTransition(
                     "protocol gate evidence requires a successful Attempt"
                 )
+            if (attempt.get("output_validation") or {}).get("status") != "pass":
+                raise InvalidTransition(
+                    "protocol gate evidence requires passed output validation"
+                )
             subjects: dict[str, str] = {}
             for version_id in normalized_version_ids:
                 artifact = projection["artifacts"].get(version_id)
@@ -579,6 +583,7 @@ class TaskRuntime:
             for attempt_id, attempt in projection["attempts"].items()
             if attempt.get("work_item_id") == work_item_id
             and attempt.get("status") == "succeeded"
+            and (attempt.get("output_validation") or {}).get("status") == "pass"
         }
         if not succeeded_attempt_ids:
             raise InvalidTransition(
@@ -2185,6 +2190,90 @@ class TaskRuntime:
             "model_id": contract.get("model_id"),
         }
 
+    def record_attempt_output_validation(
+        self,
+        task_id: str,
+        *,
+        attempt_id: str,
+        status: str,
+        validation_receipt_path: Path,
+        issues: list[str],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Append hash-bound artifact validation evidence for one Attempt output."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        attempt_id = _validated_id(attempt_id, field="attempt_id")
+        status = str(status or "").strip().lower()
+        if status not in {"pass", "fail"}:
+            raise ValueError("output validation status must be pass or fail")
+        normalized_issues = sorted(set(str(item) for item in issues))
+        if status == "pass" and normalized_issues:
+            raise ValueError("passing output validation cannot contain issues")
+        if status == "fail" and not normalized_issues:
+            raise ValueError("failed output validation requires issues")
+        task_root = self._task_dir(task_id)
+        candidate = Path(validation_receipt_path)
+        if _has_symlink_component(candidate, task_root):
+            raise ValueError("output validation receipt escaped the Task")
+        try:
+            receipt_path = candidate.resolve(strict=True)
+            receipt_bytes = receipt_path.read_bytes()
+            receipt = yaml.safe_load(receipt_bytes.decode("utf-8")) or {}
+        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise ValueError("output validation receipt is invalid") from exc
+        attempt_root = (task_root / "attempt_logs" / attempt_id).resolve(
+            strict=False
+        )
+        if not receipt_path.is_relative_to(attempt_root):
+            raise ValueError("output validation receipt must be inside its Attempt")
+        payload = {
+            "status": status,
+            "issues": normalized_issues,
+            "receipt_path": receipt_path.relative_to(task_root).as_posix(),
+            "receipt_sha256": hashlib.sha256(receipt_bytes).hexdigest(),
+            "output_sha256": str(receipt.get("output_sha256") or ""),
+        }
+
+        def validate(projection: dict[str, Any]) -> None:
+            attempt = projection["attempts"].get(attempt_id)
+            if attempt is None or attempt.get("status") != "succeeded":
+                raise InvalidTransition(
+                    "output validation requires a succeeded Attempt"
+                )
+            if attempt.get("output_validation") is not None:
+                raise InvalidTransition("Attempt output is already validated")
+            outcome = attempt.get("outcome") or {}
+            if payload["output_sha256"] != outcome.get("output_sha256"):
+                raise InvalidTransition(
+                    "output validation is not bound to the Attempt output"
+                )
+            if any(
+                (
+                    receipt.get("schema_version")
+                    != "protocol-artifact-validation/v1",
+                    receipt.get("status") != status,
+                    receipt.get("task_id") != task_id,
+                    receipt.get("attempt_id") != attempt_id,
+                    sorted(set(str(item) for item in receipt.get("issues") or []))
+                    != normalized_issues,
+                )
+            ):
+                raise InvalidTransition(
+                    "output validation receipt does not match its ledger event"
+                )
+
+        self._append_event(
+            task_id=task_id,
+            event_type="ATTEMPT_OUTPUT_VALIDATED",
+            entity_type="attempt",
+            entity_id=attempt_id,
+            idempotency_key=idempotency_key,
+            payload=payload,
+            validate_projection=validate,
+        )
+        return self.rebuild_task(task_id)
+
     def record_artifact_version(
         self,
         task_id: str,
@@ -2239,6 +2328,13 @@ class TaskRuntime:
             if attempt["status"] != "succeeded":
                 raise InvalidTransition(
                     "artifacts require a succeeded producer attempt"
+                )
+            if (
+                isinstance(projection["task"].get("compiled_protocol"), dict)
+                and (attempt.get("output_validation") or {}).get("status") != "pass"
+            ):
+                raise InvalidTransition(
+                    "protocol artifacts require a passed output validation"
                 )
             if version_id in projection["artifacts"]:
                 raise EntityAlreadyExists(
@@ -3586,6 +3682,35 @@ class TaskRuntime:
                 if to_status not in ACTIVE_ATTEMPT_STATUSES:
                     work_item["active_attempt_id"] = None
                 work_item["updated_at"] = event["recorded_at"]
+                continue
+            if event["event_type"] == "ATTEMPT_OUTPUT_VALIDATED":
+                attempt_id = _validated_id(event["entity_id"], field="attempt_id")
+                attempt = attempts.get(attempt_id)
+                if attempt is None or attempt.get("status") != "succeeded":
+                    raise LedgerIntegrityError(
+                        "output validation references a non-succeeded Attempt"
+                    )
+                if attempt.get("output_validation") is not None:
+                    raise LedgerIntegrityError(
+                        "Attempt output validation is duplicated"
+                    )
+                validation_status = str(event["payload"].get("status") or "")
+                issues = list(event["payload"].get("issues") or [])
+                if validation_status not in {"pass", "fail"} or (
+                    validation_status == "pass" and issues
+                ) or (validation_status == "fail" and not issues):
+                    raise LedgerIntegrityError(
+                        "Attempt output validation payload is invalid"
+                    )
+                attempt["output_validation"] = {
+                    "status": validation_status,
+                    "issues": issues,
+                    "receipt_path": event["payload"].get("receipt_path"),
+                    "receipt_sha256": event["payload"].get("receipt_sha256"),
+                    "output_sha256": event["payload"].get("output_sha256"),
+                    "recorded_at": event["recorded_at"],
+                }
+                attempt["updated_at"] = event["recorded_at"]
                 continue
             if event["event_type"] == "PROTOCOL_GATE_RECORDED":
                 gate_id = _validated_id(event["entity_id"], field="gate_id")

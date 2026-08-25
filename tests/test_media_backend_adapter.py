@@ -1176,7 +1176,7 @@ def test_build_grok_cli_payload_plan_records_no_media_artifact_claim() -> None:
     assert plan["adapter_kind"] == "local_grok_cli"
     assert plan["command"] == "hermes"
     assert plan["args"][:5] == ["hermes", "--ignore-rules", "--provider", "xai-oauth", "-m"]
-    assert "grok-4.5" in plan["args"]
+    assert "grok-4.6" in plan["args"]
     assert "-z" in plan["args"]
     assert "--oauth" not in plan["args"]
     assert plan["artifact_generation_verified"] is False

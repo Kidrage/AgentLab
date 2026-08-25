@@ -15,7 +15,7 @@ default_recommendation:
     - Claude shell with DeepSeek owns bounded Chinese Writer work.
     - Every full_cli tier uses Agy Gemini subscription capacity for NarrativePlanner.
     - Agy Gemini 3.6 observes multimodal evidence and handles governed Writer/Scribe roles; it does not claim image generation.
-    - Grok 4.5 owns sourced social/web research.
+    - Grok 4.6 owns sourced social/web research.
     - Codex GPT-5.6 Sol medium owns text artifact production.
 
 providers:
@@ -63,7 +63,7 @@ providers:
       - registered_image_tool_orchestration
       - registered_video_tool_orchestration
     default_models:
-      - grok_4_5_hermes_oauth
+      - grok_4_6_hermes_oauth
     multimodal: tool_orchestration_only
     direct_media_generation: false
     audio_generation: false
@@ -76,7 +76,7 @@ brain_layouts:
       writer: gemini_3_6_flash_high_agy_oauth
       multimodal_observer: gemini_3_6_flash_high_agy_oauth
       observer_fallback: claude_sonnet_4_6_agy_oauth
-      social_web_research: grok_4_5_hermes_oauth
+      social_web_research: grok_4_6_hermes_oauth
       artifact_producer: codex_gpt_5_6_sol_medium_cli_oauth
       performance_narrative_planner: gemini_3_6_flash_high_agy_oauth
       full_narrative_planner: gemini_3_6_flash_high_agy_oauth
@@ -115,7 +115,7 @@ brain_layouts:
       reviewer: qwen3_6_flash_dashscope
       writer: deepseek_v4_pro
       multimodal_observer: gemini_3_6_flash_high_agy_oauth
-      social_web_research: grok_4_5_hermes_oauth
+      social_web_research: grok_4_6_hermes_oauth
     execution_rule: >
       Codex GPT-5.6 Sol xhigh acts through the native Codex Supervisor shell. It
       must emit the standard AgentLab handoff contract (plan_status,

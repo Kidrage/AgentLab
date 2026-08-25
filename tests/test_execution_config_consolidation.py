@@ -227,7 +227,7 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
-    assert tier["researcher"]["default"] == "grok_4_5_hermes_oauth"
+    assert tier["researcher"]["default"] == "grok_4_6_hermes_oauth"
 
     assert tier["prompt_engineer"]["cli_agent"] == "claude_code"
     assert tier["prompt_engineer"]["invocation_contract"] == "claude"
@@ -285,7 +285,7 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
-    assert tier["researcher"]["default"] == "grok_4_5_hermes_oauth"
+    assert tier["researcher"]["default"] == "grok_4_6_hermes_oauth"
 
     assert tier["prompt_engineer"]["cli_agent"] == "claude_code"
     assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
@@ -330,7 +330,7 @@ def test_full_cli_tiers_share_the_upgraded_role_matrix() -> None:
         ),
         "observer": ("agy", "agy_observer", "gemini_3_6_flash_high_agy_oauth"),
         "interface_mapper": ("claude_code", "claude", "deepseek_v4_pro"),
-        "researcher": ("grok", "grok_research", "grok_4_5_hermes_oauth"),
+        "researcher": ("grok", "grok_research", "grok_4_6_hermes_oauth"),
         "prompt_engineer": ("claude_code", "claude", "deepseek_v4_flash"),
         "coder": ("claude_code", "claude", "deepseek_v4_pro"),
         "artifact_producer": (

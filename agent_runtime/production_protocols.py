@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Callable, Mapping
 
 from agent_runtime.atomic_io import safe_read_yaml
@@ -14,6 +15,7 @@ from agent_runtime.narrative.author_team import (
     load_author_team_contract,
     select_author_team,
 )
+from agent_runtime.outbound_context import is_forbidden_source_path
 from agent_runtime.role_keys import normalize_role_key
 from agent_runtime.task_runtime_v2 import (
     EntityNotFound,
@@ -33,9 +35,10 @@ class RoleBinding:
     agent_model_profile: str | None
     execution_kind: str | None
     depends_on: tuple[str, ...]
+    role_contract: Mapping[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        document = {
             "node_id": self.node_id,
             "role": self.role,
             "profile": self.profile,
@@ -45,6 +48,12 @@ class RoleBinding:
             "title": f"{self.profile or self.role}: {self.node_id}",
             "depends_on": list(self.depends_on),
         }
+        if self.role_contract:
+            document["role_contract"] = {
+                key: list(value) if isinstance(value, tuple) else value
+                for key, value in self.role_contract.items()
+            }
+        return document
 
 
 @dataclass(frozen=True)
@@ -54,12 +63,20 @@ class ArtifactContract:
     artifact_type: str
     producer_node: str
     candidate_only: bool
+    output_instructions: tuple[str, ...] = ()
+    required_markers: tuple[str, ...] = ()
+    minimum_bytes: int = 1
+    unique_content: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "artifact_type": self.artifact_type,
             "producer_node": self.producer_node,
             "candidate_only": self.candidate_only,
+            "output_instructions": list(self.output_instructions),
+            "required_markers": list(self.required_markers),
+            "minimum_bytes": self.minimum_bytes,
+            "unique_content": self.unique_content,
         }
 
 
@@ -132,7 +149,93 @@ _ROLE_KINDS = {
     "Verifier": "verification",
     "Scribe": "verification",
 }
-_PROTOCOL_SOURCE_ROOTS = {"production", "project_brain", "reset_manifests"}
+_PROTOCOL_SOURCE_ROOTS = {
+    "production",
+    "project_brain",
+    "reset_manifests",
+    "runtime",
+}
+
+
+def _protocol_role_contract_message(
+    binding: Mapping[str, Any],
+    artifact_contracts: list[Mapping[str, Any]],
+) -> dict[str, str]:
+    """Render the compiled professional contract into the exact model payload."""
+
+    role_contract = binding.get("role_contract") or {}
+    artifact_types = [str(item["artifact_type"]) for item in artifact_contracts]
+    lines = [
+        "PROTOCOL_ROLE_CONTRACT/v1",
+        f"work_item_id: {binding['node_id']}",
+        f"professional_profile: {binding.get('profile') or binding['role']}",
+        "candidate_artifact_types: " + (", ".join(artifact_types) or "none"),
+    ]
+    if artifact_types:
+        lines.append(
+            "Return only the assigned candidate artifact; do not copy a predecessor artifact verbatim."
+        )
+    for label, key in (
+        ("Duties", "professional_duties"),
+        ("Acceptance rules", "acceptance_rules"),
+        ("Forbidden actions", "forbidden_actions"),
+    ):
+        values = role_contract.get(key) or ()
+        if values:
+            lines.append(f"{label}:")
+            lines.extend(f"- {value}" for value in values)
+    instructions = [
+        str(value)
+        for contract in artifact_contracts
+        for value in (contract.get("output_instructions") or ())
+    ]
+    if instructions:
+        lines.append("Artifact-specific instructions:")
+        lines.extend(f"- {value}" for value in instructions)
+    markers = [
+        str(value)
+        for contract in artifact_contracts
+        for value in (contract.get("required_markers") or ())
+    ]
+    if markers:
+        lines.append("Required literal markers:")
+        lines.extend(f"- {value}" for value in markers)
+    return {"role": "user", "content": "\n".join(lines)}
+
+
+def _artifact_output_issues(
+    contract: Mapping[str, Any],
+    output_text: str,
+    *,
+    existing_artifacts: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    """Apply deterministic, protocol-declared admission checks to one candidate."""
+
+    artifact_type = str(contract["artifact_type"])
+    raw = output_text.encode("utf-8")
+    issues: list[str] = []
+    minimum_bytes = max(1, int(contract.get("minimum_bytes") or 1))
+    if len(raw) < minimum_bytes:
+        issues.append(
+            f"artifact_output_too_small:{artifact_type}:{len(raw)}<{minimum_bytes}"
+        )
+    folded = output_text.casefold()
+    for marker in contract.get("required_markers") or ():
+        if str(marker).casefold() not in folded:
+            issues.append(f"artifact_required_marker_missing:{artifact_type}:{marker}")
+    if contract.get("unique_content"):
+        digest = hashlib.sha256(raw).hexdigest()
+        for artifact in existing_artifacts.values():
+            if (
+                artifact.get("artifact_id") != artifact_type
+                and artifact.get("sha256") == digest
+            ):
+                issues.append(
+                    "artifact_content_duplicates_existing_type:"
+                    f"{artifact_type}:{artifact.get('artifact_id')}"
+                )
+                break
+    return issues
 
 
 class ProductionProtocolRunner:
@@ -159,25 +262,27 @@ class ProductionProtocolRunner:
         task_facts = task.get("input_profile")
         if not protocol_ref or not isinstance(task_facts, Mapping):
             raise InvalidTransition("Task is not bound to protocol facts")
-        graph = compile_production_protocol(
-            self.agentlab_root,
-            protocol_ref=protocol_ref,
-            task_facts=task_facts,
-        )
-        graph_document = graph.as_dict()
         existing_graph = task.get("compiled_protocol")
         if existing_graph is None:
+            graph = compile_production_protocol(
+                self.agentlab_root,
+                protocol_ref=protocol_ref,
+                task_facts=task_facts,
+            )
+            graph_document = graph.as_dict()
             projection = self.runtime.bind_compiled_protocol(
                 task_id,
                 compiled_graph=graph_document,
                 idempotency_key=f"protocol-{graph.task_facts_sha256[:24]}",
             )
-        elif existing_graph != graph_document:
-            raise InvalidTransition(
-                "Task protocol compilation no longer matches its ledger"
-            )
+        else:
+            # Long-running tasks execute the immutable graph already committed
+            # to their ledger. Configuration upgrades apply only to newly
+            # compiled tasks and must not strand an in-flight production run.
+            graph_document = dict(existing_graph)
 
-        expected_ids = [binding.node_id for binding in graph.role_bindings]
+        bindings = list(graph_document.get("role_bindings") or ())
+        expected_ids = [str(binding["node_id"]) for binding in bindings]
         existing_items = projection["work_items"]
         unexpected = sorted(set(existing_items) - set(expected_ids))
         if unexpected:
@@ -193,44 +298,48 @@ class ProductionProtocolRunner:
                 "Task contains a partially materialized protocol graph"
             )
         if materialized:
-            for binding in graph.role_bindings:
-                item = existing_items[binding.node_id]
+            for binding in bindings:
+                node_id = str(binding["node_id"])
+                role = str(binding["role"])
+                profile = binding.get("profile")
+                item = existing_items[node_id]
                 expected = {
                     "job_id": "job-main",
-                    "kind": _ROLE_KINDS.get(binding.role, "production"),
-                    "title": f"{binding.profile or binding.role}: {binding.node_id}",
-                    "depends_on": list(binding.depends_on),
-                    "protocol_role": binding.role,
-                    "protocol_profile": binding.profile,
-                    "agent_model_profile": binding.agent_model_profile,
-                    "execution_kind": binding.execution_kind,
+                    "kind": _ROLE_KINDS.get(role, "production"),
+                    "title": f"{profile or role}: {node_id}",
+                    "depends_on": list(binding.get("depends_on") or ()),
+                    "protocol_role": role,
+                    "protocol_profile": profile,
+                    "agent_model_profile": binding.get("agent_model_profile"),
+                    "execution_kind": binding.get("execution_kind"),
                 }
                 if any(item.get(field) != value for field, value in expected.items()):
                     raise InvalidTransition(
-                        f"materialized protocol node is stale: {binding.node_id}"
+                        f"materialized protocol node is stale: {node_id}"
                     )
             return projection
 
         items = [
             {
                 "job_id": "job-main",
-                "work_item_id": binding.node_id,
-                "kind": _ROLE_KINDS.get(binding.role, "production"),
-                "title": f"{binding.profile or binding.role}: {binding.node_id}",
-                "depends_on": list(binding.depends_on),
+                "work_item_id": str(binding["node_id"]),
+                "kind": _ROLE_KINDS.get(str(binding["role"]), "production"),
+                "title": f"{binding.get('profile') or binding['role']}: {binding['node_id']}",
+                "depends_on": list(binding.get("depends_on") or ()),
                 "requires_user_acceptance": False,
-                "protocol_role": binding.role,
-                "protocol_profile": binding.profile,
-                "agent_model_profile": binding.agent_model_profile,
-                "execution_kind": binding.execution_kind,
+                "protocol_role": str(binding["role"]),
+                "protocol_profile": binding.get("profile"),
+                "agent_model_profile": binding.get("agent_model_profile"),
+                "execution_kind": binding.get("execution_kind"),
             }
-            for binding in graph.role_bindings
+            for binding in bindings
         ]
+        facts_sha256 = str(graph_document.get("task_facts_sha256") or "")
         return self.runtime.create_work_items(
             task_id,
-            batch_id=f"protocol-{graph.task_facts_sha256[:24]}",
+            batch_id=f"protocol-{facts_sha256[:24]}",
             items=items,
-            idempotency_key=f"materialize-{graph.task_facts_sha256[:24]}",
+            idempotency_key=f"materialize-{facts_sha256[:24]}",
             protocol_materialization_sha256=_document_sha256(graph_document),
         )
 
@@ -263,6 +372,20 @@ class ProductionProtocolRunner:
             raise InvalidTransition(
                 f"WorkItem is not in the compiled protocol graph: {work_item_id}"
             )
+        node_artifact_contracts = [
+            contract
+            for contract in compiled["artifact_contracts"]
+            if contract["producer_node"] == work_item_id
+        ]
+        # Resolve and validate every declared source before emitting lifecycle
+        # events. A missing or unsafe source is an admission failure, not a
+        # started WorkItem, and must therefore leave the projection unchanged.
+        governed_sources = self._governed_sources(
+            task_id,
+            projection=projection,
+            binding=binding,
+            source_paths=source_paths,
+        )
         if task["status"] == "created":
             projection = self.runtime.transition_task(
                 task_id,
@@ -293,6 +416,15 @@ class ProductionProtocolRunner:
             for existing_id, existing in projection["attempts"].items()
             if existing.get("work_item_id") == work_item_id
             and existing.get("status") == "succeeded"
+            and {
+                artifact.get("artifact_id")
+                for artifact in projection["artifacts"].values()
+                if artifact.get("producer_attempt_id") == existing_id
+            }
+            >= {
+                str(contract["artifact_type"])
+                for contract in node_artifact_contracts
+            }
         ]
         succeeded = successful_attempts[-1] if successful_attempts else None
         if succeeded is None:
@@ -301,12 +433,6 @@ class ProductionProtocolRunner:
             )
 
             resolved_attempt_id = attempt_id or f"attempt-{work_item_id}-001"
-            governed_sources = self._governed_sources(
-                task_id,
-                projection=projection,
-                binding=binding,
-                source_paths=source_paths,
-            )
             if self._is_deterministic_binding(binding):
                 result = self._execute_deterministic_node(
                     task_id,
@@ -330,7 +456,13 @@ class ProductionProtocolRunner:
                     work_item_id=work_item_id,
                     attempt_id=resolved_attempt_id,
                     role=str(binding["role"]),
-                    messages=messages,
+                    messages=[
+                        _protocol_role_contract_message(
+                            binding,
+                            node_artifact_contracts,
+                        ),
+                        *messages,
+                    ],
                     source_paths=governed_sources,
                     external_context_request=external_context_request,
                     idempotency_key=f"{idempotency_key}-attempt",
@@ -365,9 +497,55 @@ class ProductionProtocolRunner:
                 )
 
         output_text = output_path.read_text(encoding="utf-8")
-        for contract in compiled["artifact_contracts"]:
-            if contract["producer_node"] != work_item_id:
-                continue
+        validation_issues = [
+            issue
+            for contract in node_artifact_contracts
+            for issue in _artifact_output_issues(
+                contract,
+                output_text,
+                existing_artifacts=projection["artifacts"],
+            )
+        ]
+        validation_path = (
+            self.runtime._task_dir(task_id)
+            / "attempt_logs"
+            / resolved_attempt_id
+            / "artifact_validation_receipt.yml"
+        )
+        validation_status = "fail" if validation_issues else "pass"
+        if attempt.get("output_validation") is None:
+            atomic_write_yaml(
+                validation_path,
+                {
+                    "schema_version": "protocol-artifact-validation/v1",
+                    "status": validation_status,
+                    "task_id": task_id,
+                    "work_item_id": work_item_id,
+                    "attempt_id": resolved_attempt_id,
+                    "output_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
+                    "issues": validation_issues,
+                },
+            )
+            projection = self.runtime.record_attempt_output_validation(
+                task_id,
+                attempt_id=resolved_attempt_id,
+                status=validation_status,
+                validation_receipt_path=validation_path,
+                issues=validation_issues,
+                idempotency_key=f"{idempotency_key}-output-validation",
+            )
+            attempt = projection["attempts"][resolved_attempt_id]
+        elif attempt["output_validation"].get("status") != validation_status:
+            raise InvalidTransition("Attempt output validation has drifted")
+        if validation_issues:
+            return {
+                "status": "artifact_rejected",
+                "work_item_id": work_item_id,
+                "attempt_id": resolved_attempt_id,
+                "issues": validation_issues,
+                "projection": projection,
+            }
+        for contract in node_artifact_contracts:
             artifact_type = str(contract["artifact_type"])
             already_recorded = any(
                 artifact.get("artifact_id") == artifact_type
@@ -469,15 +647,50 @@ class ProductionProtocolRunner:
                 raise InvalidTransition(
                     f"compiled protocol source fact is unavailable: {fact_name}"
                 )
+            if is_forbidden_source_path(source_root):
+                raise InvalidTransition(
+                    f"compiled protocol source fact is sensitive: {fact_name}"
+                )
+            if not source_root.is_relative_to(self.agentlab_root):
+                raise InvalidTransition(
+                    "compiled protocol source fact is outside the AgentLab root: "
+                    f"{fact_name}"
+                )
+            expected_source_hash = str(
+                facts.get(f"{fact_name}_sha256") or ""
+            )
+            if expected_source_hash and (
+                not source_root.is_file()
+                or not re.fullmatch(r"[0-9a-f]{64}", expected_source_hash)
+                or hashlib.sha256(source_root.read_bytes()).hexdigest()
+                != expected_source_hash
+            ):
+                raise InvalidTransition(
+                    f"compiled protocol source fact hash mismatch: {fact_name}"
+                )
             project_root = (self.agentlab_root / "projects" / self.project).resolve(
                 strict=True
             )
             try:
                 relative_source_root = source_root.relative_to(project_root)
             except ValueError as exc:
-                raise InvalidTransition(
-                    f"compiled protocol source fact is outside its Project: {fact_name}"
-                ) from exc
+                hash_fact_name = f"{fact_name}_sha256"
+                expected_hash = str(facts.get(hash_fact_name) or "")
+                observed_hash = (
+                    hashlib.sha256(source_root.read_bytes()).hexdigest()
+                    if source_root.is_file()
+                    else ""
+                )
+                if (
+                    not re.fullmatch(r"[0-9a-f]{64}", expected_hash)
+                    or observed_hash != expected_hash
+                ):
+                    raise InvalidTransition(
+                        "compiled protocol source fact is outside its Project "
+                        f"without a matching immutable hash: {fact_name}"
+                    ) from exc
+                governed.append(source_root)
+                continue
             if (
                 not relative_source_root.parts
                 or relative_source_root.parts[0] not in _PROTOCOL_SOURCE_ROOTS
@@ -531,6 +744,8 @@ class ProductionProtocolRunner:
         deduplicated: list[Path] = []
         seen: set[Path] = set()
         for path in governed:
+            if is_forbidden_source_path(path):
+                raise InvalidTransition("compiled protocol source is sensitive")
             resolved = path.resolve(strict=True)
             if resolved not in seen:
                 deduplicated.append(resolved)
@@ -615,6 +830,17 @@ class ProductionProtocolRunner:
                 "status": "candidate_only",
                 "source_hashes": source_hashes,
                 "artifact_inputs": artifact_inputs,
+                "source_artifacts": artifact_inputs,
+                "progress_cursor": {
+                    "accepted_chapter_count": 0,
+                    "next_chapter": 1,
+                    "target_total_chapters": int(
+                        (
+                            projection["task"].get("input_profile") or {}
+                        ).get("target_count")
+                        or 0
+                    ),
+                },
                 "task_facts_sha256": projection["task"]["compiled_protocol"][
                     "task_facts_sha256"
                 ],
@@ -751,6 +977,7 @@ def _bind_execution_profiles(
                     agent_model_profile=None,
                     execution_kind="cli_agent",
                     depends_on=binding.depends_on,
+                    role_contract=binding.role_contract,
                 )
             )
             continue
@@ -788,6 +1015,7 @@ def _bind_execution_profiles(
                 agent_model_profile=model_profile,
                 execution_kind=str(profile.get("execution_kind") or "cli_agent"),
                 depends_on=binding.depends_on,
+                role_contract=binding.role_contract,
             )
         )
     return tuple(resolved)
@@ -869,6 +1097,16 @@ def _artifact_contracts(
                 ),
                 producer_node=producer,
                 candidate_only=bool(raw.get("candidate_only", True)),
+                output_instructions=tuple(
+                    _nonempty_string(item, field="artifact output instruction")
+                    for item in (raw.get("output_instructions") or ())
+                ),
+                required_markers=tuple(
+                    _nonempty_string(item, field="artifact required marker")
+                    for item in (raw.get("required_markers") or ())
+                ),
+                minimum_bytes=max(1, int(raw.get("minimum_bytes") or 1)),
+                unique_content=bool(raw.get("unique_content", False)),
             )
         )
     if not contracts:
@@ -969,7 +1207,10 @@ def _validate_task_facts(
         "kind",
         "scope",
         "canon_impact",
+        "project",
         "repository",
+        "source_creative_brief",
+        "source_creative_brief_sha256",
         "source_story_bible",
         "source_story_artifact",
     ):
@@ -979,6 +1220,18 @@ def _validate_task_facts(
             raise ValueError(
                 f"production protocol fact {field} must be a non-empty string"
             )
+    if "source_creative_brief_sha256" in task_facts and not re.fullmatch(
+        r"[0-9a-f]{64}", str(task_facts["source_creative_brief_sha256"])
+    ):
+        raise ValueError(
+            "production protocol fact source_creative_brief_sha256 must be lowercase 64-hex"
+        )
+    if "repository_sha256" in task_facts and not re.fullmatch(
+        r"[0-9a-f]{64}", str(task_facts["repository_sha256"])
+    ):
+        raise ValueError(
+            "production protocol fact repository_sha256 must be lowercase 64-hex"
+        )
     if "target_count" in task_facts and (
         isinstance(task_facts["target_count"], bool)
         or not isinstance(task_facts["target_count"], int)
@@ -1053,7 +1306,50 @@ def _narrative_role_bindings(
                 agent_model_profile=None,
                 execution_kind=None,
                 depends_on=dependencies,
+                role_contract={
+                    key: tuple(profile.get(key) or ())
+                    if key
+                    in {"professional_duties", "acceptance_rules", "forbidden_actions"}
+                    else str(profile.get(key) or "")
+                    for key in (
+                        "input_schema",
+                        "output_schema",
+                        "professional_duties",
+                        "acceptance_rules",
+                        "forbidden_actions",
+                    )
+                },
             )
+        )
+    return tuple(bindings)
+
+
+def _narrative_full_role_bindings(
+    root: Path,
+    task_facts: Mapping[str, Any],
+) -> tuple[RoleBinding, ...]:
+    """Select the registered full author team for series-level blueprint work."""
+
+    forced_facts = dict(task_facts)
+    risks = list(task_facts.get("risk_flags") or ())
+    if "major_reveal" not in risks:
+        risks.append("major_reveal")
+    forced_facts["risk_flags"] = risks
+    bindings = list(_narrative_role_bindings(root, forced_facts))
+    for index, binding in enumerate(bindings):
+        if binding.node_id != "state_projector":
+            continue
+        dependencies = tuple(
+            dict.fromkeys((*binding.depends_on, "reader_simulation_panel"))
+        )
+        bindings[index] = RoleBinding(
+            node_id=binding.node_id,
+            role=binding.role,
+            profile=binding.profile,
+            agent_model_profile=binding.agent_model_profile,
+            execution_kind=binding.execution_kind,
+            depends_on=dependencies,
+            role_contract=binding.role_contract,
         )
     return tuple(bindings)
 
@@ -1077,6 +1373,8 @@ def compile_production_protocol(
         role_bindings = _static_role_bindings(protocol)
     elif selection == "narrative_author_team":
         role_bindings = _narrative_role_bindings(root, task_facts)
+    elif selection == "narrative_full_author_team":
+        role_bindings = _narrative_full_role_bindings(root, task_facts)
     else:
         raise ValueError(f"unsupported production protocol role selection: {selection}")
     role_bindings = _bind_execution_profiles(root, role_bindings)

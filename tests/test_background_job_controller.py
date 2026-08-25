@@ -127,7 +127,7 @@ def test_create_job_rejects_writer_binding_outside_capacity_authority(
             writer_worker="hermes",
             chapter_state_plan="plan.yml",
             writer_capacity_route="AlterWriterStrict",
-            writer_model_key="grok_4_5_hermes_oauth",
+            writer_model_key="grok_4_6_hermes_oauth",
         )
 
 

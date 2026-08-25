@@ -57,12 +57,15 @@ contracts:
 
   hermes_alter_high:
     worker_id: hermes
-    display_name: Hermes Alter Grok 4.5 High
+    display_name: Hermes Alter Grok 4.6 High
     command: hermes
     invocation_style: governed_profile_task_packet
     workflow_shell: true
     workflow_shell_registry: config/cli_workflow_shells.yml
     workflow_shell_profile: agentlabalter
+    environment:
+      set:
+        HERMES_API_CALL_STALE_TIMEOUT: "300"
     required_receipts:
       - role_session_receipt.yml
       - changed_files_or_findings.yml
@@ -76,19 +79,19 @@ contracts:
     required_placeholders: [task_packet_path, provider, model_id]
     required_shell_state:
       model.provider: xai-oauth
-      model.default: grok-4.5
+      model.default: grok-4.6
       agent.reasoning_effort: high
       fallback_providers: []
       fallback_model: null
     requested_reasoning_label: high
     resolved_reasoning_effort: high
     reasoning_resolution_note: >-
-      The classic chat path loads the isolated agentlabalter profile so Grok 4.5
+      The classic chat path loads the isolated agentlabalter profile so Grok 4.6
       receives high reasoning. Hermes one-shot mode does not bind profile
       reasoning state and is therefore not used by Alter roles.
     safe_probe: [hermes, -p, agentlabalter, config, check]
     expected_parse:
-      argv_prefix: [hermes, -p, agentlabalter, chat, -Q, --provider, xai-oauth, -m, grok-4.5]
+      argv_prefix: [hermes, -p, agentlabalter, chat, -Q, --provider, xai-oauth, -m, grok-4.6]
     validation:
       shlex_parse_required: true
       require_existing_binary: false
@@ -101,12 +104,15 @@ contracts:
 
   hermes_alter_artifact:
     worker_id: hermes
-    display_name: Hermes Alter Grok 4.5 High Artifact Producer
+    display_name: Hermes Alter Grok 4.6 High Artifact Producer
     command: hermes
     invocation_style: governed_profile_artifact_task_packet
     workflow_shell: true
     workflow_shell_registry: config/cli_workflow_shells.yml
     workflow_shell_profile: agentlabalter
+    environment:
+      set:
+        HERMES_API_CALL_STALE_TIMEOUT: "300"
     coalescing_allowed: false
     required_receipts:
       - role_session_receipt.yml
@@ -125,7 +131,7 @@ contracts:
     required_placeholders: [task_packet_path, provider, model_id]
     required_shell_state:
       model.provider: xai-oauth
-      model.default: grok-4.5
+      model.default: grok-4.6
       agent.reasoning_effort: high
       fallback_providers: []
       fallback_model: null
@@ -133,7 +139,7 @@ contracts:
     resolved_reasoning_effort: high
     safe_probe: [hermes, -p, agentlabalter, config, check]
     expected_parse:
-      argv_prefix: [hermes, -p, agentlabalter, chat, -Q, --provider, xai-oauth, -m, grok-4.5]
+      argv_prefix: [hermes, -p, agentlabalter, chat, -Q, --provider, xai-oauth, -m, grok-4.6]
     validation:
       shlex_parse_required: true
       require_existing_binary: false

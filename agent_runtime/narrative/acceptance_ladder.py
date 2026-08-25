@@ -1974,7 +1974,7 @@ def _stage_evidence_issues(
         if (
             isinstance(count, bool)
             or not isinstance(count, int)
-            or not 100 <= count <= 500
+            or not 100 <= count <= 600
         ):
             issues.append("P5:pseudoprose_chapter_count_out_of_range")
         elif isinstance(stress, Mapping):

@@ -174,6 +174,35 @@ def test_agy_cli_smoke_classifies_localhost_bind_denied(tmp_path: Path) -> None:
     assert "127.0.0.1:0" in report["log_excerpt"]
 
 
+def test_agy_cli_smoke_classifies_region_block_from_full_log(tmp_path: Path) -> None:
+    def fake_runner(
+        args: list[str], timeout: int, log_path: Path
+    ) -> subprocess.CompletedProcess[str]:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text(
+            ("startup diagnostic\n" * 80)
+            + "FAILED_PRECONDITION (code 400): User location is not supported "
+            "for the API use.\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr="Error: Agent execution terminated due to error.\n",
+        )
+
+    report = build_agy_cli_smoke_report(
+        ROOT,
+        live=True,
+        command_runner=fake_runner,
+        smoke_dir=tmp_path / "smoke",
+    )
+
+    assert report["status"] == "blocked"
+    assert report["reason"] == "agy_provider_region_unsupported"
+
+
 def test_agy_cli_smoke_timeout_omits_null_returncode(tmp_path: Path) -> None:
     def fake_runner(args: list[str], timeout: int, log_path: Path) -> subprocess.CompletedProcess[str]:
         raise subprocess.TimeoutExpired(args, timeout, output="partial", stderr="timeout")

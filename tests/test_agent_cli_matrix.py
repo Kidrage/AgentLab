@@ -74,6 +74,11 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
     assert rows[("low", "writer")]["fallback_cli_agent"] == "claude_code"
     assert rows[("low", "writer")]["fallback_model_key"] == "deepseek_v4_pro"
     assert {row["component"] for row in cli} >= {"hermes", "claude_code", "codex", "qwen", "agy"}
+    for row in [*full_cli, *cli]:
+        assert row["generated_non_authoritative"] == "true"
+        authority_paths = row["authority_paths"].split("|")
+        assert authority_paths
+        assert all((ROOT / path).is_file() for path in authority_paths)
 
 
 def test_checked_in_csv_matrices_are_deterministic(tmp_path: Path) -> None:

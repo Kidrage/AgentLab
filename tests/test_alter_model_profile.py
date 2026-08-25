@@ -28,7 +28,7 @@ def test_alter_is_the_default_subscription_first_tier() -> None:
     assert resolved is not None
     assert resolved["resolved_tier"] == "alter"
     assert resolved["cli_agent"] == "hermes"
-    assert resolved["default"] == "grok_4_5_hermes_oauth"
+    assert resolved["default"] == "grok_4_6_hermes_oauth"
 
 
 def test_alter_keyword_is_an_exact_task_trigger() -> None:
@@ -79,7 +79,7 @@ def test_alter_tier_routes_grok_work_through_hermes_and_keeps_agy_primaries() ->
     assert alter["supervisor"]["invocation_contract"] == "hermes_alter_high"
     for role, cfg in alter.items():
         if cfg["cli_agent"] == "hermes":
-            assert cfg["default"] == "grok_4_5_hermes_oauth", role
+            assert cfg["default"] == "grok_4_6_hermes_oauth", role
             assert cfg["reasoning_effort"] == "high", role
 
     contracts = _yaml("config/worker_invocation_contracts.yml")["contracts"]
@@ -89,7 +89,7 @@ def test_alter_tier_routes_grok_work_through_hermes_and_keeps_agy_primaries() ->
         assert contract["workflow_shell_profile"] == "agentlabalter"
         assert contract["required_shell_state"] == {
             "model.provider": "xai-oauth",
-            "model.default": "grok-4.5",
+            "model.default": "grok-4.6",
             "agent.reasoning_effort": "high",
             "fallback_providers": [],
             "fallback_model": None,

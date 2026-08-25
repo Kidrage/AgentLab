@@ -42,7 +42,7 @@ stages:
   P5:
     description: Long-horizon stress, recovery, rollback, and real-model arc.
     required_checks:
-      - pseudoprose_100_to_500_chapter_stress_completed
+      - pseudoprose_100_to_600_chapter_stress_completed
       - recovery_completed
       - rollback_completed
       - real_model_complete_arc_completed

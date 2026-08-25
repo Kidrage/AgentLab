@@ -1,10 +1,10 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-08-24T10:33:47Z'
+generated_at: '2026-08-25T08:41:13Z'
 repository:
   root: .
-  head: 803ac0f
+  head: ce391a7
   worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
@@ -179,7 +179,7 @@ current_evidence:
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
-  sha256: 032700476adf35047bd2b283c83bb96f464251811810328643d60cb27d3bf810
+  sha256: 683e313cc6351929455e1147174da95ca2d18c4b57eb8b129a4043e805757d9c
 - path: config/agent_role_bindings.yml
   class: active
   capability_ids:
@@ -192,35 +192,35 @@ current_evidence:
   capability_ids:
   - cli_native_command_surface_governance
   - cli_workflow_shell_absorption
-  sha256: 814c84d15e8eee4e1863e01930ec81bea92099b4334c3be9c13972c803be1a40
+  sha256: efe6fe34c3b6b0bdaad5fd4b58641a3521f3587b1d9f369943c9a9f9d3bd395b
 - path: config/media_generation_backends.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - grok_xai_media_backend
-  sha256: fe7b3966eccbe5887cfde400a73adbbb01fcec2038cb855b8081b8c84d4c6e71
+  sha256: 3a385cd8b17ac80642ec2f1a22005ccfae134d5739e744acfdb61529a2abee27
 - path: config/model_capacity.yml
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: 65de98f0f93621b33920897ba4d7b24e515b89b991174aa80ff645f3d7e1e0ed
+  sha256: 08a6984482daea3e682d5238b54efe6e0cc401c8dee9bc965dbde324e2957ebe
 - path: config/model_catalog.yml
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: a75658e7deb2b28b876d1763859e07f8a40cab552d729d40a072721e10daf16c
+  sha256: 37a26b67b5dc84f914f39ba5137bfed777950d2073b8540e65b9aad7cf8c66d1
 - path: config/production_packs.yml
   class: active
   capability_ids:
   - production_pack_synthesis
-  sha256: 39a3e45a8e6b2df764b215caea6418bacaec978b63d06e99310db695a49fbd18
+  sha256: a25376893171c25583f736abef0f32925a3e56d65a9bf1891bab043142e8f2ca
 - path: config/worker_invocation_contracts.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 7c9ffe0a5531799ed218cb67353b4852dbe4c1ddec6c113d1a329918278e37eb
+  sha256: c4b16e4928a54b5f1cb89c1b6e32ae8dc0e9be6d6ea8549d1e9134ea97f79ffe
 - path: tests/test_core_package_imports.py
   class: active
   capability_ids:
@@ -234,7 +234,7 @@ current_evidence:
 current_evidence_count: 42
 historical_references: []
 historical_reference_count: 0
-aggregate_digest: 19e80308537ebaf6763b48f8436107ee3f878f776f4b52919e04f0acc358a66c
+aggregate_digest: 8b15eda9195ad96453de7b2dbbc139cbd3ad3477f72b28fa722b42b632132f12
 status: pass
 issues: []
 notes:

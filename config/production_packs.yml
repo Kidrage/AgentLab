@@ -70,6 +70,7 @@ packs:
     protocol:
       ref: code.large.v1
       required_facts: [kind, scope, target_count, canon_impact, risk_flags, repository]
+      optional_facts: [repository_sha256]
       fact_constraints:
         kind: [code_build]
         scope: [large]
@@ -97,6 +98,186 @@ packs:
         tests_pass: {work_item_id: independent_validation, evidence_kind: automated, subject_artifact_types: [validation_report]}
         independent_review: {work_item_id: promotion_verification, evidence_kind: independent, subject_artifact_types: [source_patch]}
         ci_or_human_acceptance: {work_item_id: promotion_verification, evidence_kind: human, subject_artifact_types: [source_patch]}
+
+  - pack_id: narrative_blueprint
+    name: Longform Narrative Blueprint
+    description: Candidate-only creation of a complete longform blueprint before any project canon exists.
+    routes:
+      - narrative_blueprint_build
+    project_types:
+      - longform_text_project
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - ARTIFACT_PRODUCTION
+      - VALIDATION
+      - VERIFY
+      - FINALIZE
+    domain_phases:
+      - bind_creative_brief
+      - design_world_characters_relationships_and_causality
+      - build_series_volume_arc_and_chapter_outline
+      - synthesize_blueprint_candidate
+      - independent_editor_and_reader_review
+      - project_deterministic_bootstrap_state
+      - await_human_blueprint_acceptance
+    required_outputs:
+      - blueprint_direction.yml
+      - canon_timeline_blueprint.yml
+      - causality_blueprint.yml
+      - character_bible.yml
+      - relationship_bible.yml
+      - world_bible.yml
+      - promise_registry.yml
+      - outline_tree.yml
+      - research_style_contract.yml
+      - story_blueprint.yml
+      - blueprint_editorial_review.yml
+      - blueprint_reader_review.yml
+      - narrative_bootstrap_manifest.yml
+    memory_contract:
+      - creative_brief
+      - story_blueprint
+      - character_bible
+      - relationship_bible
+      - world_bible
+      - outline_tree
+      - promise_registry
+      - narrative_bootstrap_manifest
+    quality_gates:
+      - blueprint_candidate_hash
+      - independent_blueprint_review
+      - deterministic_bootstrap_projection
+      - human_blueprint_acceptance
+    protocol:
+      ref: narrative.blueprint.v1
+      required_facts: [kind, scope, target_count, canon_impact, risk_flags, project, source_creative_brief, source_creative_brief_sha256]
+      fact_constraints:
+        kind: [blueprint_build]
+        scope: [longform]
+        canon_impact: [new_project]
+      role_selection: narrative_full_author_team
+      source_fact_bindings:
+        authorial_director: [source_creative_brief]
+        canon_timeline_steward: [source_creative_brief]
+        plot_causality_architect: [source_creative_brief]
+        character_ensemble_director: [source_creative_brief]
+        relationship_director: [source_creative_brief]
+        world_archaeologist: [source_creative_brief]
+        foreshadow_mystery_keeper: [source_creative_brief]
+        arc_scene_planner: [source_creative_brief]
+        research_style_curator: [source_creative_brief]
+        writer: [source_creative_brief]
+        senior_editor: [source_creative_brief]
+        reader_simulation_panel: [source_creative_brief]
+        state_projector: [source_creative_brief]
+      artifact_contracts:
+        - artifact_type: blueprint_direction
+          producer_node: authorial_director
+          candidate_only: true
+          output_instructions: [Define the authorial thesis ending volume architecture and non-negotiable promises; do not draft chapter prose.]
+          required_markers: [authorial_thesis, fifteen_volume]
+          minimum_bytes: 8000
+          unique_content: true
+        - artifact_type: canon_timeline_blueprint
+          producer_node: canon_timeline_steward
+          candidate_only: true
+          output_instructions: [Audit the chronology ages travel durations and reveal windows; emit timeline constraints rather than restating the direction.]
+          required_markers: [timeline, continuity]
+          minimum_bytes: 6000
+          unique_content: true
+        - artifact_type: causality_blueprint
+          producer_node: plot_causality_architect
+          candidate_only: true
+          output_instructions: [Map enabling causes irreversible choices material costs consequences and cross-volume escalation.]
+          required_markers: [antecedent, consequence]
+          minimum_bytes: 8000
+          unique_content: true
+        - artifact_type: character_bible
+          producer_node: character_ensemble_director
+          candidate_only: true
+          output_instructions: [Give every principal an independent goal agency contradiction evolution and credible exit resources.]
+          required_markers: [independent_goal, exit_resource]
+          minimum_bytes: 10000
+          unique_content: true
+        - artifact_type: relationship_bible
+          producer_node: relationship_director
+          candidate_only: true
+          output_instructions: [Design evolving bilateral relationships consent conflict repair negotiation and independent exits; do not reduce partners to rewards.]
+          required_markers: [relationship_id, consent]
+          minimum_bytes: 7000
+          unique_content: true
+        - artifact_type: world_bible
+          producer_node: world_archaeologist
+          candidate_only: true
+          output_instructions: [Define geography institutions commerce politics martial costs and the one-immortal-per-universe rule with enforceable constraints.]
+          required_markers: [institution, immortal_rule]
+          minimum_bytes: 10000
+          unique_content: true
+        - artifact_type: promise_registry
+          producer_node: foreshadow_mystery_keeper
+          candidate_only: true
+          output_instructions: [Create a distinct promise registry with setup transformation due payoff and forbidden-early-payoff windows; never copy the causality blueprint.]
+          required_markers: [promise_id, due_window, payoff]
+          minimum_bytes: 8000
+          unique_content: true
+        - artifact_type: outline_tree
+          producer_node: arc_scene_planner
+          candidate_only: true
+          output_instructions: [Build the series-volume-arc-chapter hierarchy and chapter-card contract; preserve locked turns while leaving prose choices open.]
+          required_markers: [outline_tree, chapter_card_contract]
+          minimum_bytes: 10000
+          unique_content: true
+        - artifact_type: research_style_contract
+          producer_node: research_style_curator
+          candidate_only: true
+          output_instructions: [Supply rights-safe historical mechanism cards and an original prose style contract without imitating living authors.]
+          required_markers: [rights, originality]
+          minimum_bytes: 8000
+          unique_content: true
+        - artifact_type: story_blueprint
+          producer_node: writer
+          candidate_only: true
+          output_instructions: [Synthesize a production blueprint rather than novel prose; cover all 600 chapters through structured chapter cards or explicitly hash-bound shards.]
+          required_markers: [story_blueprint, chapter_card_contract, '600']
+          minimum_bytes: 16000
+          unique_content: true
+        - artifact_type: blueprint_editorial_review
+          producer_node: senior_editor
+          candidate_only: true
+          output_instructions: [Independently test coverage causality continuity character agency escalation and ending convergence; cite exact artifact locators.]
+          required_markers: [finding_id, verdict]
+          minimum_bytes: 6000
+          unique_content: true
+        - artifact_type: blueprint_reader_review
+          producer_node: reader_simulation_panel
+          candidate_only: true
+          output_instructions: [Simulate distinct reader cohorts and report promise clarity drift fatigue repetition and emotional payoff with locators.]
+          required_markers: [reader_cohort, finding_id]
+          minimum_bytes: 6000
+          unique_content: true
+        - artifact_type: narrative_bootstrap_manifest
+          producer_node: state_projector
+          candidate_only: true
+          output_instructions: [Project only deterministic indexes hashes progress cursors and continuity state; do not invent story content.]
+          required_markers: [source_artifacts, progress_cursor]
+          minimum_bytes: 1000
+          unique_content: true
+      result_artifact_type: narrative_bootstrap_manifest
+      promotion_gates:
+        - candidate_hash_bound
+        - independent_blueprint_review
+        - deterministic_bootstrap_projection
+        - user_blueprint_acceptance
+      promotion_gate_bindings:
+        candidate_hash_bound: {work_item_id: writer, evidence_kind: automated, subject_artifact_types: [story_blueprint]}
+        independent_blueprint_review: {work_item_id: senior_editor, evidence_kind: independent, subject_artifact_types: [story_blueprint, blueprint_editorial_review]}
+        deterministic_bootstrap_projection: {work_item_id: state_projector, evidence_kind: deterministic, subject_artifact_types: [narrative_bootstrap_manifest]}
+        user_blueprint_acceptance: {work_item_id: state_projector, evidence_kind: human, subject_artifact_types: [story_blueprint, narrative_bootstrap_manifest]}
 
   - pack_id: narrative_longform
     name: Longform Narrative Production

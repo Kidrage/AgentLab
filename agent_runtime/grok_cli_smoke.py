@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 import shlex
 import shutil
 import subprocess
+import tempfile
 from typing import Any, Callable
 
 import yaml
@@ -85,11 +87,14 @@ def _command_shape(args: list[str]) -> str:
     skip_next = False
     for arg in args:
         if skip_next:
-            rendered.append("<non_private_prompt>")
+            rendered.append(
+                "<usage_report>" if rendered[-1] == "--usage-file"
+                else "<non_private_prompt>"
+            )
             skip_next = False
             continue
         rendered.append(arg)
-        if arg in PROMPT_FLAGS:
+        if arg in PROMPT_FLAGS or arg == "--usage-file":
             skip_next = True
     return " ".join(rendered)
 
@@ -405,17 +410,57 @@ def build_grok_cli_smoke_report(
                 break
             continue
 
-        timed_out, completed = _run_variant(args, timeout_seconds, runner)
+        executed_args = list(args)
+        usage: dict[str, Any] = {}
+        with tempfile.TemporaryDirectory(prefix="agentlab-grok-smoke-") as temp_dir:
+            usage_path = Path(temp_dir) / "hermes_usage.json"
+            prompt_indexes = [
+                index
+                for index, value in enumerate(executed_args)
+                if value in {"-z", "--oneshot"}
+            ]
+            if prompt_indexes:
+                executed_args[prompt_indexes[0]:prompt_indexes[0]] = [
+                    "--usage-file",
+                    str(usage_path),
+                ]
+            timed_out, completed = _run_variant(
+                executed_args,
+                timeout_seconds,
+                runner,
+            )
+            if usage_path.is_file() and not usage_path.is_symlink():
+                try:
+                    loaded_usage = json.loads(
+                        usage_path.read_text(encoding="utf-8")
+                    )
+                except (OSError, UnicodeError, json.JSONDecodeError):
+                    loaded_usage = {}
+                if isinstance(loaded_usage, dict):
+                    usage = loaded_usage
         stdout = _safe_excerpt(completed.stdout)
         stderr = _safe_excerpt(completed.stderr)
         flags = _grok_cli_failure_flags(stdout, stderr)
         expected_token_present = EXPECTED in stdout
+        requested_model = _arg_value(args, "-m") or _arg_value(args, "--model")
+        requested_provider = _arg_value(args, "--provider")
+        reported_model = str(usage.get("model") or "").strip()
+        reported_provider = str(usage.get("provider") or "").strip()
+        response_metadata_observed = bool(reported_model and reported_provider)
+        provider_model_binding_verified = bool(
+            response_metadata_observed
+            and reported_model == requested_model
+            and reported_provider == requested_provider
+        )
+        provider_model_mismatch = bool(
+            response_metadata_observed and not provider_model_binding_verified
+        )
 
         attempt_report = {
             "attempt": attempt,
             "live": live,
             "command": args[0],
-            "command_shape": _command_shape(args),
+            "command_shape": _command_shape(executed_args),
             "returncode": None if timed_out else completed.returncode,
             "stdout_excerpt": stdout,
             "stderr_excerpt": stderr,
@@ -425,9 +470,20 @@ def build_grok_cli_smoke_report(
             "command_available": True,
             "command_path": command_path,
             "expected_token_present": expected_token_present,
+            "requested_model_id": requested_model,
+            "requested_provider": requested_provider,
+            "provider_reported_model_id": reported_model or None,
+            "provider_reported_provider": reported_provider or None,
+            "provider_response_metadata_observed": response_metadata_observed,
+            "provider_model_binding_verified": provider_model_binding_verified,
         }
 
-        if timed_out:
+        if provider_model_mismatch:
+            attempt_report["status"] = "blocked"
+            attempt_report["reason"] = "grok_cli_provider_model_binding_mismatch"
+            attempt_report["block_scope"] = "provider_model_binding"
+            attempt_report["non_interactive_prompt_contract_status"] = "blocked"
+        elif timed_out:
             timed_out_reason = flags["reason"] or "grok_cli_timeout"
             attempt_report["status"] = "pass" if expected_token_present else "blocked"
             attempt_report["reason"] = (
@@ -470,6 +526,20 @@ def build_grok_cli_smoke_report(
             "auth_failure_marker_present": attempt_report["auth_failure_marker_present"],
             "non_interactive_prompt_contract_status": attempt_report["non_interactive_prompt_contract_status"],
             "expected_token_present": attempt_report["expected_token_present"],
+            "requested_model_id": attempt_report["requested_model_id"],
+            "requested_provider": attempt_report["requested_provider"],
+            "provider_reported_model_id": attempt_report[
+                "provider_reported_model_id"
+            ],
+            "provider_reported_provider": attempt_report[
+                "provider_reported_provider"
+            ],
+            "provider_response_metadata_observed": attempt_report[
+                "provider_response_metadata_observed"
+            ],
+            "provider_model_binding_verified": attempt_report[
+                "provider_model_binding_verified"
+            ],
         }
         if attempt_report["status"] != "pass" and attempt_report.get("block_scope") is not None:
             report_update["block_scope"] = attempt_report["block_scope"]

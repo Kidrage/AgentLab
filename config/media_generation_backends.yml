@@ -55,7 +55,7 @@ backends:
       shell_state_is_not_project_memory: true
       shell_background_work_requires_status_receipt: true
     command_contract:
-      session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z <prompt>
+      session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.6 -z <prompt>
     registered_generation_models:
       image: [grok-imagine-image-quality]
       video: [grok-imagine-video-1.5]

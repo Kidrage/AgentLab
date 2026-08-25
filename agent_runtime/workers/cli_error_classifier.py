@@ -30,6 +30,10 @@ DEFAULT_RULES = [
         "patterns": ["API key", "unauthorized", "auth required", "Authentication", "login required", "not authenticated"]
     },
     {
+        "error_class": CliErrorClass.TIMEOUT,
+        "patterns": ["print mode: timed out", "print mode wait timed out"],
+    },
+    {
         "error_class": CliErrorClass.NETWORK_REQUIRED,
         "patterns": [
             "network",

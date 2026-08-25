@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-24T10:42:25.869963+00:00`
+- Generated at: `2026-08-25T09:04:58.094085+00:00`
 
 ## Current State
 
-- Branch: `codex/kernel-stabilization`
-- HEAD: `803ac0f`
-- Indexed paths: 2080
+- Branch: `codex/shanhe-youjia-p3`
+- HEAD: `ce391a7`
+- Indexed paths: 2085
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,14 +43,14 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 648 |
-| `tests` | 496 |
+| `agent_runtime` | 650 |
+| `tests` | 498 |
 | `docs` | 348 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
 | `config` | 130 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 75 |
+| `agent_runtime/narrative` | 77 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 44 |
@@ -75,12 +75,12 @@
 | `agent_runtime/config_center` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `agent_runtime/goals` | 12 |
+| `examples` | 12 |
 | `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
 | `agent_runtime/execution_economy` | 11 |
 | `agent_runtime/skills` | 11 |
-| `examples` | 11 |
 | `acceptance_runs/e2e_minimal_task` | 10 |
 | `acceptance_runs/p2_provider_governance` | 10 |
 
@@ -88,15 +88,15 @@
 
 ### Categories
 
-- code: 1088 files, 11210679 bytes
-- literature: 424 files, 2430751 bytes
+- code: 1092 files, 11333704 bytes
+- literature: 424 files, 2431709 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 553 files, 3233054 bytes
+- structured_data: 554 files, 3270988 bytes
 
 ### Common Extensions
 
-- `.py`: 1073
-- `.yml`: 521
+- `.py`: 1077
+- `.yml`: 522
 - `.md`: 385
 - `.txt`: 39
 - `.json`: 27
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `ce391a7 2026-08-24 stabilize production protocol kernel`
 - `803ac0f 2026-08-24 feat(runtime): stabilize versioned production protocols`
 - `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
 - `91cb273 2026-08-01 feat(narrative): materialize strict professional chapter DAGs`
@@ -251,35 +252,62 @@
 - `de5bddf 2026-07-31 fix(frontdesk): report OpenClaw startup reason`
 - `01d8585 2026-07-31 fix(frontdesk): probe OpenClaw runtime health`
 - `6ab6f14 2026-07-31 Harden professional narrative task execution`
-- `8e57041 2026-07-31 fix(frontdesk): honor negated mutation requests`
 
 ## Current Changes
 
-- `## codex/kernel-stabilization`
+- `## codex/shanhe-youjia-p3`
 - ` M PROJECT_HANDOFF.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/cli/task_runtime_v2.py`
+- ` M agent_runtime/agy_cli_smoke.py`
+- ` M agent_runtime/cli/narrative.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/grok_cli_smoke.py`
+- ` M agent_runtime/narrative/acceptance_ladder.py`
+- ` M agent_runtime/narrative/outbound_transfer.py`
+- ` M agent_runtime/narrative/state_stress.py`
+- ` M agent_runtime/outbound_context.py`
 - ` M agent_runtime/production_protocols.py`
 - ` M agent_runtime/protocol_canary.py`
-- ` M agent_runtime/task_runtime_v2/deterministic_executor.py`
-- ` M agent_runtime/task_runtime_v2/narrative_projection_executor.py`
 - ` M agent_runtime/task_runtime_v2/role_executor.py`
 - ` M agent_runtime/task_runtime_v2/runtime.py`
+- ` M agent_runtime/workers/cli_error_classifier.py`
+- ` M config/README.md`
+- ` M config/agent_model_profiles.yml`
+- ` M config/cli_error_classification.yml`
+- ` M config/cli_workflow_shells.yml`
+- ` M config/hermes_brain_model_groups.yml`
+- ` M config/media_generation_backends.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_providers.yml`
+- ` M config/narrative_acceptance_ladder.yml`
 - ` M config/production_packs.yml`
+- ` M config/routing_rules.yml`
+- ` M config/runtime_cli_requirements.yml`
+- ` M config/shared_agent_directory.yml`
 - ` M config/task_input_tiers.yml`
-- ` M docs/PRODUCTION_PROTOCOL_STRATEGY.zh-CN.md`
-- ` M docs/TASK_RUNTIME.md`
-- ` M examples/novel_canary/task_facts.yml`
-- ` M tests/test_crown_rag_reset_job.py`
-- ` M tests/test_narrative_audit_closure.py`
-- ` M tests/test_narrative_background_recovery.py`
-- ` M tests/test_narrative_efficiency.py`
-- ` M tests/test_narrative_job_semantics.py`
-- ` M tests/test_narrative_quality_gate.py`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M scripts/generate_agent_cli_matrix.py`
+- ` M tests/test_agent_cli_matrix.py`
+- ` M tests/test_agy_cli_smoke.py`
+- ` M tests/test_alter_model_profile.py`
+- ` M tests/test_background_job_controller.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_grok_cli_smoke.py`
+- ` M tests/test_m2_cli_error_classifier.py`
+- ` M tests/test_media_backend_adapter.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_narrative_acceptance_ladder_v1.py`
 - ` M tests/test_production_protocols.py`
-- ` M tests/test_protocol_canary.py`
-- ` M tests/test_task_runtime_v2_cli.py`
-- `?? config/production_role_profiles.yml`
+- ` M tests/test_task_input_tiers.py`
+- `?? agent_runtime/narrative/blueprint_bootstrap.py`
+- `?? agent_runtime/narrative/progress.py`
+- `?? examples/narrative/`
+- `?? tests/test_narrative_blueprint_bootstrap.py`
+- `?? tests/test_narrative_progress.py`
 
 ## Related Repositories
 

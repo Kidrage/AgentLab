@@ -35,7 +35,7 @@ def test_grok_cli_smoke_dry_run_reports_command_without_private_context() -> Non
         {
             "command": "hermes",
             "command_shape": (
-                "hermes --ignore-rules --provider xai-oauth -m grok-4.5 "
+                "hermes --ignore-rules --provider xai-oauth -m grok-4.6 "
                 "-z <non_private_prompt>"
             ),
         }
@@ -64,6 +64,41 @@ def test_grok_cli_smoke_live_pass_with_fake_runner() -> None:
     assert report["local_cli_entrypoint_is_internal_worker"] is True
     assert report["local_cli_requires_api_key"] is False
     assert report["non_interactive_prompt_contract_status"] == "pass"
+
+
+def test_grok_cli_smoke_binds_hermes_provider_reported_model() -> None:
+    def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+        usage_path = Path(args[args.index("--usage-file") + 1])
+        usage_path.write_text(
+            """{
+  "model": "grok-4.6",
+  "provider": "xai-oauth",
+  "completed": true,
+  "input_tokens": 10,
+  "output_tokens": 2,
+  "total_tokens": 12
+}\n""",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="AGENTLAB_GROK_CLI_SMOKE_OK\n",
+            stderr="",
+        )
+
+    report = build_grok_cli_smoke_report(
+        ROOT,
+        live=True,
+        command_runner=fake_runner,
+    )
+
+    assert report["status"] == "pass"
+    assert report["requested_model_id"] == "grok-4.6"
+    assert report["provider_reported_model_id"] == "grok-4.6"
+    assert report["provider_reported_provider"] == "xai-oauth"
+    assert report["provider_response_metadata_observed"] is True
+    assert report["provider_model_binding_verified"] is True
 
 
 def test_grok_cli_smoke_classifies_settings_fetch_failure() -> None:

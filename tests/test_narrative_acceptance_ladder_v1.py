@@ -80,6 +80,28 @@ def test_state_stress_refuses_symlinked_output_ancestor(
     assert list(outside.iterdir()) == []
 
 
+def test_state_stress_supports_six_hundred_chapter_projection(
+    tmp_path: Path,
+) -> None:
+    agentlab_root = tmp_path / "agentlab"
+    project_root = agentlab_root / "projects" / PROJECT
+    project_root.mkdir(parents=True)
+
+    result = run_pseudoprose_state_stress(
+        agentlab_root,
+        project=PROJECT,
+        task_id="task_p5_stress_600",
+        chapter_count=600,
+    )
+
+    assert result["status"] == "pass"
+    assert result["pseudoprose_chapter_count"] == 600
+    assert len(result["state_artifact_bindings"]) == 600
+    assert result["state_artifact_bindings"][-1]["path"].endswith(
+        "state-0600.yml"
+    )
+
+
 def test_acceptance_ladder_fails_closed_without_stage_evidence(
     tmp_path: Path,
 ) -> None:

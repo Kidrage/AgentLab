@@ -298,11 +298,11 @@ agents:
         "Read the bounded AgentLab role task packet at {task_packet_path}."
       legacy_command: hermes
       research_session: >-
-        hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z "Read the
+        hermes --ignore-rules --provider xai-oauth -m grok-4.6 -z "Read the
         Researcher task packet at {task_packet_path}; return sourced social/web
         evidence and a source ledger."
       media_session: >-
-        hermes --ignore-rules --provider xai-oauth -m grok-4.5 -z "Read the
+        hermes --ignore-rules --provider xai-oauth -m grok-4.6 -z "Read the
         ArtifactProducer task packet at {task_packet_path}; call the registered
         image-generation tool and return real candidate asset paths and hashes."
     auth: local_grok_oauth_session

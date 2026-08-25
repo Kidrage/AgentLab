@@ -104,10 +104,13 @@ def _command_shape(args: list[str]) -> str:
     return " ".join(rendered)
 
 
-def _classify_failure(stderr: str, log_excerpt: str) -> str:
-    combined = f"{stderr}\n{log_excerpt}"
+def _classify_failure(stderr: str, log_text: str) -> str:
+    combined = f"{stderr}\n{log_text}"
+    lowered = combined.lower()
     if "listen tcp 127.0.0.1:0" in combined and "operation not permitted" in combined:
         return "agy_localhost_bind_denied"
+    if "user location is not supported for the api use" in lowered:
+        return "agy_provider_region_unsupported"
     if "oauth_session_or_region_blocked" in combined:
         return "agy_oauth_session_or_region_blocked"
     if "Settings fetch failed" in combined:
@@ -264,7 +267,7 @@ def _build_attempt_report(
         status = "pass" if expected else "blocked"
         reason = "agy_cli_expected_token_observed_before_process_timeout" if expected else "agy_cli_timeout"
     elif completed.returncode != 0:
-        reason = _classify_failure(stderr, log_excerpt)
+        reason = _classify_failure(stderr, log_text)
         status = "blocked"
     elif expected:
         status = "pass"

@@ -252,7 +252,7 @@ routes:
     role: supervisor
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: []
     fallback_on: []
@@ -260,7 +260,7 @@ routes:
     role: researcher
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: []
     fallback_on: []
@@ -339,7 +339,7 @@ routes:
     role: researcher
     worker: grok
     invocation_contract: grok_research
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: []
     fallback_on: []
@@ -348,7 +348,7 @@ routes:
     role: artifact_producer
     worker: grok
     invocation_contract: grok_media
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     media_backend: hermes_grok_oauth
     input_modalities: [image, video, image_to_video]
@@ -465,7 +465,7 @@ routes:
     role: supervisor
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [SupervisorDeepSeek]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -482,7 +482,7 @@ routes:
     role: reposcout
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterRepoScoutDeepSeekPro]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -498,7 +498,7 @@ routes:
     role: interface_mapper
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterInterfaceMapperDeepSeekPro]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -514,7 +514,7 @@ routes:
     role: researcher
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterResearcherDeepSeekPro]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -530,7 +530,7 @@ routes:
     role: prompt_engineer
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterPromptEngineerDeepSeekFlash]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -546,7 +546,7 @@ routes:
     role: coder
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterCoderDeepSeekPro]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -562,7 +562,7 @@ routes:
     role: artifact_producer
     worker: hermes
     invocation_contract: hermes_alter_artifact
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterArtifactProducerCodexMedium]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -594,7 +594,7 @@ routes:
     role: tester_auditor
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterTesterAuditorDeepSeekPro]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -610,7 +610,7 @@ routes:
     role: verifier
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterVerifierDeepSeekFlash]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
@@ -626,7 +626,7 @@ routes:
     role: archivist
     worker: hermes
     invocation_contract: hermes_alter_high
-    model_key: grok_4_5_hermes_oauth
+    model_key: grok_4_6_hermes_oauth
     pool: xai_subscription_shared
     approved_fallbacks: [AlterArchivistDeepSeekFlash]
     fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]

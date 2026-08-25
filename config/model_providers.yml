@@ -277,7 +277,7 @@ providers:
     type: oauth_cli
     display_name: Hermes xAI OAuth
     command: hermes
-    default_model: grok-4.5
+    default_model: grok-4.6
     auth: local_hermes_oauth_session
     billing:
       source: xai_oauth

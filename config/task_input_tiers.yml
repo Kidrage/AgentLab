@@ -117,6 +117,7 @@ classification:
     creative_patch: L1
     consistency_patch: L2
     prose_build: L3
+    blueprint_build: L3
     code_build: L3
     film_build: L3
     structural_change: L3
@@ -128,6 +129,7 @@ classification:
     localized: L1
     cross_artifact: L3
     multi_chapter: L3
+    longform: L3
     project_wide: L3
     single_chapter: L3
     large: L3
@@ -137,6 +139,7 @@ classification:
     none: L0
     candidate: L0
     canonical: L2
+    new_project: L3
     unknown: L3
   risk_minimum:
     age_continuity: L2
@@ -146,6 +149,7 @@ classification:
     longform_continuity: L3
     main_arc_change: L3
     world_model_change: L3
+    major_reveal: L3
     destructive_change: L3
   target_count:
     l0_max: 1

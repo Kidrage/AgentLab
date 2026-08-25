@@ -14,6 +14,7 @@ from agent_runtime.narrative.outbound_transfer import (
     build_narrative_outbound_transfer_contract,
     evaluate_narrative_auto_approval,
 )
+from agent_runtime.outbound_context import is_forbidden_source_path
 from agent_runtime.role_keys import canonical_role_name, normalize_role_key
 from agent_runtime.schemas import AgentRoute, WorkflowPlan
 
@@ -77,6 +78,8 @@ class RoleAttemptExecutor:
             raise ValueError("source_paths require an assigned active Project Agent")
         for source_path in source_paths or []:
             candidate = Path(source_path)
+            if is_forbidden_source_path(candidate):
+                raise ValueError("source_paths may not contain sensitive paths")
             if candidate.is_symlink():
                 raise ValueError("source_paths may not contain symlinks")
             resolved = candidate.resolve(strict=True)
@@ -213,6 +216,17 @@ class RoleAttemptExecutor:
             run_dir=attempt_root,
             user_goal=str(projection["task"]["user_goal"]),
             budget_mode=str(profile["_resolved_budget_mode"]),
+            required_outputs=[
+                str(contract["artifact_type"])
+                for contract in (
+                    (projection["task"].get("compiled_protocol") or {}).get(
+                        "artifact_contracts"
+                    )
+                    or ()
+                )
+                if contract.get("producer_node") == work_item_id
+            ],
+            role_contract=dict(work_item.get("role_contract") or {}),
         )
         if external_context_contract is not None:
             request_scope = external_context_contract.get("request_scope")
@@ -444,14 +458,59 @@ class RoleAttemptExecutor:
                 if source_root.is_symlink() or not source_root.exists():
                     continue
                 resolved_root = source_root.resolve(strict=True)
+                if not resolved_root.is_relative_to(self.root):
+                    continue
+                expected_hash = str(
+                    facts.get(f"{fact_name}_sha256") or ""
+                )
+                if expected_hash and (
+                    len(expected_hash) != 64
+                    or any(
+                        character not in "0123456789abcdef"
+                        for character in expected_hash
+                    )
+                    or not resolved_root.is_file()
+                    or hashlib.sha256(resolved_root.read_bytes()).hexdigest()
+                    != expected_hash
+                ):
+                    continue
                 project_root = (self.root / "projects" / self.project).resolve(
                     strict=True
                 )
                 if not resolved_root.is_relative_to(project_root):
+                    observed_hash = (
+                        hashlib.sha256(resolved_root.read_bytes()).hexdigest()
+                        if resolved_root.is_file()
+                        else ""
+                    )
+                    if (
+                        resolved_root.is_relative_to(self.root)
+                        and path == resolved_root
+                        and len(expected_hash) == 64
+                        and all(
+                            character in "0123456789abcdef"
+                            for character in expected_hash
+                        )
+                        and observed_hash == expected_hash
+                    ):
+                        return True
                     continue
                 relative_root = resolved_root.relative_to(project_root)
-                if not relative_root.parts or relative_root.parts[0] not in set(
+                protocol_roots = set(
                     self._source_policy.get("project_roots") or []
+                )
+                task_inputs_root = self.runtime._task_dir(task_id) / "inputs"
+                task_bound_runtime_source = (
+                    bool(relative_root.parts)
+                    and relative_root.parts[0] == "runtime"
+                    and resolved_root.is_relative_to(task_inputs_root.resolve())
+                )
+                if (
+                    not relative_root.parts
+                    or (
+                        relative_root.parts[0] not in protocol_roots
+                        and not task_bound_runtime_source
+                    )
                 ):
                     continue
                 if path == resolved_root or path.is_relative_to(resolved_root):
@@ -654,6 +713,8 @@ class RoleAttemptExecutor:
         run_dir: Path,
         user_goal: str,
         budget_mode: str,
+        required_outputs: list[str],
+        role_contract: Mapping[str, Any],
     ) -> WorkflowPlan:
         project_root = self.root / "projects" / self.project
         route = AgentRoute(task_size="small", agents=[role])
@@ -668,6 +729,12 @@ class RoleAttemptExecutor:
             budget_mode=budget_mode,
             route=route,
             notes=[user_goal],
+            included_agents={
+                role: {
+                    "required_outputs": list(required_outputs),
+                    "protocol_role_contract": dict(role_contract),
+                }
+            },
         )
 
     def _source_kind(self, path: Path, *, task_id: str) -> str | None:
