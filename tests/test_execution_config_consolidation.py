@@ -128,6 +128,15 @@ def test_generic_claude_coder_contract_isolates_project_customizations() -> None
     assert "--no-session-persistence" in argv
 
 
+def test_agy_reviewer_requires_full_packet_coverage_before_completeness_claims() -> None:
+    contract = _load_config("worker_invocation_contracts.yml")["contracts"][
+        "agy_reviewer"
+    ]
+
+    assert "count declared items across the entire packet" in contract["template"]
+    assert "Treat tool-output truncation as unknown" in contract["template"]
+
+
 def test_profile_role_keys_resolve_to_registered_roles() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     registered_roles = set(_load_config("agent_role_bindings.yml")["roles"])

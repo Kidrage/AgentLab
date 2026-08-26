@@ -994,8 +994,12 @@ contracts:
       task packet at {task_packet_path}; perform independent text, logic,
       continuity, and acceptance review only. Return a concise evidence-led
       report with blocking findings separated from recommendations. Do not edit
-      producer artifacts, browse, or promote candidates. Use exactly the
-      selected Agy OAuth model and do not use GEMINI_API_KEY."
+      producer artifacts, browse, or promote candidates. The packet may exceed
+      one tool read: before judging completeness, count declared items across
+      the entire packet with a bounded local command, then inspect every
+      required range in chunks. Treat tool-output truncation as unknown, never
+      as missing evidence. Use exactly the selected Agy OAuth model and do not
+      use GEMINI_API_KEY."
     required_placeholders: [task_packet_path, model_id]
     safe_probe: [agy, --help]
     expected_parse:
