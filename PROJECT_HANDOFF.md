@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-26T06:30:30.321596+00:00`
+- Generated at: `2026-08-26T07:29:30+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-youjia-p3`
-- HEAD: `bd44793`
+- HEAD: `ae5f813`
 - Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -257,19 +257,6 @@
 
 - `## codex/shanhe-youjia-p3`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/cli/task_runtime_v2.py`
-- ` M agent_runtime/narrative/progress.py`
-- ` M agent_runtime/production_protocols.py`
-- ` M agent_runtime/task_runtime_v2/role_executor.py`
-- ` M agent_runtime/task_runtime_v2/runtime.py`
-- ` M config/agent_model_profiles.yml`
-- ` M config/model_capacity.yml`
-- ` M tests/test_narrative_progress.py`
-- ` M tests/test_production_protocols.py`
-- ` M tests/test_task_input_tiers.py`
-- ` M tests/test_task_runtime_v2_role_executor.py`
-- `?? agent_runtime/narrative/blueprint_shards.py`
-- `?? tests/test_narrative_blueprint_shards.py`
 
 ## Related Repositories
 
