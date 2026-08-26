@@ -280,6 +280,14 @@ routes:
     pool: agy_gemini_observer
     approved_fallbacks: []
     fallback_on: []
+  ProfessionalIndependentReviewerStrict:
+    role: reviewer
+    worker: hermes
+    invocation_contract: hermes_alter_high
+    model_key: grok_4_6_hermes_oauth
+    pool: xai_subscription_shared
+    approved_fallbacks: []
+    fallback_on: []
   Supervisor:
     role: supervisor
     worker: codex

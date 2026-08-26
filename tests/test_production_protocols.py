@@ -848,6 +848,121 @@ def test_protocol_runner_executes_one_bound_node_through_executor_seam(
     assert calls == ["Supervisor"]
     assert received_messages[0]["content"].startswith("PROTOCOL_ROLE_CONTRACT/v1")
     assert received_messages[1] == {"role": "user", "content": "Plan the work."}
+    stale_feedback_path = (
+        tmp_path
+        / "projects"
+        / "LiveProtocol"
+        / "runtime"
+        / "tasks"
+        / "task-live"
+        / "inputs"
+        / "stale-revision-feedback.md"
+    )
+    stale_feedback_path.parent.mkdir(parents=True, exist_ok=True)
+    stale_feedback_path.write_text("Unbound revision request.\n", encoding="utf-8")
+    stale_feedback_digest = hashlib.sha256(
+        stale_feedback_path.read_bytes()
+    ).hexdigest()
+
+    _projection, downstream_output = _succeed_deterministically(
+        runtime,
+        task_id="task-live",
+        node_id="repository_context",
+        role="RepoScout",
+    )
+    downstream_artifact_path = (
+        tmp_path
+        / "projects"
+        / "LiveProtocol"
+        / "runtime"
+        / "tasks"
+        / "task-live"
+        / "artifacts"
+        / "repository-map.md"
+    )
+    atomic_write_text(
+        downstream_artifact_path,
+        downstream_output.read_text(encoding="utf-8"),
+    )
+    downstream_validation_path = (
+        downstream_output.parent / "artifact_validation_receipt.yml"
+    )
+    atomic_write_yaml(
+        downstream_validation_path,
+        {
+            "schema_version": "protocol-artifact-validation/v1",
+            "status": "pass",
+            "task_id": "task-live",
+            "attempt_id": "attempt-repository_context",
+            "output_sha256": hashlib.sha256(
+                downstream_output.read_bytes()
+            ).hexdigest(),
+            "issues": [],
+        },
+    )
+    runtime.record_attempt_output_validation(
+        "task-live",
+        attempt_id="attempt-repository_context",
+        status="pass",
+        validation_receipt_path=downstream_validation_path,
+        issues=[],
+        idempotency_key="validate-repository-context",
+    )
+    artifact = runtime.record_artifact_version(
+        "task-live",
+        artifact_id="repository_map",
+        version_id="version-repository-map",
+        attempt_id="attempt-repository_context",
+        path=downstream_artifact_path,
+        media_type="text/markdown",
+        idempotency_key="record-repository-map",
+    )
+    bound_feedback_path = stale_feedback_path.parent / "bound-revision-feedback.md"
+    bound_feedback_path.write_text(
+        "Invalidate the downstream repository review.\n", encoding="utf-8"
+    )
+    bound_feedback_digest = hashlib.sha256(
+        bound_feedback_path.read_bytes()
+    ).hexdigest()
+    runtime.change_artifact_disposition(
+        "task-live",
+        version_id=artifact["artifacts"]["version-repository-map"]["version_id"],
+        disposition="superseded",
+        reason_code="editorial_revision_required",
+        feedback_digest=bound_feedback_digest,
+        feedback_path=bound_feedback_path,
+        idempotency_key="supersede-repository-map",
+    )
+    runtime.transition_work_item(
+        "task-live",
+        work_item_id="repository_context",
+        status="blocked",
+        idempotency_key="block-repository-context-for-revision",
+    )
+
+    with pytest.raises(InvalidTransition, match="downstream WorkItems"):
+        runtime.transition_work_item(
+            "task-live",
+            work_item_id="supervisor_plan",
+            status="ready",
+            reason_code="editorial_revision_required",
+            feedback_digest=stale_feedback_digest,
+            feedback_path=stale_feedback_path,
+            idempotency_key="unsafe-reopen-supervisor",
+        )
+    reopened = runtime.transition_work_item(
+        "task-live",
+        work_item_id="supervisor_plan",
+        status="ready",
+        reason_code="editorial_revision_required",
+        feedback_digest=bound_feedback_digest,
+        feedback_path=bound_feedback_path,
+        idempotency_key="safe-reopen-supervisor",
+    )
+    assert reopened["work_items"]["supervisor_plan"]["status"] == "ready"
+    assert reopened["work_items"]["supervisor_plan"]["reopen_history"][-1][
+        "feedback_ref"
+    ] == "inputs/bound-revision-feedback.md"
 
 
 def test_protocol_runner_validates_sources_before_starting_work_item(

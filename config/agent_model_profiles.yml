@@ -11,7 +11,16 @@ professional_role_profiles:
   arc_scene_planner: {base_role_key: narrative_planner, execution_tier: alter, execution_kind: cli_agent, capacity_route: ProfessionalNarrativePlannerStrict}
   research_style_curator: {base_role_key: researcher, execution_tier: alter, execution_kind: cli_agent, capacity_route: ProfessionalResearcherStrict}
   writer: {base_role_key: writer, execution_tier: alter, execution_kind: cli_agent, capacity_route: AlterWriterStrict}
-  senior_editor: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent, capacity_route: ProfessionalReviewerStrict}
+  senior_editor:
+    base_role_key: reviewer
+    execution_tier: alter
+    execution_kind: cli_agent
+    capacity_route: ProfessionalIndependentReviewerStrict
+    execution_override:
+      cli_agent: hermes
+      invocation_contract: hermes_alter_high
+      default: grok_4_6_hermes_oauth
+      reasoning_effort: high
   reader_simulation_panel: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent, capacity_route: ProfessionalReviewerStrict}
   state_projector: {base_role_key: scribe, execution_tier: deterministic, execution_kind: deterministic_tool}
 authority:

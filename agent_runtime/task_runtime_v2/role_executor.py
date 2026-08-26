@@ -51,6 +51,7 @@ class RoleAttemptExecutor:
         role: str,
         messages: list[dict[str, str]],
         source_paths: list[Path] | None = None,
+        governed_source_manifest_path: Path | None = None,
         external_context_request: Mapping[str, Any] | None = None,
         idempotency_key: str,
         timeout: int | None = None,
@@ -70,6 +71,12 @@ class RoleAttemptExecutor:
         if work_item is None:
             raise EntityNotFound(f"work item {work_item_id!r} does not exist")
         role_name = canonical_role_name(role)
+        governed_manifest = self._load_governed_source_manifest(
+            governed_source_manifest_path,
+            task_id=task_id,
+            work_item_id=work_item_id,
+        )
+        governed_sources = set(governed_manifest.get("sources") or {})
         resolved_sources: list[Path] = []
         total_source_bytes = 0
         read_scope = self._bound_read_scope(work_item, role=role_name)
@@ -89,8 +96,9 @@ class RoleAttemptExecutor:
                 work_item=work_item,
                 task_id=task_id,
             )
+            manifest_source = resolved in governed_sources
             source_kind = self._source_kind(resolved, task_id=task_id)
-            if source_kind is None and protocol_source:
+            if source_kind is None and (protocol_source or manifest_source):
                 source_kind = "PROTOCOL_DECLARED_SOURCE"
             if source_kind is None:
                 raise ValueError(
@@ -102,7 +110,7 @@ class RoleAttemptExecutor:
                 raise ValueError(
                     "source_paths is outside the assigned Agent read scope"
                 )
-            if read_scope is None and not protocol_source:
+            if read_scope is None and not (protocol_source or manifest_source):
                 raise ValueError("source_paths is outside the compiled protocol inputs")
             content = resolved.read_text(encoding="utf-8")
             total_source_bytes += len(content.encode("utf-8"))
@@ -169,12 +177,31 @@ class RoleAttemptExecutor:
             defer_exact_payload_to_execution=True,
             source_inventory_required=bool(resolved_sources),
         )
-        if external_context_contract is not None and (
-            external_context_contract.get("recipient") != recipient
-        ):
-            raise ValueError(
-                "external context recipient does not match resolved CLI agent"
+        if external_context_contract is not None:
+            request_scope = external_context_contract.get("request_scope")
+            scope_sha256 = (
+                str(request_scope.get("sha256") or "")
+                if isinstance(request_scope, Mapping)
+                else ""
             )
+            if (
+                external_context_contract.get("schema_version")
+                != "narrative-outbound-transfer/v1"
+                or external_context_contract.get("status")
+                not in {"pending_approval", "pass"}
+                or not str(external_context_contract.get("recipient") or "").strip()
+                or not str(external_context_contract.get("purpose") or "").strip()
+                or len(scope_sha256) != 64
+            ):
+                issues = ", ".join(external_context_contract.get("issues") or [])
+                raise ValueError(
+                    "external context contract is invalid"
+                    + (f": {issues}" if issues else "")
+                )
+            if external_context_contract.get("recipient") != recipient:
+                raise ValueError(
+                    "external context recipient does not match resolved CLI agent"
+                )
         execution_contract = {
             "role": role_name,
             "executor_type": "cli_agent",
@@ -350,6 +377,16 @@ class RoleAttemptExecutor:
                     }
                     for path in resolved_sources
                 ],
+                "governed_source_manifest": (
+                    {
+                        "path": governed_manifest["path"].relative_to(
+                            self.runtime.tasks_root / task_id
+                        ).as_posix(),
+                        "sha256": governed_manifest["sha256"],
+                    }
+                    if governed_manifest
+                    else None
+                ),
                 "usage": {
                     "input_tokens": getattr(result, "input_tokens", None),
                     "output_tokens": getattr(result, "output_tokens", None),
@@ -386,6 +423,266 @@ class RoleAttemptExecutor:
                     idempotency_key=self._key(idempotency_key, "failed"),
                 )
             raise
+        return {
+            "projection": projection,
+            "output_path": str(output_path),
+            "receipt_path": str(receipt_path),
+        }
+
+    def _load_governed_source_manifest(
+        self,
+        manifest_path: Path | None,
+        *,
+        task_id: str,
+        work_item_id: str,
+    ) -> dict[str, Any]:
+        """Validate one exact Task-local allowlist for derived execution sources."""
+
+        if manifest_path is None:
+            return {}
+        candidate = Path(manifest_path)
+        task_root = self.runtime._task_dir(task_id).resolve(strict=True)
+        inputs_root = (task_root / "inputs").resolve(strict=True)
+        lexical_manifest = candidate.absolute()
+        if not lexical_manifest.is_relative_to(inputs_root):
+            raise ValueError("governed source manifest must be a Task input file")
+        cursor = inputs_root
+        for part in lexical_manifest.relative_to(inputs_root).parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise ValueError("governed source manifest may not contain symlinks")
+        resolved_manifest = candidate.resolve(strict=True)
+        if (
+            not resolved_manifest.is_file()
+            or not resolved_manifest.is_relative_to(inputs_root)
+            or is_forbidden_source_path(resolved_manifest)
+        ):
+            raise ValueError("governed source manifest must be a Task input file")
+        try:
+            loaded = yaml.safe_load(resolved_manifest.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise ValueError("governed source manifest is unreadable") from exc
+        if (
+            not isinstance(loaded, Mapping)
+            or loaded.get("schema_version")
+            != "task-runtime-governed-source-manifest/v1"
+            or loaded.get("task_id") != task_id
+            or loaded.get("work_item_id") != work_item_id
+            or not isinstance(loaded.get("sources"), list)
+            or not loaded.get("sources")
+        ):
+            raise ValueError("governed source manifest identity is invalid")
+        sources: dict[Path, str] = {}
+        for row in loaded["sources"]:
+            if not isinstance(row, Mapping):
+                raise ValueError("governed source manifest entry is invalid")
+            relative = Path(str(row.get("path") or ""))
+            expected_sha256 = str(row.get("sha256") or "")
+            if (
+                relative.is_absolute()
+                or not relative.parts
+                or not all(part not in {"", ".", ".."} for part in relative.parts)
+                or len(expected_sha256) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in expected_sha256
+                )
+            ):
+                raise ValueError("governed source manifest entry is invalid")
+            source_candidate = task_root / relative
+            cursor = task_root
+            for part in relative.parts:
+                cursor = cursor / part
+                if cursor.is_symlink():
+                    raise ValueError(
+                        "governed source manifest may not bind symlinks"
+                    )
+            resolved_source = source_candidate.resolve(strict=True)
+            if (
+                not resolved_source.is_file()
+                or not resolved_source.is_relative_to(task_root)
+                or is_forbidden_source_path(resolved_source)
+                or hashlib.sha256(resolved_source.read_bytes()).hexdigest()
+                != expected_sha256
+                or resolved_source in sources
+            ):
+                raise ValueError("governed source manifest entry failed hash admission")
+            sources[resolved_source] = expected_sha256
+        return {
+            "path": resolved_manifest,
+            "sha256": hashlib.sha256(resolved_manifest.read_bytes()).hexdigest(),
+            "sources": sources,
+        }
+
+    def assemble_validated_attempts(
+        self,
+        *,
+        task_id: str,
+        work_item_id: str,
+        attempt_id: str,
+        child_attempt_ids: list[str],
+        output_text: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Record a deterministic assembly of real, validated role Attempts.
+
+        The composite remains a role Attempt because its route identity is inherited
+        from the children, while its aggregate model receipt names every provider
+        process that actually produced content.  No additional model call is claimed.
+        """
+
+        if not child_attempt_ids or len(set(child_attempt_ids)) != len(
+            child_attempt_ids
+        ):
+            raise ValueError("composite Attempt requires unique child Attempts")
+        if not output_text.strip():
+            raise ValueError("composite Attempt output is empty")
+        projection = self.runtime.load_task(task_id)
+        children: list[dict[str, Any]] = []
+        first_contract: dict[str, Any] | None = None
+        first_worker = ""
+        first_provider = ""
+        for child_id in child_attempt_ids:
+            child = projection["attempts"].get(child_id)
+            if (
+                child is None
+                or child.get("work_item_id") != work_item_id
+                or child.get("status") != "succeeded"
+                or (child.get("output_validation") or {}).get("status") != "pass"
+            ):
+                raise InvalidTransition(
+                    f"composite child Attempt is not validated: {child_id}"
+                )
+            self.runtime.verify_attempt_execution_receipt(task_id, child_id)
+            contract = dict(child.get("execution_contract") or {})
+            if first_contract is None:
+                first_contract = contract
+                first_worker = str(child.get("worker") or "")
+                first_provider = str(child.get("provider") or "")
+            elif (
+                contract != first_contract
+                or child.get("worker") != first_worker
+                or child.get("provider") != first_provider
+            ):
+                raise InvalidTransition("composite child execution routes differ")
+            outcome = child.get("outcome") or {}
+            child_output = (
+                self.runtime.tasks_root
+                / task_id
+                / "attempt_logs"
+                / child_id
+                / "output.md"
+            ).resolve(strict=True)
+            child_output_sha256 = hashlib.sha256(child_output.read_bytes()).hexdigest()
+            if child_output_sha256 != outcome.get("output_sha256"):
+                raise InvalidTransition("composite child output hash has drifted")
+            children.append(
+                {
+                    "attempt_id": child_id,
+                    "output_path": child_output.relative_to(
+                        self.runtime.tasks_root / task_id
+                    ).as_posix(),
+                    "output_sha256": child_output_sha256,
+                    "receipt_path": outcome.get("receipt_path"),
+                    "receipt_sha256": outcome.get("receipt_sha256"),
+                    "validation_receipt_sha256": (
+                        child.get("output_validation") or {}
+                    ).get("receipt_sha256"),
+                }
+            )
+        assert first_contract is not None
+        self.runtime.schedule_attempt(
+            task_id,
+            work_item_id=work_item_id,
+            attempt_id=attempt_id,
+            worker=first_worker,
+            provider=first_provider,
+            execution_contract=first_contract,
+            idempotency_key=idempotency_key,
+        )
+        self.runtime.transition_attempt(
+            task_id,
+            attempt_id=attempt_id,
+            status="running",
+            idempotency_key=self._key(idempotency_key, "running"),
+        )
+        task_root = self.runtime.tasks_root / task_id
+        attempt_root = task_root / "attempt_logs" / attempt_id
+        output_path = attempt_root / "output.md"
+        model_receipt_path = attempt_root / "composite_model_execution_receipt.yml"
+        receipt_path = attempt_root / "attempt_receipt.yml"
+        attempt_root.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(output_path, output_text)
+        output_sha256 = hashlib.sha256(output_path.read_bytes()).hexdigest()
+        model_receipt = {
+            "schema_version": "task-runtime-composite-model-execution-receipt/v1",
+            "status": "pass",
+            "worker": first_worker,
+            "role": first_contract.get("role"),
+            "invocation_contract": first_contract.get("invocation_contract"),
+            "selected_provider": first_contract.get("runtime_provider"),
+            "selected_model_id": first_contract.get("model_id"),
+            "profile_binding_verified": True,
+            "command_binding_verified": False,
+            "provider_model_binding_verified": False,
+            "fallback_detected": False,
+            "provider_process_started": False,
+            "exit_code": None,
+            "issues": [],
+            "assembly_mode": "deterministic_concatenation",
+            "child_attempts": children,
+        }
+        atomic_write_yaml(model_receipt_path, model_receipt)
+        model_receipt_sha256 = hashlib.sha256(
+            model_receipt_path.read_bytes()
+        ).hexdigest()
+        receipt = {
+            "schema_version": "task-runtime-role-attempt-receipt/v1",
+            "project": self.project,
+            "task_id": task_id,
+            "work_item_id": work_item_id,
+            "attempt_id": attempt_id,
+            "role": first_contract.get("role"),
+            "worker": first_worker,
+            "provider": first_provider,
+            "executor_provider": "agentlab-deterministic-assembler",
+            "model": first_contract.get("model_id"),
+            "model_execution": {
+                "cli_agent": first_worker,
+                "model_key": first_contract.get("model_key"),
+                "model_id": first_contract.get("model_id"),
+                "runtime_provider": first_contract.get("runtime_provider"),
+                "executor_provider": "agentlab-deterministic-assembler",
+                "path": model_receipt_path.relative_to(task_root).as_posix(),
+                "sha256": model_receipt_sha256,
+            },
+            "invocation_contract": first_contract.get("invocation_contract"),
+            "input_tier": first_contract.get("input_tier"),
+            "route": first_contract.get("route"),
+            "status": "pass",
+            "output_path": output_path.relative_to(task_root).as_posix(),
+            "output_sha256": output_sha256,
+            "sealed_sources": [],
+            "composite": {
+                "mode": "deterministic_concatenation",
+                "child_attempts": children,
+            },
+        }
+        atomic_write_yaml(receipt_path, receipt)
+        receipt_sha256 = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+        projection = self.runtime._transition_assembled_attempt(
+            task_id,
+            attempt_id=attempt_id,
+            status="succeeded",
+            outcome={
+                "execution_origin": "deterministic_assembly",
+                "receipt_path": receipt_path.relative_to(task_root).as_posix(),
+                "receipt_sha256": receipt_sha256,
+                "output_sha256": output_sha256,
+                "composite_child_attempt_ids": child_attempt_ids,
+            },
+            idempotency_key=self._key(idempotency_key, "succeeded"),
+        )
         return {
             "projection": projection,
             "output_path": str(output_path),
@@ -652,6 +949,22 @@ class RoleAttemptExecutor:
             raise InvalidTransition(f"no {tier} CLI profile for role {role!r}")
         profile = dict(profile)
         if professional is not None:
+            execution_override = professional.get("execution_override")
+            if execution_override is not None:
+                if not isinstance(execution_override, Mapping) or not set(
+                    execution_override
+                ).issubset(
+                    {
+                        "cli_agent",
+                        "invocation_contract",
+                        "default",
+                        "reasoning_effort",
+                    }
+                ):
+                    raise InvalidTransition(
+                        "professional execution override contains unsupported fields"
+                    )
+                profile.update(dict(execution_override))
             strict_route = str(professional.get("capacity_route") or "").strip()
             if not strict_route:
                 raise InvalidTransition(

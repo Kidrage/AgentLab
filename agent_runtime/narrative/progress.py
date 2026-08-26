@@ -136,12 +136,18 @@ def _blueprint_statuses(root: Path, *, project: str) -> list[dict[str, Any]]:
             for version_id, artifact in (projection.get("artifacts") or {}).items()
             if isinstance(artifact, Mapping)
         ]
+        active_artifacts = [
+            artifact
+            for version_id, artifact in (projection.get("artifacts") or {}).items()
+            if isinstance(artifact, Mapping)
+            and artifact.get("disposition", "eligible") == "eligible"
+        ]
         artifacts_by_hash: dict[str, set[str]] = {}
-        for artifact in artifacts:
-            digest = artifact["sha256"]
+        for artifact in active_artifacts:
+            digest = str(artifact.get("sha256") or "")
             if digest:
                 artifacts_by_hash.setdefault(digest, set()).add(
-                    artifact["artifact_id"]
+                    str(artifact.get("artifact_id") or "")
                 )
         hash_collisions = [
             {"sha256": digest, "artifact_ids": sorted(artifact_ids)}
@@ -156,7 +162,8 @@ def _blueprint_statuses(root: Path, *, project: str) -> list[dict[str, Any]]:
             for collision in hash_collisions
         ]
         story_blueprint_present = any(
-            artifact["artifact_id"] == "story_blueprint" for artifact in artifacts
+            artifact.get("artifact_id") == "story_blueprint"
+            for artifact in active_artifacts
         )
         if not story_blueprint_present:
             quality_issues.append("story_blueprint_candidate_missing")

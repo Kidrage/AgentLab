@@ -9,6 +9,7 @@ import subprocess
 
 import pytest
 import yaml
+import agent_runtime.narrative.progress as progress_module
 
 from agent_runtime.narrative.progress import build_narrative_progress
 from agent_runtime.narrative.blueprint_bootstrap import create_blueprint_task
@@ -20,6 +21,58 @@ from agent_runtime.narrative.state_store import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_progress_ignores_superseded_artifacts_when_checking_hash_collisions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "projects" / "ShanHeYouJia").mkdir(parents=True)
+
+    class FakeRuntime:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def list_tasks(self) -> list[dict[str, str]]:
+            return [{"task_id": "task-blueprint"}]
+
+        def load_task(self, _task_id: str) -> dict:
+            return {
+                "task": {
+                    "task_id": "task-blueprint",
+                    "protocol_ref": "narrative.blueprint.v1",
+                    "status": "running",
+                    "input_profile": {"target_count": 600},
+                },
+                "work_items": {},
+                "attempts": {},
+                "protocol_gates": {},
+                "artifacts": {
+                    "old-promise": {
+                        "artifact_id": "promise_registry",
+                        "sha256": "a" * 64,
+                        "disposition": "superseded",
+                    },
+                    "causality": {
+                        "artifact_id": "causality_blueprint",
+                        "sha256": "a" * 64,
+                        "disposition": "eligible",
+                    },
+                    "story": {
+                        "artifact_id": "story_blueprint",
+                        "sha256": "b" * 64,
+                        "disposition": "eligible",
+                    },
+                },
+            }
+
+    monkeypatch.setattr(progress_module, "TaskRuntime", FakeRuntime)
+
+    report = build_narrative_progress(tmp_path, project="ShanHeYouJia")
+
+    status = report["blueprint_statuses"][0]
+    assert status["artifact_hash_collisions"] == []
+    assert status["automated_quality_issues"] == []
+    assert status["automated_acceptance_ready"] is True
 
 
 def test_progress_reports_precanon_blueprint_task_evidence(tmp_path: Path) -> None:

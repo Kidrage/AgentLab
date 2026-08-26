@@ -276,7 +276,7 @@ def test_l1_runtime_enforces_one_worker_and_route_contract(tmp_path: Path) -> No
         status="running",
         idempotency_key="attempt-one-running",
     )
-    with pytest.raises(InvalidTransition, match="owned by RoleAttemptExecutor"):
+    with pytest.raises(InvalidTransition, match="requires a governed executor"):
         runtime.transition_attempt(
             "task-worker-limit",
             attempt_id="attempt-one",

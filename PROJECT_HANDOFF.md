@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-25T09:04:58.094085+00:00`
+- Generated at: `2026-08-26T06:30:30.321596+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-youjia-p3`
-- HEAD: `ce391a7`
-- Indexed paths: 2085
+- HEAD: `bd44793`
+- Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,14 +43,14 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 650 |
-| `tests` | 498 |
+| `agent_runtime` | 651 |
+| `tests` | 499 |
 | `docs` | 348 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
 | `config` | 130 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 77 |
+| `agent_runtime/narrative` | 78 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 44 |
@@ -88,14 +88,14 @@
 
 ### Categories
 
-- code: 1092 files, 11333704 bytes
-- literature: 424 files, 2431709 bytes
+- code: 1094 files, 11402542 bytes
+- literature: 424 files, 2431989 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3270988 bytes
+- structured_data: 554 files, 3271409 bytes
 
 ### Common Extensions
 
-- `.py`: 1077
+- `.py`: 1079
 - `.yml`: 522
 - `.md`: 385
 - `.txt`: 39
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `bd44793 2026-08-25 [protocol] stabilize narrative production and Grok 4.6 evidence`
 - `ce391a7 2026-08-24 stabilize production protocol kernel`
 - `803ac0f 2026-08-24 feat(runtime): stabilize versioned production protocols`
 - `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
@@ -251,63 +252,24 @@
 - `e520a1e 2026-07-31 docs: refresh remote AgentLab handoff`
 - `de5bddf 2026-07-31 fix(frontdesk): report OpenClaw startup reason`
 - `01d8585 2026-07-31 fix(frontdesk): probe OpenClaw runtime health`
-- `6ab6f14 2026-07-31 Harden professional narrative task execution`
 
 ## Current Changes
 
 - `## codex/shanhe-youjia-p3`
-- ` M PROJECT_HANDOFF.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/agy_cli_smoke.py`
-- ` M agent_runtime/cli/narrative.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/grok_cli_smoke.py`
-- ` M agent_runtime/narrative/acceptance_ladder.py`
-- ` M agent_runtime/narrative/outbound_transfer.py`
-- ` M agent_runtime/narrative/state_stress.py`
-- ` M agent_runtime/outbound_context.py`
+- ` M agent_runtime/cli/task_runtime_v2.py`
+- ` M agent_runtime/narrative/progress.py`
 - ` M agent_runtime/production_protocols.py`
-- ` M agent_runtime/protocol_canary.py`
 - ` M agent_runtime/task_runtime_v2/role_executor.py`
 - ` M agent_runtime/task_runtime_v2/runtime.py`
-- ` M agent_runtime/workers/cli_error_classifier.py`
-- ` M config/README.md`
 - ` M config/agent_model_profiles.yml`
-- ` M config/cli_error_classification.yml`
-- ` M config/cli_workflow_shells.yml`
-- ` M config/hermes_brain_model_groups.yml`
-- ` M config/media_generation_backends.yml`
 - ` M config/model_capacity.yml`
-- ` M config/model_catalog.yml`
-- ` M config/model_providers.yml`
-- ` M config/narrative_acceptance_ladder.yml`
-- ` M config/production_packs.yml`
-- ` M config/routing_rules.yml`
-- ` M config/runtime_cli_requirements.yml`
-- ` M config/shared_agent_directory.yml`
-- ` M config/task_input_tiers.yml`
-- ` M config/worker_invocation_contracts.yml`
-- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
-- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
-- ` M scripts/generate_agent_cli_matrix.py`
-- ` M tests/test_agent_cli_matrix.py`
-- ` M tests/test_agy_cli_smoke.py`
-- ` M tests/test_alter_model_profile.py`
-- ` M tests/test_background_job_controller.py`
-- ` M tests/test_cli_executor.py`
-- ` M tests/test_execution_config_consolidation.py`
-- ` M tests/test_grok_cli_smoke.py`
-- ` M tests/test_m2_cli_error_classifier.py`
-- ` M tests/test_media_backend_adapter.py`
-- ` M tests/test_models_and_governance_cli.py`
-- ` M tests/test_narrative_acceptance_ladder_v1.py`
+- ` M tests/test_narrative_progress.py`
 - ` M tests/test_production_protocols.py`
 - ` M tests/test_task_input_tiers.py`
-- `?? agent_runtime/narrative/blueprint_bootstrap.py`
-- `?? agent_runtime/narrative/progress.py`
-- `?? examples/narrative/`
-- `?? tests/test_narrative_blueprint_bootstrap.py`
-- `?? tests/test_narrative_progress.py`
+- ` M tests/test_task_runtime_v2_role_executor.py`
+- `?? agent_runtime/narrative/blueprint_shards.py`
+- `?? tests/test_narrative_blueprint_shards.py`
 
 ## Related Repositories
 

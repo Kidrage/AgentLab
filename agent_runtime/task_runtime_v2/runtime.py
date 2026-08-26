@@ -92,9 +92,17 @@ WORK_ITEM_TRANSITIONS: dict[str, set[str]] = {
     "running": {"waiting_review", "accepted", "failed", "blocked", "cancelled"},
     "waiting_review": {"running", "accepted", "failed", "blocked", "cancelled"},
     "blocked": {"ready", "running", "cancelled"},
-    "accepted": set(),
+    "accepted": {"ready"},
     "failed": set(),
     "cancelled": set(),
+}
+WORK_ITEM_REOPEN_REASON_CODES = {
+    "artifact_hash_collision",
+    "candidate_revision_required",
+    "editorial_revision_required",
+    "editorial_verdict_fail",
+    "planned_semantic_revision_continuation",
+    "semantic_revision_required",
 }
 ARTIFACT_DISPOSITION_TRANSITIONS: dict[str, set[str]] = {
     "eligible": {"rejected_pre_v3", "superseded", "archived"},
@@ -565,6 +573,57 @@ class TaskRuntime:
             entity_id=gate_id,
             idempotency_key=idempotency_key,
             payload=payload,
+            validate_projection=validate,
+        )
+        return self.rebuild_task(task_id)
+
+    def revoke_protocol_gate(
+        self,
+        task_id: str,
+        *,
+        gate_id: str,
+        reason_code: str,
+        feedback_digest: str,
+        feedback_path: Path,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Revoke stale automated evidence without erasing the gate event."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        gate_id = _validated_id(gate_id, field="gate_id")
+        reason_code = _validated_id(reason_code, field="reason_code")
+        actor = str(actor or "").strip()
+        if not actor or not _SHA256.fullmatch(str(feedback_digest or "")):
+            raise ValueError("gate revocation requires actor and feedback SHA-256")
+        task_root = self._task_dir(task_id).resolve(strict=False)
+        resolved_feedback = Path(feedback_path).resolve(strict=True)
+        if (
+            not resolved_feedback.is_relative_to(task_root)
+            or hashlib.sha256(resolved_feedback.read_bytes()).hexdigest()
+            != feedback_digest
+        ):
+            raise ValueError("gate revocation feedback is outside the Task or drifted")
+
+        def validate(projection: dict[str, Any]) -> None:
+            gate = projection["protocol_gates"].get(gate_id)
+            if gate is None:
+                raise EntityNotFound(f"protocol gate {gate_id!r} does not exist")
+            if gate.get("evidence_kind") == "human":
+                raise InvalidTransition("human protocol gates cannot be auto-revoked")
+
+        self._append_event(
+            task_id=task_id,
+            event_type="PROTOCOL_GATE_REVOKED",
+            entity_type="protocol_gate",
+            entity_id=gate_id,
+            idempotency_key=idempotency_key,
+            payload={
+                "reason_code": reason_code,
+                "feedback_digest": feedback_digest,
+                "feedback_ref": resolved_feedback.relative_to(task_root).as_posix(),
+                "actor": actor,
+            },
             validate_projection=validate,
         )
         return self.rebuild_task(task_id)
@@ -1612,6 +1671,9 @@ class TaskRuntime:
         work_item_id: str,
         status: str,
         idempotency_key: str,
+        reason_code: str | None = None,
+        feedback_digest: str | None = None,
+        feedback_path: Path | None = None,
     ) -> dict[str, Any]:
         """Advance one schedulable unit and deterministically unlock dependants."""
 
@@ -1621,6 +1683,21 @@ class TaskRuntime:
         if status not in WORK_ITEM_TRANSITIONS:
             raise ValueError(f"unknown work item status: {status}")
         payload: dict[str, Any] = {"status": status}
+        feedback_ref: str | None = None
+        if feedback_path is not None:
+            candidate_feedback = Path(feedback_path)
+            if candidate_feedback.is_symlink():
+                raise ValueError("feedback path may not be a symlink")
+            resolved_feedback = candidate_feedback.resolve(strict=True)
+            task_root = self._task_dir(task_id).resolve(strict=False)
+            if (
+                not resolved_feedback.is_file()
+                or not resolved_feedback.is_relative_to(task_root)
+                or hashlib.sha256(resolved_feedback.read_bytes()).hexdigest()
+                != str(feedback_digest or "")
+            ):
+                raise ValueError("feedback path is outside the Task or drifted")
+            feedback_ref = resolved_feedback.relative_to(task_root).as_posix()
 
         def validate(projection: dict[str, Any]) -> None:
             work_item = projection["work_items"].get(work_item_id)
@@ -1631,6 +1708,111 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"work item cannot transition from {current!r} to {status!r}"
                 )
+            if current == "accepted" and status == "ready":
+                if projection["task"].get("compiled_protocol") is None:
+                    raise InvalidTransition("only compiled WorkItems may be reopened")
+                if (
+                    not str(reason_code or "").strip()
+                    or not _SHA256.fullmatch(str(feedback_digest or ""))
+                    or feedback_ref is None
+                ):
+                    raise InvalidTransition(
+                        "reopening an accepted WorkItem requires a hash-bound feedback file"
+                    )
+                if str(reason_code) not in WORK_ITEM_REOPEN_REASON_CODES:
+                    raise InvalidTransition("accepted WorkItem reopen reason is not allowed")
+                if any(
+                    gate.get("work_item_id") == work_item_id
+                    for gate in projection["protocol_gates"].values()
+                ):
+                    raise InvalidTransition("a gated WorkItem cannot be reopened")
+                attempt_work_items = {
+                    attempt_id: attempt.get("work_item_id")
+                    for attempt_id, attempt in projection["attempts"].items()
+                }
+                eligible_artifact_work_items = {
+                    attempt_work_items.get(artifact.get("producer_attempt_id"))
+                    for artifact in projection["artifacts"].values()
+                    if artifact.get("disposition", "eligible") == "eligible"
+                }
+                if work_item_id in eligible_artifact_work_items:
+                    raise InvalidTransition(
+                        "accepted WorkItem still has eligible artifacts"
+                    )
+                descendant_ids: set[str] = set()
+                changed = True
+                while changed:
+                    changed = False
+                    for item in projection["work_items"].values():
+                        item_id = str(item["work_item_id"])
+                        dependencies = set(item.get("depends_on") or [])
+                        if item_id not in descendant_ids and dependencies.intersection(
+                            {work_item_id, *descendant_ids}
+                        ):
+                            descendant_ids.add(item_id)
+                            changed = True
+                unsafe_dependants = []
+                for descendant_id in descendant_ids:
+                    item = projection["work_items"][descendant_id]
+                    status_is_safe = item.get("status") in {"pending", "blocked"}
+                    has_gate = any(
+                        gate.get("work_item_id") == descendant_id
+                        for gate in projection["protocol_gates"].values()
+                    )
+                    has_eligible_artifact = (
+                        descendant_id in eligible_artifact_work_items
+                    )
+                    succeeded_attempts = sorted(
+                        [
+                        attempt
+                        for attempt in projection["attempts"].values()
+                        if attempt.get("work_item_id") == descendant_id
+                        and attempt.get("status") == "succeeded"
+                        ],
+                        key=lambda attempt: str(attempt.get("updated_at") or ""),
+                    )
+                    latest_succeeded_attempt = (
+                        succeeded_attempts[-1] if succeeded_attempts else None
+                    )
+                    latest_attempt_id = str(
+                        (latest_succeeded_attempt or {}).get("attempt_id") or ""
+                    )
+                    feedback_binds_reopen = any(
+                        str(entry.get("feedback_digest") or "")
+                        == str(feedback_digest)
+                        for entry in item.get("reopen_history") or []
+                    )
+                    feedback_binds_disposition = any(
+                        artifact.get("producer_attempt_id") == latest_attempt_id
+                        and artifact.get("disposition", "eligible") != "eligible"
+                        and any(
+                            str(entry.get("feedback_digest") or "")
+                            == str(feedback_digest)
+                            for entry in artifact.get("disposition_history") or []
+                        )
+                        for artifact in projection["artifacts"].values()
+                    )
+                    if (
+                        not status_is_safe
+                        or has_gate
+                        or has_eligible_artifact
+                        or (
+                            succeeded_attempts
+                            and not (
+                                feedback_binds_reopen
+                                or feedback_binds_disposition
+                            )
+                        )
+                    ):
+                        unsafe_dependants.append(descendant_id)
+                if unsafe_dependants:
+                    raise InvalidTransition(
+                        "downstream WorkItems already consumed this acceptance: "
+                        + ", ".join(sorted(unsafe_dependants))
+                    )
+                payload["reopen_reason_code"] = str(reason_code)
+                payload["reopen_feedback_digest"] = str(feedback_digest)
+                payload["reopen_feedback_ref"] = feedback_ref
             if status in {"running", "accepted"}:
                 self._validate_user_acceptance_gate(
                     projection,
@@ -2047,6 +2229,28 @@ class TaskRuntime:
             execution_origin="role_attempt_executor",
         )
 
+    def _transition_assembled_attempt(
+        self,
+        task_id: str,
+        *,
+        attempt_id: str,
+        status: str,
+        idempotency_key: str,
+        outcome: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Complete a deterministic assembly of validated model Attempts."""
+
+        if str(status or "").strip().lower() != "succeeded":
+            raise ValueError("assembled Attempt transition only accepts succeeded")
+        return self._transition_attempt(
+            task_id,
+            attempt_id=attempt_id,
+            status=status,
+            idempotency_key=idempotency_key,
+            outcome=outcome,
+            execution_origin="deterministic_assembly",
+        )
+
     def _transition_deterministic_attempt(
         self,
         task_id: str,
@@ -2131,10 +2335,10 @@ class TaskRuntime:
                 if execution_origin not in {
                     "role_attempt_executor",
                     "deterministic_tool_executor",
+                    "deterministic_assembly",
                 }:
                     raise InvalidTransition(
-                        "strict Attempt success is owned by RoleAttemptExecutor "
-                        "or DeterministicToolExecutor"
+                        "strict Attempt success requires a governed executor"
                     )
                 if payload["outcome"].get("execution_origin") != execution_origin:
                     raise InvalidTransition(
@@ -2999,6 +3203,7 @@ class TaskRuntime:
             not in {
                 "role_attempt_executor",
                 "deterministic_tool_executor",
+                "deterministic_assembly",
             }
             or not isinstance(receipt, dict)
             or any(receipt.get(field) != value for field, value in expected.items())
@@ -3061,6 +3266,12 @@ class TaskRuntime:
             ):
                 raise InvalidTransition("Attempt deterministic tool binding is invalid")
             return
+        composite = receipt.get("composite")
+        is_composite = (
+            execution_origin == "deterministic_assembly"
+            and isinstance(composite, dict)
+            and composite.get("mode") == "deterministic_concatenation"
+        )
         model_execution = receipt.get("model_execution") or {}
         if not isinstance(model_execution, dict):
             raise InvalidTransition("Attempt model execution binding is missing")
@@ -3069,7 +3280,11 @@ class TaskRuntime:
             "model_key": contract.get("model_key"),
             "model_id": contract.get("model_id"),
             "runtime_provider": contract.get("runtime_provider"),
-            "executor_provider": "agentlab-cli-executor",
+            "executor_provider": (
+                "agentlab-deterministic-assembler"
+                if is_composite
+                else "agentlab-cli-executor"
+            ),
         }
         if any(
             model_execution.get(field) != value
@@ -3104,6 +3319,70 @@ class TaskRuntime:
         profile_binding = model_receipt.get(
             "profile_binding_verified", model_receipt.get("profile_state_verified")
         )
+        if is_composite:
+            child_ids = [
+                str(item.get("attempt_id") or "")
+                for item in model_receipt.get("child_attempts") or []
+                if isinstance(item, dict)
+            ]
+            receipt_child_ids = [
+                str(item.get("attempt_id") or "")
+                for item in composite.get("child_attempts") or []
+                if isinstance(item, dict)
+            ]
+            outcome_child_ids = [
+                str(item)
+                for item in outcome.get("composite_child_attempt_ids") or []
+            ]
+            if (
+                model_receipt.get("schema_version")
+                != "task-runtime-composite-model-execution-receipt/v1"
+                or model_receipt.get("status") != "pass"
+                or model_receipt.get("assembly_mode")
+                != "deterministic_concatenation"
+                or model_receipt.get("provider_process_started") is not False
+                or model_receipt.get("command_binding_verified") is not False
+                or model_receipt.get("provider_model_binding_verified") is not False
+                or model_receipt.get("exit_code") is not None
+                or model_receipt.get("fallback_detected") is not False
+                or model_receipt.get("issues") not in (None, [])
+                or not child_ids
+                or len(child_ids) != len(set(child_ids))
+                or attempt.get("attempt_id") in child_ids
+                or child_ids != receipt_child_ids
+                or child_ids != outcome_child_ids
+            ):
+                raise InvalidTransition(
+                    "Attempt deterministic assembly receipt did not pass"
+                )
+            for child in model_receipt["child_attempts"]:
+                output_candidate = task_root / str(child.get("output_path") or "")
+                receipt_candidate = task_root / str(child.get("receipt_path") or "")
+                try:
+                    child_output_path = output_candidate.resolve(strict=True)
+                    child_receipt_path = receipt_candidate.resolve(strict=True)
+                    child_output_sha256 = hashlib.sha256(
+                        child_output_path.read_bytes()
+                    ).hexdigest()
+                    child_receipt_sha256 = hashlib.sha256(
+                        child_receipt_path.read_bytes()
+                    ).hexdigest()
+                except (OSError, RuntimeError) as exc:
+                    raise InvalidTransition(
+                        "Attempt deterministic assembly child is unavailable"
+                    ) from exc
+                if (
+                    output_candidate.is_symlink()
+                    or receipt_candidate.is_symlink()
+                    or not child_output_path.is_relative_to(task_root)
+                    or not child_receipt_path.is_relative_to(task_root)
+                    or child_output_sha256 != child.get("output_sha256")
+                    or child_receipt_sha256 != child.get("receipt_sha256")
+                ):
+                    raise InvalidTransition(
+                        "Attempt deterministic assembly child hash is invalid"
+                    )
+            return
         if (
             model_receipt.get("status") != "pass"
             or model_receipt.get("worker") != attempt.get("worker")
@@ -3612,6 +3891,22 @@ class TaskRuntime:
                     )
                 work_item["status"] = to_status
                 work_item["updated_at"] = event["recorded_at"]
+                if from_status == "accepted" and to_status == "ready":
+                    work_item.setdefault("reopen_history", []).append(
+                        {
+                            "reason_code": event["payload"].get(
+                                "reopen_reason_code"
+                            ),
+                            "feedback_digest": event["payload"].get(
+                                "reopen_feedback_digest"
+                            ),
+                            "feedback_ref": event["payload"].get(
+                                "reopen_feedback_ref"
+                            ),
+                            "event_id": event["event_id"],
+                            "recorded_at": event["recorded_at"],
+                        }
+                    )
                 for dependent in work_items.values():
                     if dependent["status"] != "pending":
                         continue
@@ -3872,6 +4167,35 @@ class TaskRuntime:
                     "actor": event["payload"]["actor"],
                     "created_at": event["recorded_at"],
                 }
+                continue
+            if event["event_type"] == "PROTOCOL_GATE_REVOKED":
+                gate_id = _validated_id(event["entity_id"], field="gate_id")
+                gate = protocol_gates.get(gate_id)
+                feedback_ref = str(event["payload"].get("feedback_ref") or "")
+                feedback_digest = str(
+                    event["payload"].get("feedback_digest") or ""
+                )
+                feedback_candidate = self._task_dir(task_id) / feedback_ref
+                try:
+                    feedback_path = feedback_candidate.resolve(strict=True)
+                    actual_feedback_digest = hashlib.sha256(
+                        feedback_path.read_bytes()
+                    ).hexdigest()
+                except (OSError, RuntimeError) as exc:
+                    raise LedgerIntegrityError(
+                        "protocol gate revocation feedback is unavailable"
+                    ) from exc
+                if (
+                    gate is None
+                    or gate.get("evidence_kind") == "human"
+                    or not str(event["payload"].get("reason_code") or "")
+                    or not str(event["payload"].get("actor") or "")
+                    or feedback_candidate.is_symlink()
+                    or not feedback_path.is_relative_to(self._task_dir(task_id))
+                    or actual_feedback_digest != feedback_digest
+                ):
+                    raise LedgerIntegrityError("protocol gate revocation is invalid")
+                del protocol_gates[gate_id]
                 continue
             if event["event_type"] == "ARTIFACT_VERSION_RECORDED":
                 version_id = _validated_id(event["entity_id"], field="version_id")

@@ -183,6 +183,71 @@ def register_task_runtime_commands(
             )
         )
 
+    @task_app.command("execute-blueprint-shards")
+    def task_execute_blueprint_shards(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        total_chapters: int = typer.Option(..., "--total-chapters", min=1),
+        volume_count: int = typer.Option(..., "--volume-count", min=1),
+        blueprint_title: str = typer.Option(..., "--title"),
+        writer_work_item_id: str = typer.Option(..., "--writer-work-item-id"),
+        story_artifact_type: str = typer.Option(..., "--story-artifact-type"),
+        candidate_gate_id: str = typer.Option(..., "--candidate-gate-id"),
+        context_artifact_types: list[str] = typer.Option(
+            ..., "--context-artifact-type"
+        ),
+        required_fields: list[str] = typer.Option(..., "--required-field"),
+        writer_instruction_path: Path = typer.Option(..., "--writer-instruction"),
+        external_context_request_path: Path = typer.Option(
+            ..., "--external-context-request"
+        ),
+        timeout: int = typer.Option(600, "--timeout", min=1),
+        retries_per_volume: int = typer.Option(
+            2, "--retries-per-volume", min=1, max=5
+        ),
+        revision: int = typer.Option(1, "--revision", min=1),
+        revision_guidance_path: Path | None = typer.Option(
+            None, "--revision-guidance"
+        ),
+        volume_ids: list[str] = typer.Option([], "--volume"),
+        baseline_revision: int | None = typer.Option(
+            None, "--baseline-revision", min=1
+        ),
+        semantic_contract_path: Path | None = typer.Option(
+            None, "--semantic-contract"
+        ),
+    ) -> None:
+        """Run resumable Writer shard generation and deterministic assembly."""
+
+        from agent_runtime.narrative.blueprint_shards import (
+            run_blueprint_shard_workflow,
+        )
+
+        emit(
+            run_blueprint_shard_workflow(
+                current_root(),
+                project=project,
+                task_id=task_id,
+                total_chapters=total_chapters,
+                volume_count=volume_count,
+                blueprint_title=blueprint_title,
+                writer_work_item_id=writer_work_item_id,
+                story_artifact_type=story_artifact_type,
+                candidate_gate_id=candidate_gate_id,
+                context_artifact_types=context_artifact_types,
+                required_fields=required_fields,
+                writer_instruction_path=writer_instruction_path,
+                external_context_request_path=external_context_request_path,
+                timeout=timeout,
+                retries_per_volume=retries_per_volume,
+                revision=revision,
+                revision_guidance_path=revision_guidance_path,
+                volume_ids=volume_ids,
+                baseline_revision=baseline_revision,
+                semantic_contract_path=semantic_contract_path,
+            )
+        )
+
     @gate_app.command("record")
     def protocol_gate_record(
         project: str = typer.Option(..., "--project"),
@@ -216,6 +281,29 @@ def register_task_runtime_commands(
                 approval_receipt_path=approval_receipt_path,
                 approval_signature_path=approval_signature_path,
             )["protocol_gates"][gate_id]
+        )
+
+    @gate_app.command("revoke")
+    def protocol_gate_revoke(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        gate_id: str = typer.Option(..., "--gate-id"),
+        reason_code: str = typer.Option(..., "--reason-code"),
+        feedback_digest: str = typer.Option(..., "--feedback-digest"),
+        feedback_path: Path = typer.Option(..., "--feedback-path"),
+        actor: str = typer.Option(..., "--actor"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        emit(
+            runtime(project).revoke_protocol_gate(
+                task_id,
+                gate_id=gate_id,
+                reason_code=reason_code,
+                feedback_digest=feedback_digest,
+                feedback_path=feedback_path,
+                actor=actor,
+                idempotency_key=idempotency_key,
+            )
         )
 
     @task_app.command("classify")
@@ -415,6 +503,9 @@ def register_task_runtime_commands(
         work_item_id: str = typer.Option(..., "--work-item-id"),
         status: str = typer.Option(..., "--status"),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
+        reason_code: str | None = typer.Option(None, "--reason-code"),
+        feedback_digest: str | None = typer.Option(None, "--feedback-digest"),
+        feedback_path: Path | None = typer.Option(None, "--feedback-path"),
     ) -> None:
         emit(
             runtime(project).transition_work_item(
@@ -422,6 +513,9 @@ def register_task_runtime_commands(
                 work_item_id=work_item_id,
                 status=status,
                 idempotency_key=idempotency_key,
+                reason_code=reason_code,
+                feedback_digest=feedback_digest,
+                feedback_path=feedback_path,
             )["work_items"][work_item_id]
         )
 
@@ -567,6 +661,29 @@ def register_task_runtime_commands(
             runtime(project).select_artifact_version(
                 task_id, version_id=version_id, idempotency_key=idempotency_key
             )
+        )
+
+    @artifact_app.command("disposition")
+    def artifact_disposition(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        version_id: str = typer.Option(..., "--version-id"),
+        disposition: str = typer.Option(..., "--disposition"),
+        reason_code: str = typer.Option(..., "--reason-code"),
+        feedback_digest: str = typer.Option(..., "--feedback-digest"),
+        feedback_path: Path | None = typer.Option(None, "--feedback-path"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        emit(
+            runtime(project).change_artifact_disposition(
+                task_id,
+                version_id=version_id,
+                disposition=disposition,
+                reason_code=reason_code,
+                feedback_digest=feedback_digest,
+                feedback_path=feedback_path,
+                idempotency_key=idempotency_key,
+            )["artifacts"][version_id]
         )
 
     @evidence_app.command("bind")

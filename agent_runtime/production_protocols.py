@@ -411,20 +411,21 @@ class ProductionProtocolRunner:
             raise InvalidTransition(
                 f"compiled WorkItem is not executable: {work_item['status']}"
             )
+        reopen_history = projection["work_items"][work_item_id].get(
+            "reopen_history"
+        ) or []
+        last_reopened_at = (
+            str(reopen_history[-1].get("recorded_at") or "")
+            if reopen_history
+            else ""
+        )
         successful_attempts = [
             (existing_id, existing)
             for existing_id, existing in projection["attempts"].items()
             if existing.get("work_item_id") == work_item_id
             and existing.get("status") == "succeeded"
-            and {
-                artifact.get("artifact_id")
-                for artifact in projection["artifacts"].values()
-                if artifact.get("producer_attempt_id") == existing_id
-            }
-            >= {
-                str(contract["artifact_type"])
-                for contract in node_artifact_contracts
-            }
+            and str(existing.get("updated_at") or "") > last_reopened_at
+            and (attempt_id is None or existing_id == attempt_id)
         ]
         succeeded = successful_attempts[-1] if successful_attempts else None
         if succeeded is None:
@@ -724,12 +725,18 @@ class ProductionProtocolRunner:
                     f"protocol dependency has no successful Attempt: {dependency}"
                 )
             attempt_id, _attempt = attempts[-1]
-            governed.append(task_root / "attempt_logs" / attempt_id / "output.md")
-            governed.extend(
+            dependency_artifacts = [
                 task_root / str(artifact["path"])
                 for artifact in projection["artifacts"].values()
                 if artifact.get("producer_attempt_id") == attempt_id
-            )
+                and artifact.get("disposition", "eligible") == "eligible"
+            ]
+            if dependency_artifacts:
+                governed.extend(dependency_artifacts)
+            else:
+                governed.append(
+                    task_root / "attempt_logs" / attempt_id / "output.md"
+                )
         gate_subject_types = {
             str(artifact_type)
             for gate in compiled.get("promotion_gate_bindings") or []
@@ -740,6 +747,7 @@ class ProductionProtocolRunner:
             task_root / str(artifact["path"])
             for artifact in projection["artifacts"].values()
             if artifact.get("artifact_id") in gate_subject_types
+            and artifact.get("disposition", "eligible") == "eligible"
         )
         deduplicated: list[Path] = []
         seen: set[Path] = set()

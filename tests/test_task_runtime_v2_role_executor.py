@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +14,91 @@ from agent_runtime.project_agents import (
 )
 from agent_runtime.project_truth import ProjectTruthStore
 from agent_runtime.task_runtime_v2 import InvalidTransition, RoleAttemptExecutor, TaskRuntime
+
+
+def test_governed_source_manifest_binds_exact_task_local_files(tmp_path: Path) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="task-manifest",
+        title="Bind derived sources",
+        user_goal="Admit only hash-bound Task-local derived context.",
+        idempotency_key="create-manifest-task",
+    )
+    task_root = (
+        tmp_path / "projects" / "Demo" / "runtime" / "tasks" / "task-manifest"
+    )
+    source_path = task_root / "inputs" / "derived-context.md"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text("bounded context\n", encoding="utf-8")
+    source_digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    manifest_path = task_root / "inputs" / "governed-sources.yml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "task-runtime-governed-source-manifest/v1",
+                "task_id": "task-manifest",
+                "work_item_id": "writer",
+                "sources": [
+                    {
+                        "path": "inputs/derived-context.md",
+                        "sha256": source_digest,
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    executor = RoleAttemptExecutor(tmp_path, project="Demo", cli_runner=lambda: None)
+
+    admitted = executor._load_governed_source_manifest(
+        manifest_path,
+        task_id="task-manifest",
+        work_item_id="writer",
+    )
+
+    assert admitted["sources"] == {source_path.resolve(): source_digest}
+    assert admitted["sha256"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+    source_path.write_text("drifted context\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="failed hash admission"):
+        executor._load_governed_source_manifest(
+            manifest_path,
+            task_id="task-manifest",
+            work_item_id="writer",
+        )
+
+    nested_root = task_root / "inputs" / "nested"
+    nested_root.mkdir()
+    nested_source = nested_root / "context.md"
+    nested_source.write_text("nested context\n", encoding="utf-8")
+    alias = task_root / "inputs" / "alias"
+    alias.symlink_to(nested_root, target_is_directory=True)
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "task-runtime-governed-source-manifest/v1",
+                "task_id": "task-manifest",
+                "work_item_id": "writer",
+                "sources": [
+                    {
+                        "path": "inputs/alias/context.md",
+                        "sha256": hashlib.sha256(
+                            nested_source.read_bytes()
+                        ).hexdigest(),
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="may not bind symlinks"):
+        executor._load_governed_source_manifest(
+            manifest_path,
+            task_id="task-manifest",
+            work_item_id="writer",
+        )
 
 
 def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
@@ -252,6 +338,30 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
             idempotency_key="writer-attempt-unapproved-messages",
         )
 
+    with pytest.raises(ValueError, match="expires_at_must_be_future_timezone_aware"):
+        RoleAttemptExecutor(
+            tmp_path,
+            project="Demo",
+            cli_runner=fake_cli,
+        ).execute(
+            task_id="task-role",
+            work_item_id="writer",
+            attempt_id="writer-attempt-expired-approval",
+            role="Writer",
+            messages=[{"role": "user", "content": "Do not start this call."}],
+            source_paths=[source],
+            external_context_request={
+                "purpose": "Expired fixture request.",
+                "minimal_fragment": "Do not start this call.",
+                "expires_at": "2000-01-01T00:00:00Z",
+            },
+            idempotency_key="writer-attempt-expired-approval",
+        )
+    assert (
+        "writer-attempt-expired-approval"
+        not in runtime.load_task("task-role")["attempts"]
+    )
+
     result = RoleAttemptExecutor(
         tmp_path, project="Demo", cli_runner=fake_cli
     ).execute(
@@ -310,6 +420,68 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
     assert calls[-1]["kwargs"]["sealed_messages"][1]["content"].startswith(
         "RUNTIME_V2_SOURCE"
     )
+
+    for child_attempt_id in ("writer-attempt-001", "writer-attempt-002"):
+        validation_path = (
+            tmp_path
+            / "projects"
+            / "Demo"
+            / "runtime"
+            / "tasks"
+            / "task-role"
+            / "attempt_logs"
+            / child_attempt_id
+            / "validation.yml"
+        )
+        child_attempt = runtime.load_task("task-role")["attempts"][child_attempt_id]
+        validation_path.write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "protocol-artifact-validation/v1",
+                    "status": "pass",
+                    "task_id": "task-role",
+                    "attempt_id": child_attempt_id,
+                    "output_sha256": child_attempt["outcome"]["output_sha256"],
+                    "issues": [],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        runtime.record_attempt_output_validation(
+            "task-role",
+            attempt_id=child_attempt_id,
+            status="pass",
+            validation_receipt_path=validation_path,
+            issues=[],
+            idempotency_key=f"{child_attempt_id}-validation",
+        )
+    assembled = RoleAttemptExecutor(tmp_path, project="Demo").assemble_validated_attempts(
+        task_id="task-role",
+        work_item_id="writer",
+        attempt_id="writer-assembled-001",
+        child_attempt_ids=["writer-attempt-001", "writer-attempt-002"],
+        output_text="deterministically assembled output\n",
+        idempotency_key="writer-assembled-001",
+    )
+    assembled_receipt = yaml.safe_load(
+        Path(assembled["receipt_path"]).read_text(encoding="utf-8")
+    )
+    model_receipt_path = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "tasks"
+        / "task-role"
+        / assembled_receipt["model_execution"]["path"]
+    )
+    model_receipt = yaml.safe_load(model_receipt_path.read_text(encoding="utf-8"))
+    assert model_receipt["provider_process_started"] is False
+    assert model_receipt["command_binding_verified"] is False
+    assert model_receipt["provider_model_binding_verified"] is False
+    assert model_receipt["exit_code"] is None
+    runtime.verify_attempt_execution_receipt("task-role", "writer-assembled-001")
 
     governed = RoleAttemptExecutor(
         tmp_path,
