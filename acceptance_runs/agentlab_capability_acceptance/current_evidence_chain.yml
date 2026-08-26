@@ -1,11 +1,11 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-08-26T07:28:47Z'
+generated_at: '2026-08-26T11:25:30Z'
 repository:
   root: .
-  head: ae5f813
-  worktree_dirty: false
+  head: '8976976'
+  worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
   report_type: agentlab_capability_acceptance
@@ -220,7 +220,7 @@ current_evidence:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: c4b16e4928a54b5f1cb89c1b6e32ae8dc0e9be6d6ea8549d1e9134ea97f79ffe
+  sha256: 8b228c2a4933337094688788501fe2c8cbc9f66991541ba91ad755d14a75fc00
 - path: tests/test_core_package_imports.py
   class: active
   capability_ids:
@@ -234,7 +234,7 @@ current_evidence:
 current_evidence_count: 42
 historical_references: []
 historical_reference_count: 0
-aggregate_digest: e160be13f7b39ba33f90298de48c1ad823bfcfe51a69a9099ef539b27f96bc9c
+aggregate_digest: 87ca4c866727af162017322d7da199b28ce3158fb92caa457d5c8f27a340a8c0
 status: pass
 issues: []
 notes:

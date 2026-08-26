@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-26T07:29:30+00:00`
+- Generated at: `2026-08-26T11:25:32.197771+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-youjia-p3`
-- HEAD: `ae5f813`
+- HEAD: `8976976`
 - Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,10 +88,10 @@
 
 ### Categories
 
-- code: 1094 files, 11402542 bytes
-- literature: 424 files, 2431989 bytes
+- code: 1094 files, 11428049 bytes
+- literature: 424 files, 2429820 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3271409 bytes
+- structured_data: 554 files, 3271690 bytes
 
 ### Common Extensions
 
@@ -232,6 +232,9 @@
 
 ## Change History
 
+- `8976976 2026-08-26 [runtime] harden long-packet reviewer coverage`
+- `88db69d 2026-08-26 [docs] refresh shanhe checkpoint evidence`
+- `ae5f813 2026-08-26 [runtime] harden sharded blueprint production`
 - `bd44793 2026-08-25 [protocol] stabilize narrative production and Grok 4.6 evidence`
 - `ce391a7 2026-08-24 stabilize production protocol kernel`
 - `803ac0f 2026-08-24 feat(runtime): stabilize versioned production protocols`
@@ -249,13 +252,11 @@
 - `b0de95b 2026-07-31 fix: report outbound rsync updates accurately`
 - `d81e12d 2026-07-31 feat: add verified project memory relay sync`
 - `efdc92d 2026-07-31 Handle sealed role output edge cases`
-- `e520a1e 2026-07-31 docs: refresh remote AgentLab handoff`
-- `de5bddf 2026-07-31 fix(frontdesk): report OpenClaw startup reason`
-- `01d8585 2026-07-31 fix(frontdesk): probe OpenClaw runtime health`
 
 ## Current Changes
 
 - `## codex/shanhe-youjia-p3`
+- ` M PROJECT_HANDOFF.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
 
 ## Related Repositories
