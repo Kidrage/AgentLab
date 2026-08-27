@@ -20,7 +20,7 @@ from agent_runtime.task_runtime_v2.runtime import TaskRuntime
 _CHAPTER_HEADING = re.compile(r"(?m)^## C(\d{3})(?:[ \t]+([^\r\n]+))?[ \t]*$")
 _SHARD_TRAILER = re.compile(
     r"(?m)^(?:</AGENTLAB_EDIT>|<!--\s*(?:END\s+)?AGENTLAB_EDIT\b.*?-->|"
-    r">>>+\s*AGENTLAB_EDIT\b|##\s+stderr\b|#\s+Writer Report\b)"
+    r">>>+\s*AGENTLAB_EDIT\b|>>>+[ \t]*$|##\s+stderr\b|#\s+Writer Report\b)"
 )
 _REQUIRED_CARD_FIELDS = ("objective", "conflict", "turn", "consequence", "promise")
 

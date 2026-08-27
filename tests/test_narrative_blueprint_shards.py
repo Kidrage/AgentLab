@@ -312,6 +312,33 @@ def test_assembly_strips_writer_report_envelopes_from_valid_shards() -> None:
     assert "禁止生成范围外章节" not in assembled
 
 
+def test_assembly_strips_bare_cli_agent_edit_delimiter() -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = "\n".join(
+        [
+            "# Writer Report (CLI Agent: agy)",
+            "## Output",
+            "<<<<<< AGENTLAB_EDIT: story_blueprint",
+            _render_shard(1, 1).rstrip(),
+            ">>>>>>",
+            "## stderr",
+            "provider diagnostic that must not enter the artifact",
+            "",
+        ]
+    )
+
+    assembled = assemble_blueprint_shards(
+        plan,
+        {"V01": wrapped},
+        title="山河有约",
+        protocol_ref="narrative.blueprint.v1",
+    )
+
+    assert assembled.count("\n## C") == 1
+    assert ">>>>>>" not in assembled
+    assert "provider diagnostic" not in assembled
+
+
 def test_assembly_rejects_fields_smuggled_after_a_provider_trailer() -> None:
     plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
     raw = "## C001 章名\n# Writer Report\n- objective: smuggled\n"
