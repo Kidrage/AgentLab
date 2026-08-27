@@ -339,6 +339,26 @@ def test_assembly_strips_bare_cli_agent_edit_delimiter() -> None:
     assert "provider diagnostic" not in assembled
 
 
+@pytest.mark.parametrize("near_miss", (">>>", ">>>>", ">>>>>", ">>>>>>>"))
+def test_assembly_rejects_near_miss_cli_agent_edit_delimiters(
+    near_miss: str,
+) -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = (
+        _render_shard(1, 1)
+        + near_miss
+        + "\n- provider_report: metadata that must remain visible to validation\n"
+    )
+
+    with pytest.raises(ValueError, match="undeclared card content"):
+        assemble_blueprint_shards(
+            plan,
+            {"V01": wrapped},
+            title="山河有约",
+            protocol_ref="narrative.blueprint.v1",
+        )
+
+
 def test_assembly_rejects_fields_smuggled_after_a_provider_trailer() -> None:
     plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
     raw = "## C001 章名\n# Writer Report\n- objective: smuggled\n"
