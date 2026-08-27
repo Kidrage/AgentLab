@@ -18,6 +18,10 @@ from agent_runtime.task_runtime_v2.runtime import TaskRuntime
 
 
 _CHAPTER_HEADING = re.compile(r"(?m)^## C(\d{3})(?:[ \t]+([^\r\n]+))?[ \t]*$")
+_SHARD_TRAILER = re.compile(
+    r"(?m)^(?:</AGENTLAB_EDIT>|<!--\s*(?:END\s+)?AGENTLAB_EDIT\b.*?-->|"
+    r">>>+\s*AGENTLAB_EDIT\b|##\s+stderr\b|#\s+Writer Report\b)"
+)
 _REQUIRED_CARD_FIELDS = ("objective", "conflict", "turn", "consequence", "promise")
 
 
@@ -59,6 +63,7 @@ def validate_blueprint_shard(
     text: str,
     *,
     required_fields: Sequence[str] = _REQUIRED_CARD_FIELDS,
+    strict_fields: bool = False,
 ) -> tuple[str, ...]:
     """Validate exact chapter coverage and the compact chapter-card contract."""
 
@@ -86,6 +91,26 @@ def validate_blueprint_shard(
             continue
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         card = text[match.end() : end]
+        if strict_fields:
+            observed_fields: list[str] = []
+            unexpected_lines: list[str] = []
+            for line in card.splitlines():
+                if not line.strip():
+                    continue
+                field_match = re.fullmatch(
+                    r"- ([A-Za-z][A-Za-z0-9_]*):\s*\S.*", line
+                )
+                if field_match is None:
+                    unexpected_lines.append(line)
+                    continue
+                observed_fields.append(field_match.group(1))
+            if tuple(observed_fields) != tuple(required_fields):
+                issues.append(
+                    f"C{chapter:03d} field contract mismatch: "
+                    + ", ".join(observed_fields)
+                )
+            if unexpected_lines:
+                issues.append(f"C{chapter:03d} contains undeclared card content")
         for field in required_fields:
             if not re.search(rf"(?m)^- {re.escape(field)}:\s*\S", card):
                 issues.append(f"C{chapter:03d} missing field: {field}")
@@ -107,6 +132,41 @@ def validate_blueprint_shard(
                     f"C{chapter:03d} title mismatch: {title_match.group(1).strip()}"
                 )
     return tuple(issues)
+
+
+def extract_blueprint_shard_cards(
+    shard: BlueprintShard,
+    text: str,
+    *,
+    required_fields: Sequence[str] = _REQUIRED_CARD_FIELDS,
+) -> str:
+    """Return only the validated chapter-card payload from a provider envelope."""
+
+    matches = list(_CHAPTER_HEADING.finditer(text))
+    if not matches:
+        raise ValueError(f"invalid blueprint shard {shard.volume_id}: no chapter cards")
+    start = matches[0].start()
+    trailer = _SHARD_TRAILER.search(text, matches[-1].end())
+    end = trailer.start() if trailer is not None else len(text)
+    payload = text[start:end].strip()
+    normalized_lines: list[str] = []
+    for line in payload.splitlines():
+        if line.startswith("- volume:"):
+            normalized_lines.append(f"- volume: {shard.volume_id}")
+            continue
+        normalized_lines.append(line)
+    normalized = "\n".join(normalized_lines).strip() + "\n"
+    issues = validate_blueprint_shard(
+        shard,
+        normalized,
+        required_fields=required_fields,
+        strict_fields=True,
+    )
+    if issues:
+        raise ValueError(
+            f"invalid blueprint shard {shard.volume_id}: {'; '.join(issues)}"
+        )
+    return normalized
 
 
 def assemble_blueprint_shards(
@@ -131,12 +191,10 @@ def assemble_blueprint_shards(
     for shard in plan:
         if shard.volume_id not in outputs:
             raise ValueError(f"missing blueprint shard: {shard.volume_id}")
-        text = outputs[shard.volume_id].strip()
-        issues = validate_blueprint_shard(
-            shard, text, required_fields=required_fields
-        )
-        if issues:
-            raise ValueError(f"invalid blueprint shard {shard.volume_id}: {'; '.join(issues)}")
+        raw_text = outputs[shard.volume_id]
+        text = extract_blueprint_shard_cards(
+            shard, raw_text, required_fields=required_fields
+        ).strip()
         sections.extend(
             [
                 f"# {shard.volume_id} C{shard.start_chapter:03d}-C{shard.end_chapter:03d}",
@@ -161,18 +219,18 @@ def validate_blueprint_shard_semantics(
     """Apply deterministic must-contain/must-not-contain checks to one shard."""
 
     issues: list[str] = []
-    semantic_text = "\n".join(
+    required_text = "\n".join(
         line
         for line in text.splitlines()
         if not line.startswith("- forbidden_early_payoffs:")
     )
     for phrase in contract.get("required_phrases") or []:
         normalized = str(phrase).strip()
-        if normalized and normalized not in semantic_text:
+        if normalized and normalized not in required_text:
             issues.append(f"{shard.volume_id} missing required phrase: {normalized}")
     for phrase in contract.get("forbidden_phrases") or []:
         normalized = str(phrase).strip()
-        if normalized and normalized in semantic_text:
+        if normalized and normalized in text:
             issues.append(f"{shard.volume_id} contains forbidden phrase: {normalized}")
     chapter_rules = contract.get("chapter_rules") or {}
     if not isinstance(chapter_rules, Mapping):
@@ -181,23 +239,26 @@ def validate_blueprint_shard_semantics(
     cards: dict[str, str] = {}
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        cards[f"C{int(match.group(1)):03d}"] = "\n".join(
-            line
-            for line in text[match.start() : end].splitlines()
-            if not line.startswith("- forbidden_early_payoffs:")
-        )
+        cards[f"C{int(match.group(1)):03d}"] = text[match.start() : end]
     for raw_chapter_id, raw_rule in chapter_rules.items():
         chapter_id = str(raw_chapter_id).strip()
         if chapter_id not in cards:
-            issues.append(f"{shard.volume_id} chapter rule target missing: {chapter_id}")
+            issues.append(
+                f"{shard.volume_id} chapter rule target missing: {chapter_id}"
+            )
             continue
         if not isinstance(raw_rule, Mapping):
             issues.append(f"{chapter_id} semantic rule must be a mapping")
             continue
         card_text = cards[chapter_id]
+        required_card_text = "\n".join(
+            line
+            for line in card_text.splitlines()
+            if not line.startswith("- forbidden_early_payoffs:")
+        )
         for phrase in raw_rule.get("required_phrases") or []:
             normalized = str(phrase).strip()
-            if normalized and normalized not in card_text:
+            if normalized and normalized not in required_card_text:
                 issues.append(f"{chapter_id} missing required phrase: {normalized}")
         for phrase in raw_rule.get("forbidden_phrases") or []:
             normalized = str(phrase).strip()
@@ -217,16 +278,27 @@ def find_reusable_blueprint_shard_attempt(
 ) -> str | None:
     """Find a baseline shard that still passes current structure and semantics."""
 
-    pattern = re.compile(
-        rf"^attempt-writer-rev(\d+)-{re.escape(shard.volume_id.lower())}-r\d+$"
+    baseline_attempt_id = f"attempt-writer-assembled-{baseline_revision:03d}"
+    baseline_attempt = attempts.get(baseline_attempt_id)
+    if not isinstance(baseline_attempt, Mapping):
+        return None
+    if (
+        baseline_attempt.get("status") != "succeeded"
+        or (baseline_attempt.get("output_validation") or {}).get("status") != "pass"
+    ):
+        return None
+    child_attempt_ids = (baseline_attempt.get("outcome") or {}).get(
+        "composite_child_attempt_ids"
     )
-    candidates: list[tuple[int, str]] = []
-    for item in attempts:
-        match = pattern.match(str(item))
-        if match and int(match.group(1)) <= baseline_revision:
-            candidates.append((int(match.group(1)), str(item)))
-    for _, attempt_id in sorted(candidates, key=lambda item: (-item[0], item[1])):
-        attempt = attempts[attempt_id]
+    if not isinstance(child_attempt_ids, list):
+        return None
+    candidate_ids = [
+        str(raw_attempt_id or "")
+        for raw_attempt_id in child_attempt_ids
+        if f"-{shard.volume_id.lower()}-" in str(raw_attempt_id or "")
+    ]
+    for attempt_id in candidate_ids:
+        attempt = attempts.get(attempt_id)
         if not isinstance(attempt, Mapping):
             continue
         output_path = task_root / "attempt_logs" / str(attempt_id) / "output.md"
@@ -234,19 +306,23 @@ def find_reusable_blueprint_shard_attempt(
             output_path.read_text(encoding="utf-8") if output_path.is_file() else ""
         )
         if (
-            attempt.get("status") == "succeeded"
-            and (attempt.get("output_validation") or {}).get("status") == "pass"
-            and output_text
-            and not validate_blueprint_shard(
+            attempt.get("status") != "succeeded"
+            or (attempt.get("output_validation") or {}).get("status") != "pass"
+            or not output_text
+        ):
+            continue
+        try:
+            candidate_text = extract_blueprint_shard_cards(
                 shard,
                 output_text,
                 required_fields=required_fields,
             )
-            and not validate_blueprint_shard_semantics(
-                shard,
-                output_text,
-                semantic_contract or {},
-            )
+        except ValueError:
+            continue
+        if not validate_blueprint_shard_semantics(
+            shard,
+            candidate_text,
+            semantic_contract or {},
         ):
             return str(attempt_id)
     return None
@@ -273,7 +349,8 @@ def run_blueprint_shard_workflow(
     revision_guidance_path: Path | None = None,
     volume_ids: Sequence[str] = (),
     baseline_revision: int | None = None,
-    semantic_contract_path: Path | None = None,
+    semantic_contract_path: Path,
+    assembly_only_baseline: bool = False,
 ) -> dict[str, object]:
     """Generate, validate, resume, assemble, and gate a sharded blueprint."""
 
@@ -315,7 +392,9 @@ def run_blueprint_shard_workflow(
         )
     except ValueError as exc:
         raise ValueError("external context request expiry is invalid") from exc
-    if expires_at.tzinfo is None or expires_at <= datetime.now(timezone.utc):
+    if expires_at.tzinfo is None or (
+        not assembly_only_baseline and expires_at <= datetime.now(timezone.utc)
+    ):
         raise ValueError("external context request is expired")
     if (
         not str(external_request.get("purpose") or "").strip()
@@ -382,7 +461,9 @@ def run_blueprint_shard_workflow(
     unknown_volume_ids = sorted(requested_volume_ids - known_volume_ids)
     if unknown_volume_ids:
         raise ValueError("unknown blueprint volume ids: " + ", ".join(unknown_volume_ids))
-    if requested_volume_ids:
+    if assembly_only_baseline and requested_volume_ids:
+        raise ValueError("assembly-only baseline cannot regenerate volumes")
+    if requested_volume_ids or assembly_only_baseline:
         if baseline_revision is None:
             baseline_revision = revision - 1
         if baseline_revision <= 0 or baseline_revision >= revision:
@@ -459,10 +540,20 @@ def run_blueprint_shard_workflow(
         "chapters_per_volume": chapters_per_volume,
         "revision": revision,
         "required_fields": list(required_fields),
-        "regenerated_volume_ids": sorted(requested_volume_ids or known_volume_ids),
-        "reused_volume_ids": sorted(known_volume_ids - requested_volume_ids)
-        if requested_volume_ids
-        else [],
+        "regenerated_volume_ids": (
+            []
+            if assembly_only_baseline
+            else sorted(requested_volume_ids or known_volume_ids)
+        ),
+        "reused_volume_ids": (
+            sorted(known_volume_ids)
+            if assembly_only_baseline
+            else (
+                sorted(known_volume_ids - requested_volume_ids)
+                if requested_volume_ids
+                else []
+            )
+        ),
         "baseline_revision": baseline_revision,
         "artifacts": manifest_entries,
         "writer_instruction": {
@@ -506,6 +597,12 @@ def run_blueprint_shard_workflow(
                 resolved_contract_path.read_bytes()
             ).hexdigest(),
         }
+        missing_contracts = sorted(known_volume_ids - set(semantic_contracts))
+        if missing_contracts:
+            raise ValueError(
+                "semantic contract missing final assembly volumes: "
+                + ", ".join(missing_contracts)
+            )
     context_manifest_path = (
         task_root / "inputs" / f"writer-shard-context-v{revision:03d}.yml"
     )
@@ -520,7 +617,9 @@ def run_blueprint_shard_workflow(
     for shard in plan:
         accepted_attempt: str | None = None
         semantic_contract = semantic_contracts.get(shard.volume_id, {})
-        if requested_volume_ids and shard.volume_id not in requested_volume_ids:
+        if assembly_only_baseline or (
+            requested_volume_ids and shard.volume_id not in requested_volume_ids
+        ):
             accepted_attempt = find_reusable_blueprint_shard_attempt(
                 task_root=task_root,
                 attempts=(runtime.load_task(task_id).get("attempts") or {}),
@@ -548,19 +647,22 @@ def run_blueprint_shard_workflow(
                     existing.get("status") == "succeeded"
                     and (existing.get("output_validation") or {}).get("status") == "pass"
                     and output_path.is_file()
-                    and not validate_blueprint_shard(
-                        shard,
-                        output_path.read_text(encoding="utf-8"),
-                        required_fields=required_fields,
-                    )
-                    and not validate_blueprint_shard_semantics(
-                        shard,
-                        output_path.read_text(encoding="utf-8"),
-                        semantic_contract,
-                    )
                 ):
-                    accepted_attempt = child_id
-                    break
+                    try:
+                        existing_text = extract_blueprint_shard_cards(
+                            shard,
+                            output_path.read_text(encoding="utf-8"),
+                            required_fields=required_fields,
+                        )
+                    except ValueError:
+                        existing_text = ""
+                    if existing_text and not validate_blueprint_shard_semantics(
+                        shard,
+                        existing_text,
+                        semantic_contract,
+                    ):
+                        accepted_attempt = child_id
+                        break
                 continue
             messages = [
                 {
@@ -569,12 +671,14 @@ def run_blueprint_shard_workflow(
                         f"你是《{blueprint_title}》{total_chapters}章蓝本的 Writer。"
                         f"只生成本卷恰好{chapters_per_volume}张章节卡。"
                         "以下本卷确定性语义门优先于所有其他上下文；必含词至少在实质叙事字段出现一次，"
-                        "禁含词不得出现在 forbidden_early_payoffs 之外的字段：\n"
+                        "禁含词不得出现在任何输出字段；语义合同只供校验，禁止摘抄到输出：\n"
                         f"{yaml.safe_dump(dict(semantic_contract), allow_unicode=True, sort_keys=True)}"
                         "每章标题严格为 ## Cnnn 章名，随后严格写这些非空字段且每字段独占一行："
                         + "、".join(f"- {field}:" for field in required_fields)
                         + "。"
-                        "每个字段写具体人物、行动、资源或代价，禁止空泛概括；不得生成范围外章节。"
+                        "每个字段写具体人物、行动、资源或代价，禁止空泛概括；"
+                        "章节标题必须严格覆盖指定起止范围且无额外标题。"
+                        "forbidden_early_payoffs 只能写故事内尚不可兑现的事件。"
                         "题材、节奏、人物和叙事要求只服从哈希密封的 writer instruction。"
                     ),
                 },
@@ -595,7 +699,25 @@ def run_blueprint_shard_workflow(
             if guidance_path is not None:
                 shard_source_paths.append(guidance_path)
             if semantic_contract_path is not None:
-                shard_source_paths.append(resolved_contract_path)
+                volume_contract_path = (
+                    task_root
+                    / "inputs"
+                    / (
+                        f"writer-semantic-contract-v{revision:03d}-"
+                        f"{shard.volume_id.lower()}.yml"
+                    )
+                )
+                atomic_write_yaml(
+                    volume_contract_path,
+                    {
+                        "schema_version": "narrative-blueprint-semantic-contract/v1",
+                        "source_contract_sha256": context_manifest["semantic_contract"][
+                            "sha256"
+                        ],
+                        "volumes": {shard.volume_id: dict(semantic_contract)},
+                    },
+                )
+                shard_source_paths.append(volume_contract_path)
             if previous_handoff_path is not None:
                 shard_source_paths.append(previous_handoff_path)
             governed_source_manifest_path = (
@@ -641,14 +763,19 @@ def run_blueprint_shard_workflow(
                 continue
             output_path = Path(str(result["output_path"])).resolve(strict=True)
             text = output_path.read_text(encoding="utf-8")
-            issues = list(
-                validate_blueprint_shard(
-                    shard, text, required_fields=required_fields
+            try:
+                candidate_text = extract_blueprint_shard_cards(
+                    shard,
+                    text,
+                    required_fields=required_fields,
                 )
-            )
-            issues.extend(
-                validate_blueprint_shard_semantics(shard, text, semantic_contract)
-            )
+                issues = list(
+                    validate_blueprint_shard_semantics(
+                        shard, candidate_text, semantic_contract
+                    )
+                )
+            except ValueError as exc:
+                issues = [str(exc)]
             validation_path = output_path.parent / "artifact_validation_receipt.yml"
             atomic_write_yaml(
                 validation_path,
@@ -683,8 +810,11 @@ def run_blueprint_shard_workflow(
         if accepted_attempt is None:
             raise ValueError(f"no valid Writer output for {shard.volume_id}")
         accepted_children.append(accepted_attempt)
-        shard_text = (task_root / "attempt_logs" / accepted_attempt / "output.md").read_text(
-            encoding="utf-8"
+        shard_text = (
+            task_root / "attempt_logs" / accepted_attempt / "output.md"
+        ).read_text(encoding="utf-8")
+        shard_text = extract_blueprint_shard_cards(
+            shard, shard_text, required_fields=required_fields
         )
         outputs[shard.volume_id] = shard_text
         matches = list(_CHAPTER_HEADING.finditer(shard_text))
@@ -801,10 +931,20 @@ def run_blueprint_shard_workflow(
         "work_item_id": writer_work_item_id,
         "volumes": len(plan),
         "chapters": total_chapters,
-        "regenerated_volume_ids": sorted(requested_volume_ids or known_volume_ids),
-        "reused_volume_ids": sorted(known_volume_ids - requested_volume_ids)
-        if requested_volume_ids
-        else [],
+        "regenerated_volume_ids": (
+            []
+            if assembly_only_baseline
+            else sorted(requested_volume_ids or known_volume_ids)
+        ),
+        "reused_volume_ids": (
+            sorted(known_volume_ids)
+            if assembly_only_baseline
+            else (
+                sorted(known_volume_ids - requested_volume_ids)
+                if requested_volume_ids
+                else []
+            )
+        ),
         "child_attempt_ids": accepted_children,
         "composite_attempt_id": composite_id,
         "blueprint_version_id": story_version_id,

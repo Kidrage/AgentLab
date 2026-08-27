@@ -1684,17 +1684,20 @@ class TaskRuntime:
             raise ValueError(f"unknown work item status: {status}")
         payload: dict[str, Any] = {"status": status}
         feedback_ref: str | None = None
+        feedback_evidence = b""
         if feedback_path is not None:
             candidate_feedback = Path(feedback_path)
             if candidate_feedback.is_symlink():
                 raise ValueError("feedback path may not be a symlink")
             resolved_feedback = candidate_feedback.resolve(strict=True)
             task_root = self._task_dir(task_id).resolve(strict=False)
-            if (
-                not resolved_feedback.is_file()
-                or not resolved_feedback.is_relative_to(task_root)
-                or hashlib.sha256(resolved_feedback.read_bytes()).hexdigest()
-                != str(feedback_digest or "")
+            if not resolved_feedback.is_file() or not resolved_feedback.is_relative_to(
+                task_root
+            ):
+                raise ValueError("feedback path is outside the Task or drifted")
+            feedback_evidence = resolved_feedback.read_bytes()
+            if hashlib.sha256(feedback_evidence).hexdigest() != str(
+                feedback_digest or ""
             ):
                 raise ValueError("feedback path is outside the Task or drifted")
             feedback_ref = resolved_feedback.relative_to(task_root).as_posix()
@@ -1720,7 +1723,9 @@ class TaskRuntime:
                         "reopening an accepted WorkItem requires a hash-bound feedback file"
                     )
                 if str(reason_code) not in WORK_ITEM_REOPEN_REASON_CODES:
-                    raise InvalidTransition("accepted WorkItem reopen reason is not allowed")
+                    raise InvalidTransition(
+                        "accepted WorkItem reopen reason is not allowed"
+                    )
                 if any(
                     gate.get("work_item_id") == work_item_id
                     for gate in projection["protocol_gates"].values()
@@ -1764,10 +1769,10 @@ class TaskRuntime:
                     )
                     succeeded_attempts = sorted(
                         [
-                        attempt
-                        for attempt in projection["attempts"].values()
-                        if attempt.get("work_item_id") == descendant_id
-                        and attempt.get("status") == "succeeded"
+                            attempt
+                            for attempt in projection["attempts"].values()
+                            if attempt.get("work_item_id") == descendant_id
+                            and attempt.get("status") == "succeeded"
                         ],
                         key=lambda attempt: str(attempt.get("updated_at") or ""),
                     )
@@ -1777,9 +1782,38 @@ class TaskRuntime:
                     latest_attempt_id = str(
                         (latest_succeeded_attempt or {}).get("attempt_id") or ""
                     )
+                    latest_attempt_artifacts = [
+                        artifact
+                        for artifact in projection["artifacts"].values()
+                        if artifact.get("producer_attempt_id") == latest_attempt_id
+                    ]
+                    latest_attempt_fully_retired = bool(
+                        latest_attempt_artifacts
+                    ) and all(
+                        artifact.get("disposition", "eligible") != "eligible"
+                        for artifact in latest_attempt_artifacts
+                    )
+                    ancestor_was_previously_reopened = bool(
+                        work_item.get("reopen_history")
+                    )
+                    retired_evidence_tokens = {
+                        str(value)
+                        for artifact in latest_attempt_artifacts
+                        for value in (
+                            artifact.get("sha256"),
+                            *(
+                                entry.get("feedback_digest")
+                                for entry in artifact.get("disposition_history") or []
+                            ),
+                        )
+                        if _SHA256.fullmatch(str(value or ""))
+                    }
+                    feedback_binds_retired_evidence = any(
+                        token.encode("ascii") in feedback_evidence
+                        for token in retired_evidence_tokens
+                    )
                     feedback_binds_reopen = any(
-                        str(entry.get("feedback_digest") or "")
-                        == str(feedback_digest)
+                        str(entry.get("feedback_digest") or "") == str(feedback_digest)
                         for entry in item.get("reopen_history") or []
                     )
                     feedback_binds_disposition = any(
@@ -1801,6 +1835,11 @@ class TaskRuntime:
                             and not (
                                 feedback_binds_reopen
                                 or feedback_binds_disposition
+                                or (
+                                    ancestor_was_previously_reopened
+                                    and latest_attempt_fully_retired
+                                    and feedback_binds_retired_evidence
+                                )
                             )
                         )
                     ):

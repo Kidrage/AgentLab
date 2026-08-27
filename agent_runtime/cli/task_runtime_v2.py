@@ -213,9 +213,10 @@ def register_task_runtime_commands(
         baseline_revision: int | None = typer.Option(
             None, "--baseline-revision", min=1
         ),
-        semantic_contract_path: Path | None = typer.Option(
-            None, "--semantic-contract"
+        semantic_contract_path: Path = typer.Option(
+            ..., "--semantic-contract"
         ),
+        assembly_only_baseline: bool = typer.Option(False, "--assembly-only-baseline"),
     ) -> None:
         """Run resumable Writer shard generation and deterministic assembly."""
 
@@ -245,6 +246,7 @@ def register_task_runtime_commands(
                 volume_ids=volume_ids,
                 baseline_revision=baseline_revision,
                 semantic_contract_path=semantic_contract_path,
+                assembly_only_baseline=assembly_only_baseline,
             )
         )
 

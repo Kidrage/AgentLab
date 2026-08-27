@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-26T11:25:32.197771+00:00`
+- Generated at: `2026-08-27T08:10:13.046209+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-youjia-p3`
-- HEAD: `8976976`
+- HEAD: `04ce770`
 - Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,10 +88,10 @@
 
 ### Categories
 
-- code: 1094 files, 11428049 bytes
-- literature: 424 files, 2429820 bytes
+- code: 1094 files, 11442765 bytes
+- literature: 424 files, 2429927 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3271690 bytes
+- structured_data: 554 files, 3271688 bytes
 
 ### Common Extensions
 
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `04ce770 2026-08-26 [docs] refresh R10 verification evidence`
 - `8976976 2026-08-26 [runtime] harden long-packet reviewer coverage`
 - `88db69d 2026-08-26 [docs] refresh shanhe checkpoint evidence`
 - `ae5f813 2026-08-26 [runtime] harden sharded blueprint production`
@@ -251,13 +252,16 @@
 - `2757abe 2026-07-31 docs: refresh relay memory handoff`
 - `b0de95b 2026-07-31 fix: report outbound rsync updates accurately`
 - `d81e12d 2026-07-31 feat: add verified project memory relay sync`
-- `efdc92d 2026-07-31 Handle sealed role output edge cases`
 
 ## Current Changes
 
 - `## codex/shanhe-youjia-p3`
-- ` M PROJECT_HANDOFF.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M agent_runtime/cli/task_runtime_v2.py`
+- ` M agent_runtime/narrative/blueprint_shards.py`
+- ` M agent_runtime/task_runtime_v2/runtime.py`
+- ` M tests/test_narrative_blueprint_shards.py`
+- ` M tests/test_production_protocols.py`
 
 ## Related Repositories
 

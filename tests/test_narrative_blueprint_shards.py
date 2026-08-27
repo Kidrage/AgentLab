@@ -68,6 +68,7 @@ def test_expired_external_request_cannot_prepare_or_mutate_a_cold_task(
             required_fields=["objective"],
             writer_instruction_path=task_root / "inputs" / "missing.md",
             external_context_request_path=request_path,
+            semantic_contract_path=task_root / "inputs" / "missing-semantics.yml",
         )
 
     assert hashlib.sha256(ledger_path.read_bytes()).hexdigest() == before
@@ -105,8 +106,67 @@ def test_expired_external_request_cannot_prepare_or_mutate_a_cold_task(
             required_fields=["objective"],
             writer_instruction_path=task_root / "inputs" / "missing.md",
             external_context_request_path=alias / "request.yml",
+            semantic_contract_path=task_root / "inputs" / "missing-semantics.yml",
         )
     assert hashlib.sha256(ledger_path.read_bytes()).hexdigest() == before
+
+
+def test_assembly_only_mode_does_not_require_live_outbound_authorization(
+    tmp_path: Path,
+) -> None:
+    runtime = TaskRuntime(tmp_path, project="ColdBlueprint")
+    runtime.create_task(
+        task_id="task-cold-blueprint",
+        title="Cold blueprint",
+        user_goal="Do not transmit during deterministic assembly.",
+        protocol_ref="narrative.blueprint.v1",
+        input_profile={
+            "kind": "blueprint_build",
+            "scope": "longform",
+            "target_count": 600,
+            "canon_impact": "new_project",
+            "risk_flags": [],
+            "project": "ColdBlueprint",
+            "source_creative_brief": "inputs/brief.yml",
+            "source_creative_brief_sha256": "a" * 64,
+        },
+        idempotency_key="create-cold-blueprint",
+    )
+    task_root = runtime._task_dir("task-cold-blueprint")
+    request_path = task_root / "inputs" / "external-request.yml"
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text(
+        yaml.safe_dump(
+            {
+                "purpose": "Expired request retained only as historical evidence.",
+                "minimal_fragment": "No transmission in assembly-only mode.",
+                "expires_at": "2000-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        run_blueprint_shard_workflow(
+            tmp_path,
+            project="ColdBlueprint",
+            task_id="task-cold-blueprint",
+            total_chapters=600,
+            volume_count=15,
+            blueprint_title="Fixture",
+            writer_work_item_id="writer",
+            story_artifact_type="story_blueprint",
+            candidate_gate_id="candidate_hash_bound",
+            context_artifact_types=["blueprint_direction"],
+            required_fields=["objective"],
+            writer_instruction_path=task_root / "inputs" / "missing.md",
+            external_context_request_path=request_path,
+            semantic_contract_path=task_root / "inputs" / "missing-semantics.yml",
+            revision=2,
+            baseline_revision=1,
+            assembly_only_baseline=True,
+        )
+    assert "external context request is expired" not in str(exc_info.value)
 
 
 def test_blueprint_shard_plan_covers_600_chapters_as_15_volumes_of_40() -> None:
@@ -203,6 +263,93 @@ def test_assembly_is_ordered_complete_and_rejects_invalid_shards() -> None:
         )
 
 
+def test_assembly_strips_writer_report_envelopes_from_valid_shards() -> None:
+    plan = build_blueprint_shard_plan(total_chapters=2, volume_count=1)
+    shard = _render_shard(1, 2).replace(
+        "- promise: 伏笔",
+        "- promise: 伏笔\n"
+        "- volume: 1\n"
+        "- forbidden_early_payoffs: C002前不得揭露父辈暗账。",
+    )
+    wrapped = "\n".join(
+        [
+            "# Writer Report",
+            "Generated two chapter cards.",
+            "<!-- AGENTLAB_EDIT: story_blueprint -->",
+            shard.rstrip(),
+            ">>>>>>> AGENTLAB_EDIT",
+            "## stderr",
+            "禁止蓝图；禁止生成范围外章节。",
+            "provider diagnostic that must not enter the artifact",
+            "",
+        ]
+    )
+
+    assembled = assemble_blueprint_shards(
+        plan,
+        {"V01": wrapped},
+        title="山河有约",
+        protocol_ref="narrative.blueprint.v1",
+        required_fields=(
+            "objective",
+            "conflict",
+            "turn",
+            "consequence",
+            "promise",
+            "volume",
+            "forbidden_early_payoffs",
+        ),
+    )
+
+    assert assembled.count("\n## C") == 2
+    assert "Writer Report" not in assembled
+    assert "AGENTLAB_EDIT" not in assembled
+    assert "stderr" not in assembled
+    assert "provider diagnostic" not in assembled
+    assert "- volume: V01" in assembled
+    assert "C002前不得揭露父辈暗账" in assembled
+    assert "禁止蓝图" not in assembled
+    assert "禁止生成范围外章节" not in assembled
+
+
+def test_assembly_rejects_fields_smuggled_after_a_provider_trailer() -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    raw = "## C001 章名\n# Writer Report\n- objective: smuggled\n"
+
+    with pytest.raises(ValueError, match="C001 missing field: objective"):
+        assemble_blueprint_shards(
+            plan,
+            {"V01": raw},
+            title="Fixture",
+            protocol_ref="narrative.blueprint.v1",
+            required_fields=("objective",),
+        )
+
+
+@pytest.mark.parametrize(
+    "leaked_content",
+    (
+        "- provider_report: metadata",
+        "- 生产提示: 不得生成范围外章节",
+        "provider_report: leaked metadata",
+    ),
+)
+def test_assembly_rejects_undeclared_chapter_card_fields(
+    leaked_content: str,
+) -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    raw = f"## C001 章名\n- objective: 目标\n{leaked_content}\n"
+
+    with pytest.raises(ValueError, match="undeclared card content|field contract mismatch"):
+        assemble_blueprint_shards(
+            plan,
+            {"V01": raw},
+            title="Fixture",
+            protocol_ref="narrative.blueprint.v1",
+            required_fields=("objective",),
+        )
+
+
 def test_selective_revision_reuses_only_a_validated_baseline_shard(tmp_path) -> None:
     shard = build_blueprint_shard_plan(total_chapters=600, volume_count=15)[0]
     valid_id = "attempt-writer-rev3-v01-r04"
@@ -225,6 +372,8 @@ def test_selective_revision_reuses_only_a_validated_baseline_shard(tmp_path) -> 
         },
     }
 
+    # A successful child is not reusable until a validated baseline composite
+    # proves that it belonged to the assembled revision.
     assert (
         find_reusable_blueprint_shard_attempt(
             task_root=tmp_path,
@@ -232,14 +381,19 @@ def test_selective_revision_reuses_only_a_validated_baseline_shard(tmp_path) -> 
             shard=shard,
             baseline_revision=3,
         )
-        == valid_id
+        is None
     )
+    attempts["attempt-writer-assembled-003"] = {
+        "status": "succeeded",
+        "output_validation": {"status": "pass"},
+        "outcome": {"composite_child_attempt_ids": [valid_id]},
+    }
     assert (
         find_reusable_blueprint_shard_attempt(
             task_root=tmp_path,
             attempts=attempts,
             shard=shard,
-            baseline_revision=4,
+            baseline_revision=3,
         )
         == valid_id
     )
@@ -258,7 +412,7 @@ def test_selective_revision_reuses_only_a_validated_baseline_shard(tmp_path) -> 
             task_root=tmp_path,
             attempts=attempts,
             shard=shard,
-            baseline_revision=4,
+            baseline_revision=3,
             semantic_contract={"forbidden_phrases": ["目标"]},
         )
         is None
@@ -277,7 +431,10 @@ def test_shard_semantic_contract_rejects_missing_and_forbidden_text() -> None:
         "旧仙规则彻底崩解；散尽全部既有权柄。\n"
         "- forbidden_early_payoffs: 禁止夺得本宇宙唯一解释权与白光巨手。",
         contract,
-    ) == ()
+    ) == (
+        "V14 contains forbidden phrase: 夺得本宇宙唯一解释权",
+        "V14 contains forbidden phrase: 白光巨手",
+    )
     assert validate_blueprint_shard_semantics(
         shard,
         "旧仙规则彻底崩解，却夺得本宇宙唯一解释权。",

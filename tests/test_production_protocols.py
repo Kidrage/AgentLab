@@ -67,13 +67,13 @@ def _succeed_deterministically(
         worker=worker,
         provider=provider,
         execution_contract=execution_contract,
-        idempotency_key=f"schedule-{node_id}",
+        idempotency_key=f"schedule-{attempt_id}",
     )
     runtime.transition_attempt(
         task_id,
         attempt_id=attempt_id,
         status="running",
-        idempotency_key=f"running-{node_id}",
+        idempotency_key=f"running-{attempt_id}",
     )
     task_root = runtime._task_dir(task_id)
     attempt_root = task_root / "attempt_logs" / attempt_id
@@ -158,7 +158,7 @@ def _succeed_deterministically(
         projection = runtime._transition_deterministic_attempt(
             task_id,
             attempt_id=attempt_id,
-            idempotency_key=f"succeeded-{node_id}",
+            idempotency_key=f"succeeded-{attempt_id}",
             outcome=outcome,
         )
     else:
@@ -166,7 +166,7 @@ def _succeed_deterministically(
             task_id,
             attempt_id=attempt_id,
             status="succeeded",
-            idempotency_key=f"succeeded-{node_id}",
+            idempotency_key=f"succeeded-{attempt_id}",
             outcome=outcome,
         )
     return projection, output
@@ -963,6 +963,51 @@ def test_protocol_runner_executes_one_bound_node_through_executor_seam(
     assert reopened["work_items"]["supervisor_plan"]["reopen_history"][-1][
         "feedback_ref"
     ] == "inputs/bound-revision-feedback.md"
+
+    runner.execute_node(
+        "task-live",
+        work_item_id="supervisor_plan",
+        messages=[{"role": "user", "content": "Revise the plan again."}],
+        source_paths=[],
+        external_context_request={"purpose": "fixture"},
+        attempt_id="attempt-supervisor_plan-r2",
+        idempotency_key="execute-supervisor-r2",
+    )
+    next_feedback_path = stale_feedback_path.parent / "next-revision-feedback.md"
+    next_feedback_path.write_text(
+        "Request another upstream revision while the downstream result remains retired.\n",
+        encoding="utf-8",
+    )
+    next_feedback_digest = hashlib.sha256(next_feedback_path.read_bytes()).hexdigest()
+
+    with pytest.raises(InvalidTransition, match="downstream WorkItems"):
+        runtime.transition_work_item(
+            "task-live",
+            work_item_id="supervisor_plan",
+            status="ready",
+            reason_code="editorial_revision_required",
+            feedback_digest=next_feedback_digest,
+            feedback_path=next_feedback_path,
+            idempotency_key="unsafe-reopen-supervisor-again",
+        )
+
+    next_feedback_path.write_text(
+        "Request another upstream revision while the downstream result remains "
+        f"retired; prior_feedback_sha256={bound_feedback_digest}.\n",
+        encoding="utf-8",
+    )
+    next_feedback_digest = hashlib.sha256(next_feedback_path.read_bytes()).hexdigest()
+
+    reopened_again = runtime.transition_work_item(
+        "task-live",
+        work_item_id="supervisor_plan",
+        status="ready",
+        reason_code="editorial_revision_required",
+        feedback_digest=next_feedback_digest,
+        feedback_path=next_feedback_path,
+        idempotency_key="safe-reopen-supervisor-again",
+    )
+    assert reopened_again["work_items"]["supervisor_plan"]["status"] == "ready"
 
 
 def test_protocol_runner_validates_sources_before_starting_work_item(
