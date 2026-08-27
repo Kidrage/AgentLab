@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-27T08:10:13.046209+00:00`
+- Generated at: `2026-08-27T08:59:21.929368+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-youjia-p3`
-- HEAD: `04ce770`
+- HEAD: `b720735`
 - Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,8 +88,8 @@
 
 ### Categories
 
-- code: 1094 files, 11442765 bytes
-- literature: 424 files, 2429927 bytes
+- code: 1094 files, 11444208 bytes
+- literature: 424 files, 2430138 bytes
 - other: 15 files, 75183 bytes
 - structured_data: 554 files, 3271688 bytes
 
@@ -232,6 +232,9 @@
 
 ## Change History
 
+- `b720735 2026-08-27 test(narrative): reject edit delimiter near misses`
+- `e7f1027 2026-08-27 fix(narrative): strip bare cli edit trailers`
+- `2de791c 2026-08-27 fix(runtime): harden blueprint revision evidence`
 - `04ce770 2026-08-26 [docs] refresh R10 verification evidence`
 - `8976976 2026-08-26 [runtime] harden long-packet reviewer coverage`
 - `88db69d 2026-08-26 [docs] refresh shanhe checkpoint evidence`
@@ -249,19 +252,10 @@
 - `1cf89cb 2026-07-31 Expose user acceptance gate in work-item CLI`
 - `1c67167 2026-07-31 docs: record relay watcher activation`
 - `601afb3 2026-07-31 Deliver Agy Writer packets by explicit path`
-- `2757abe 2026-07-31 docs: refresh relay memory handoff`
-- `b0de95b 2026-07-31 fix: report outbound rsync updates accurately`
-- `d81e12d 2026-07-31 feat: add verified project memory relay sync`
 
 ## Current Changes
 
 - `## codex/shanhe-youjia-p3`
-- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/cli/task_runtime_v2.py`
-- ` M agent_runtime/narrative/blueprint_shards.py`
-- ` M agent_runtime/task_runtime_v2/runtime.py`
-- ` M tests/test_narrative_blueprint_shards.py`
-- ` M tests/test_production_protocols.py`
 
 ## Related Repositories
 
