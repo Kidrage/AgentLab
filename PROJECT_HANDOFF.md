@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-27T08:59:21.929368+00:00`
+- Generated at: `2026-08-28T05:03:02.329488+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-youjia-p3`
-- HEAD: `b720735`
+- HEAD: `3b69677`
 - Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,8 +88,8 @@
 
 ### Categories
 
-- code: 1094 files, 11444208 bytes
-- literature: 424 files, 2430138 bytes
+- code: 1094 files, 11452173 bytes
+- literature: 424 files, 2429843 bytes
 - other: 15 files, 75183 bytes
 - structured_data: 554 files, 3271688 bytes
 
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `3b69677 2026-08-27 docs: refresh kernel stabilization handoff`
 - `b720735 2026-08-27 test(narrative): reject edit delimiter near misses`
 - `e7f1027 2026-08-27 fix(narrative): strip bare cli edit trailers`
 - `2de791c 2026-08-27 fix(runtime): harden blueprint revision evidence`
@@ -251,11 +252,12 @@
 - `9d02aa8 2026-08-01 Merge GitHub unified-stable into 250 relay work`
 - `1cf89cb 2026-07-31 Expose user acceptance gate in work-item CLI`
 - `1c67167 2026-07-31 docs: record relay watcher activation`
-- `601afb3 2026-07-31 Deliver Agy Writer packets by explicit path`
 
 ## Current Changes
 
 - `## codex/shanhe-youjia-p3`
+- ` M agent_runtime/narrative/blueprint_shards.py`
+- ` M tests/test_narrative_blueprint_shards.py`
 
 ## Related Repositories
 

@@ -277,7 +277,7 @@ def test_assembly_strips_writer_report_envelopes_from_valid_shards() -> None:
             "Generated two chapter cards.",
             "<!-- AGENTLAB_EDIT: story_blueprint -->",
             shard.rstrip(),
-            ">>>>>>> AGENTLAB_EDIT",
+            "<!-- /AGENTLAB_EDIT -->",
             "## stderr",
             "禁止蓝图；禁止生成范围外章节。",
             "provider diagnostic that must not enter the artifact",
@@ -312,15 +312,42 @@ def test_assembly_strips_writer_report_envelopes_from_valid_shards() -> None:
     assert "禁止生成范围外章节" not in assembled
 
 
-def test_assembly_strips_bare_cli_agent_edit_delimiter() -> None:
+@pytest.mark.parametrize(
+    ("opener", "closer"),
+    (
+        ("<<<<<< AGENTLAB_EDIT: story_blueprint", ">>>>>>"),
+        ("<<<< AGENTLAB_EDIT", ">>>>"),
+        ("<<<<<<< AGENTLAB_EDIT", ">>>>>>> AGENTLAB_EDIT"),
+        ("<<<< AGENTLAB_EDIT", ">>>> AGENTLAB_EDIT"),
+        (
+            "<<<< AGENTLAB_EDIT candidate:story_blueprint >>>>",
+            "<<<< END_AGENTLAB_EDIT >>>>",
+        ),
+        (
+            "<<<<< AGENTLAB_EDIT: story_blueprint >>>>>",
+            "<<<<< END_AGENTLAB_EDIT >>>>>",
+        ),
+        (
+            "<<<< AGENTLAB_EDIT: story_blueprint >>>>",
+            "<<<< END_AGENTLAB_EDIT >>>>",
+        ),
+        (
+            "<<<<AGENTLAB_EDIT:story_blueprint>>>>",
+            ">>>>END_AGENTLAB_EDIT>>>>",
+        ),
+    ),
+)
+def test_assembly_strips_real_chevron_agent_edit_delimiters(
+    opener: str, closer: str
+) -> None:
     plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
     wrapped = "\n".join(
         [
             "# Writer Report (CLI Agent: agy)",
             "## Output",
-            "<<<<<< AGENTLAB_EDIT: story_blueprint",
+            opener,
             _render_shard(1, 1).rstrip(),
-            ">>>>>>",
+            closer,
             "## stderr",
             "provider diagnostic that must not enter the artifact",
             "",
@@ -335,7 +362,7 @@ def test_assembly_strips_bare_cli_agent_edit_delimiter() -> None:
     )
 
     assert assembled.count("\n## C") == 1
-    assert ">>>>>>" not in assembled
+    assert closer not in assembled
     assert "provider diagnostic" not in assembled
 
 
@@ -348,6 +375,157 @@ def test_assembly_rejects_near_miss_cli_agent_edit_delimiters(
         _render_shard(1, 1)
         + near_miss
         + "\n- provider_report: metadata that must remain visible to validation\n"
+    )
+
+    with pytest.raises(ValueError, match="undeclared card content"):
+        assemble_blueprint_shards(
+            plan,
+            {"V01": wrapped},
+            title="山河有约",
+            protocol_ref="narrative.blueprint.v1",
+        )
+
+
+def test_assembly_rejects_asymmetric_cli_agent_edit_delimiter() -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = (
+        "<<<< AGENTLAB_EDIT\n"
+        + _render_shard(1, 1)
+        + ">>>>>\n- provider_report: metadata that must remain visible to validation\n"
+        + "## stderr\nprovider diagnostic\n"
+    )
+
+    with pytest.raises(ValueError, match="undeclared card content"):
+        assemble_blueprint_shards(
+            plan,
+            {"V01": wrapped},
+            title="山河有约",
+            protocol_ref="narrative.blueprint.v1",
+        )
+
+
+@pytest.mark.parametrize(
+    "malformed_opener",
+    (
+        "<<<< AGENTLAB_EDIT >>>>>",
+        "<<<< AGENTLAB_EDIT garbage >>>>",
+    ),
+)
+def test_assembly_rejects_asymmetric_or_malformed_chevron_openers(
+    malformed_opener: str,
+) -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = (
+        malformed_opener
+        + "\n"
+        + _render_shard(1, 1)
+        + ">>>>\n- provider_report: metadata that must remain visible to validation\n"
+        + "## stderr\nprovider diagnostic\n"
+    )
+
+    with pytest.raises(ValueError, match="undeclared card content"):
+        assemble_blueprint_shards(
+            plan,
+            {"V01": wrapped},
+            title="山河有约",
+            protocol_ref="narrative.blueprint.v1",
+        )
+
+
+def test_assembly_strips_cli_markdown_fence_before_stderr() -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = "\n".join(
+        [
+            "# Writer Report (CLI Agent: agy)",
+            "## Output",
+            "```AGENTLAB_EDIT",
+            _render_shard(1, 1).rstrip(),
+            "```",
+            "",
+            "## stderr",
+            "provider diagnostic that must not enter the artifact",
+            "",
+        ]
+    )
+
+    assembled = assemble_blueprint_shards(
+        plan,
+        {"V01": wrapped},
+        title="山河有约",
+        protocol_ref="narrative.blueprint.v1",
+    )
+
+    assert "```" not in assembled
+    assert "provider diagnostic" not in assembled
+
+
+@pytest.mark.parametrize(
+    ("opener", "closer"),
+    (
+        (
+            "<!-- AGENTLAB_EDIT_START: story_blueprint -->",
+            "<!-- AGENTLAB_EDIT_END: story_blueprint -->",
+        ),
+        (
+            "<!-- AGENTLAB_EDIT: story_blueprint -->",
+            "<!-- /AGENTLAB_EDIT -->",
+        ),
+        ("<!-- BEGIN AGENTLAB_EDIT -->", "<!-- END AGENTLAB_EDIT -->"),
+        (
+            "<!-- BEGIN AGENTLAB_EDIT: story_blueprint -->",
+            "<!-- END AGENTLAB_EDIT -->",
+        ),
+        (
+            "<!-- BEGIN AGENTLAB_EDIT artifact_id=story_blueprint -->",
+            "<!-- END AGENTLAB_EDIT -->",
+        ),
+    ),
+)
+def test_assembly_strips_real_html_agent_edit_delimiters(
+    opener: str, closer: str
+) -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = "\n".join(
+        [
+            opener,
+            _render_shard(1, 1).rstrip(),
+            closer,
+            "## stderr",
+            "provider diagnostic that must not enter the artifact",
+            "",
+        ]
+    )
+
+    assembled = assemble_blueprint_shards(
+        plan,
+        {"V01": wrapped},
+        title="山河有约",
+        protocol_ref="narrative.blueprint.v1",
+    )
+
+    assert "AGENTLAB_EDIT_END" not in assembled
+    assert "<!-- /AGENTLAB_EDIT -->" not in assembled
+    assert "provider diagnostic" not in assembled
+
+
+@pytest.mark.parametrize(
+    "orphan_closer",
+    (
+        "<<<< END_AGENTLAB_EDIT >>>>",
+        ">>>>END_AGENTLAB_EDIT>>>>",
+        "<!-- /AGENTLAB_EDIT -->",
+        ">>>>\nAGENTLAB_EDIT",
+    ),
+)
+def test_assembly_rejects_orphan_or_malformed_named_trailers(
+    orphan_closer: str,
+) -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = (
+        _render_shard(1, 1)
+        + orphan_closer
+        + "\n- provider_report: metadata that must remain visible to validation\n"
+        + "## stderr\nprovider diagnostic\n"
     )
 
     with pytest.raises(ValueError, match="undeclared card content"):

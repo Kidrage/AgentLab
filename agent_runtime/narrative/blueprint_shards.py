@@ -18,9 +18,27 @@ from agent_runtime.task_runtime_v2.runtime import TaskRuntime
 
 
 _CHAPTER_HEADING = re.compile(r"(?m)^## C(\d{3})(?:[ \t]+([^\r\n]+))?[ \t]*$")
-_SHARD_TRAILER = re.compile(
-    r"(?m)^(?:</AGENTLAB_EDIT>|<!--\s*(?:END\s+)?AGENTLAB_EDIT\b.*?-->|"
-    r">>>+\s*AGENTLAB_EDIT\b|>{6}[ \t]*$|##\s+stderr\b|#\s+Writer Report\b)"
+_SHARD_CHEVRON_START = re.compile(
+    r"(?m)^(?P<left><{3,8})[ \t]*AGENTLAB_EDIT"
+    r"(?P<meta>[^<>\r\n]*?)(?P<right>>{3,8})?[ \t]*$"
+)
+_SHARD_CHEVRON_METADATA = re.compile(
+    r"(?:|:[ \t]*[A-Za-z0-9_.-]+|"
+    r"(?:(?:candidate|candidate_id|artifact_id|target_id)(?:=|:[ \t]*)"
+    r"[A-Za-z0-9_.-]+)"
+    r"(?:[ \t]+(?:candidate|candidate_id|artifact_id|target_id)(?:=|:[ \t]*)"
+    r"[A-Za-z0-9_.-]+)*)"
+)
+_SHARD_HTML_START = re.compile(
+    r"(?m)^<!--[ \t]*(?:(?:BEGIN|START)[ \t]+AGENTLAB_EDIT\b|"
+    r"AGENTLAB_EDIT(?![ \t]*:[ \t]*END\b|_END\b))[^>\r\n]*-->[ \t]*$"
+)
+_SHARD_MARKDOWN_START = re.compile(
+    r"(?m)^```[ \t]*AGENTLAB_EDIT\b[^\r\n]*$"
+)
+_SHARD_XML_START = re.compile(r"(?m)^<AGENTLAB_EDIT(?:[ \t][^>\r\n]*)?>[ \t]*$")
+_SHARD_PROVIDER_TRAILER = re.compile(
+    r"(?m)^(?:##[ \t]+stderr\b|#[ \t]+Writer Report\b)"
 )
 _REQUIRED_CARD_FIELDS = ("objective", "conflict", "turn", "consequence", "promise")
 
@@ -146,7 +164,57 @@ def extract_blueprint_shard_cards(
     if not matches:
         raise ValueError(f"invalid blueprint shard {shard.volume_id}: no chapter cards")
     start = matches[0].start()
-    trailer = _SHARD_TRAILER.search(text, matches[-1].end())
+    search_start = matches[-1].end()
+    trailer_candidates = [
+        match
+        for match in (_SHARD_PROVIDER_TRAILER.search(text, search_start),)
+        if match is not None
+    ]
+    chevron_starts = [
+        match
+        for match in _SHARD_CHEVRON_START.finditer(text, 0, start)
+        if (
+            (
+                not match.group("right")
+                or len(match.group("left")) == len(match.group("right"))
+            )
+            and _SHARD_CHEVRON_METADATA.fullmatch(match.group("meta").strip())
+        )
+    ]
+    if chevron_starts:
+        opener = chevron_starts[-1]
+        left_width = len(opener.group("left"))
+        right_width = len(opener.group("right") or "") or left_width
+        for pattern in (
+            rf"(?m)^>{{{left_width}}}[ \t]*$",
+            rf"(?m)^>{{{left_width}}}[ \t]*AGENTLAB_EDIT[ \t]*$",
+            rf"(?m)^<{{{left_width}}}[ \t]*END_AGENTLAB_EDIT[ \t]*>{{{right_width}}}[ \t]*$",
+            rf"(?m)^>{{{left_width}}}[ \t]*END_AGENTLAB_EDIT[ \t]*>{{{right_width}}}[ \t]*$",
+        ):
+            match = re.compile(pattern).search(text, search_start)
+            if match is not None:
+                trailer_candidates.append(match)
+    if _SHARD_HTML_START.search(text, 0, start):
+        html_trailer = re.compile(
+            r"(?m)^<!--[ \t]*(?:/[ \t]*AGENTLAB_EDIT|END[ \t]+AGENTLAB_EDIT\b[^>\r\n]*|"
+            r"AGENTLAB_EDIT(?::[ \t]*END\b[^>\r\n]*|_END\b[^>\r\n]*))"
+            r"[ \t]*-->[ \t]*$"
+        ).search(text, search_start)
+        if html_trailer is not None:
+            trailer_candidates.append(html_trailer)
+    if _SHARD_MARKDOWN_START.search(text, 0, start):
+        markdown_trailer = re.compile(
+            r"(?m)^```[ \t]*$(?=\r?\n(?:[ \t]*\r?\n)*##[ \t]+stderr\b)"
+        ).search(text, search_start)
+        if markdown_trailer is not None:
+            trailer_candidates.append(markdown_trailer)
+    if _SHARD_XML_START.search(text, 0, start):
+        xml_trailer = re.compile(
+            r"(?m)^</AGENTLAB_EDIT>[ \t]*$"
+        ).search(text, search_start)
+        if xml_trailer is not None:
+            trailer_candidates.append(xml_trailer)
+    trailer = min(trailer_candidates, key=lambda match: match.start(), default=None)
     end = trailer.start() if trailer is not None else len(text)
     payload = text[start:end].strip()
     normalized_lines: list[str] = []
