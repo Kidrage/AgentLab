@@ -41,9 +41,9 @@ def test_frontdesk_boundary_audit_reports_role_chain_and_raw_live_adapter_warnin
         "cli_workflow_shell_governance_covers_full_cli_mode"
     ]["summary"]
     assert by_id["workflow_shell_workers_are_bounded_role_workers"]["status"] == "pass"
-    assert by_id["hermes_grok_backend_uses_workflow_shell_without_role_leakage"]["status"] == "pass"
-    assert by_id["grok_cli_is_registered_as_internal_research_and_artifact_worker"]["status"] == "pass"
-    assert by_id["grok_current_contracts_use_hermes_surface"]["status"] == "pass"
+    assert by_id["hermes_grok_backend_is_historical_and_nonselectable"]["status"] == "pass"
+    assert by_id["grok_cli_worker_is_historical_and_nonselectable"]["status"] == "pass"
+    assert by_id["grok_contracts_are_historical_and_nonselectable"]["status"] == "pass"
     assert (
         by_id["artifact_producer_profiles_bind_current_codex_default"]["status"]
         == "pass"

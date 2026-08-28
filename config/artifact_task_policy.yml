@@ -42,6 +42,8 @@ artifact_types:
     required_capabilities: [produce_mixed_artifacts, write_artifact_file, validate_artifact_contract]
 providers:
   hermes_grok:
+    availability: historical_only
+    selectable: false
     worker: hermes
     provider_type: cli
     invocation_contract: hermes_alter_artifact
@@ -82,10 +84,11 @@ providers:
     provider_type: cli
     invocation_contract: codex
     capacity_routes:
+      alter: AlterArtifactProducer
       full: ArtifactProducerCodex
       performance: ArtifactProducerCodex
       low: ArtifactProducerCodex
-    priority: 90
+    priority: 110
     fallback: false
     handles: [text]
     output_formats: [markdown, txt, docx, yaml]
@@ -94,6 +97,8 @@ providers:
       - write_artifact_file
       - validate_artifact_contract
   grok_media:
+    availability: historical_only
+    selectable: false
     worker: grok
     provider_type: cli
     invocation_contract: grok_media
@@ -102,6 +107,20 @@ providers:
       performance: ArtifactProducer
       low: ArtifactProducer
     priority: 110
+    fallback: false
+    handles: [image, video]
+    output_formats: [png, jpg, webp, mp4, mov]
+    capabilities:
+      - generate_image
+      - generate_video
+      - write_artifact_file
+      - validate_artifact_contract
+  local_media_pending:
+    availability: pending_local_model
+    selectable: false
+    worker: local_media
+    provider_type: placeholder
+    priority: 120
     fallback: false
     handles: [image, video]
     output_formats: [png, jpg, webp, mp4, mov]

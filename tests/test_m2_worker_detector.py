@@ -28,14 +28,16 @@ def test_probe_version_failure():
     with patch("subprocess.run", side_effect=Exception("error")):
         assert probe_version("any_cmd") is None
 
-def test_probe_auth_yes():
+def test_probe_auth_yes(tmp_path):
     # Deterministic tools always return yes
     assert probe_auth("git") == "yes"
     assert probe_auth("rg") == "yes"
 
-    # API key present in env
-    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-123456"}):
-        assert probe_auth("claude") == "yes"
+    # Ambient API keys cannot certify the governed Claude/DeepSeek binding.
+    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-123456"}), patch(
+        "agent_runtime.workers.auth_probe.Path.home", return_value=tmp_path
+    ):
+        assert probe_auth("claude") == "no"
 
 def test_probe_auth_no(tmp_path):
     with patch.dict(os.environ, {}, clear=True):

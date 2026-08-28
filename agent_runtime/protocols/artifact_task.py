@@ -899,6 +899,7 @@ def route_artifact_provider(
     providers = policy.get("providers") or {}
     required = set(required_capabilities or capabilities_for_artifact_type(root, artifact_type))
     candidates: list[ArtifactRoute] = []
+    pending_provider: str | None = None
 
     for provider_id, cfg in providers.items():
         if preferred_provider and provider_id != preferred_provider:
@@ -914,6 +915,12 @@ def route_artifact_provider(
             continue
         if not required.issubset(capabilities):
             continue
+        availability = str(cfg.get("availability") or "active")
+        if availability == "pending_local_model":
+            pending_provider = pending_provider or str(provider_id)
+            continue
+        if availability != "active" or cfg.get("selectable") is False:
+            continue
         priority = int(cfg.get("priority", 0))
         candidates.append(ArtifactRoute(
             provider_id=provider_id,
@@ -925,6 +932,13 @@ def route_artifact_provider(
 
     candidates.sort(key=lambda item: item.priority, reverse=True)
     selected = candidates[0] if candidates else None
+    status = (
+        "routed"
+        if selected
+        else "local_media_backend_pending"
+        if pending_provider
+        else "capability_mismatch"
+    )
     return {
         "artifact_type": artifact_type,
         "output_format": output_format,
@@ -932,7 +946,8 @@ def route_artifact_provider(
         "required_capabilities": sorted(required),
         "selected": asdict(selected) if selected else None,
         "candidates": [asdict(item) for item in candidates],
-        "status": "routed" if selected else "capability_mismatch",
+        "status": status,
+        "pending_provider": pending_provider,
     }
 
 
@@ -1046,6 +1061,13 @@ def run_artifact_task_doctor(root: Path) -> dict[str, Any]:
         cfg = providers.get(provider_id) or {}
         check(bool(cfg), "artifact_provider_present", f"{provider_id} provider is configured")
         check(bool(cfg.get("worker")), "artifact_provider_worker_present", f"{provider_id} has a worker binding")
+        if cfg.get("selectable", True) is False:
+            check(
+                True,
+                "artifact_provider_inactive",
+                f"{provider_id} is retained only as a nonselectable provider",
+            )
+            continue
         if cfg.get("worker"):
             allowed, reason = check_role_binding(root, str(cfg["worker"]), ARTIFACT_PRODUCER_ROLE)
             check(allowed, "artifact_provider_worker_bound", f"{provider_id}/{cfg['worker']}: {reason}")

@@ -1,27 +1,45 @@
 roles:
   Supervisor:
-    candidate_worker: claude_code
+    candidate_worker: hermes
     expected_benefit:
       quality_gain: high
       risk_reduction: medium
       speed_gain: medium
       recovery_value: medium
+  Observer:
+    candidate_worker: agy
+    expected_benefit: {quality_gain: medium, risk_reduction: medium, speed_gain: medium, recovery_value: low}
   PromptEngineer:
-    candidate_worker: claude_code
+    candidate_worker: hermes
     expected_benefit:
       quality_gain: medium
       risk_reduction: low
       speed_gain: low
       recovery_value: none
   Coder:
-    candidate_worker: claude_code
+    candidate_worker: codex
     expected_benefit:
       quality_gain: high
       risk_reduction: high
       speed_gain: high
       recovery_value: high
-  Researcher:
+  ArtifactProducer:
+    candidate_worker: codex
+    expected_benefit: {quality_gain: high, risk_reduction: medium, speed_gain: medium, recovery_value: medium}
+  NarrativePlanner:
+    candidate_worker: agy
+    expected_benefit: {quality_gain: high, risk_reduction: high, speed_gain: medium, recovery_value: medium}
+  Writer:
     candidate_worker: claude_code
+    expected_benefit: {quality_gain: high, risk_reduction: medium, speed_gain: medium, recovery_value: medium}
+  Reviewer:
+    candidate_worker: agy
+    expected_benefit: {quality_gain: high, risk_reduction: high, speed_gain: medium, recovery_value: high}
+  Scribe:
+    candidate_worker: agy
+    expected_benefit: {quality_gain: medium, risk_reduction: high, speed_gain: medium, recovery_value: medium}
+  Researcher:
+    candidate_worker: agy
     expected_benefit:
       quality_gain: medium
       risk_reduction: low

@@ -17,21 +17,21 @@ components:
     install_source: Hermes Agent upstream installer
     version_probe: hermes --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker hermes
-    live_smoke: hermes -p agentlabalter chat -Q --provider xai-oauth -m grok-4.6 --ignore-rules --max-turns 1 -q "Return AGENTLAB_HERMES_GROK_SMOKE_OK only."
-    capacity_probe: hermes auth status xai-oauth
+    live_smoke: hermes --provider deepseek -m deepseek-v4-flash --safe-mode -t "" -z "Return AGENTLAB_HERMES_DEEPSEEK_SMOKE_OK only."
+    capacity_probe: hermes config check
     forbidden_probe: hermes status --all
-    notes: General workflow/frontdesk shell and the alter-tier Grok 4.6 high-reasoning execution shell. The retained hermes_supervisor contract is legacy diagnostic evidence.
+    notes: General workflow/frontdesk shell, alter-tier DeepSeek Flash execution shell, and governed Codex-OAuth Supervisor shell. Retired providers are not selectable.
   claude_code:
     kind: agent_cli
-    release_requirement: required
+    release_requirement: required_for_selected_writer_and_reviewer_tiers
     command: claude
     auth_mode: shell_managed_private_configuration
     model_binding: command_template
     install_source: npm package @anthropic-ai/claude-code
     version_probe: claude --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker claude
-    live_smoke: claude --model deepseek-v4-pro --effort max --max-budget-usd 0.01 --permission-mode plan --output-format json --tools "" -p "Return AGENTLAB_CLAUDE_WRITER_SMOKE_OK only."
-    notes: Claude owns the current Supervisor, RepoScout, InterfaceMapper, Coder, Reviewer, TesterAuditor, Verifier, and Archivist DeepSeek routes. NarrativePlanner, Writer, and Scribe use separate governed Agy subscription routes in all three current full_cli tiers. Writer/planner specialized fallback contracts retain native JSON usage, sealed packets, and hard CLI budgets; Ultracode remains opt-in and never final prose.
+    live_smoke: claude --model deepseek-v4-pro --effort max --max-budget-usd 0.05 --safe-mode --restricted --strict-mcp-config --disable-slash-commands --no-chrome --no-session-persistence --permission-mode dontAsk --output-format json --tools "" -p "Return AGENTLAB_CLAUDE_WRITER_SMOKE_OK only."
+    notes: The 2026-08-28 isolated live probes completed on both DeepSeek V4 Pro and V4 Flash with exact modelUsage binding and zero tool/subagent activity. AgentLab imports only a fixed provider/auth/proxy environment allowlist from the private Claude settings before starting safe mode; hooks, plugins, skills, memory, MCP and workspace discovery remain disabled.
   codex:
     kind: agent_cli
     release_requirement: required
@@ -69,10 +69,10 @@ components:
     capacity_source: config/model_capacity.yml
     capacity_probe: agy models
     quota_visibility: failure_observation_only
-    notes: Multimodal Observer, isolated visual Reviewer, NarrativePlanner, Writer, and Scribe use Gemini 3.6 through the shared Agy subscription pool in all three current full_cli tiers. Agy has no quota/status command; agy models is catalog-only, and remaining/reset stay unknown until provider error evidence. Never invent /usage or use GEMINI_API_KEY.
+    notes: Multimodal Observer, isolated visual Reviewer, NarrativePlanner, Researcher, and Scribe use Gemini 3.6 through the shared Agy subscription pool. Claude Code owns the current Writer tiers through exact DeepSeek Pro/Flash contracts; Agy Writer remains an explicit alternate only. Agy has no quota/status command; agy models is catalog-only, and remaining/reset stay unknown until provider error evidence. Never invent /usage or use GEMINI_API_KEY.
   grok:
     kind: agent_cli_backend
-    release_requirement: optional_legacy_backend
+    release_requirement: historical_only
     command: grok
     legacy_command: hermes
     auth_mode: local_grok_oauth_session
@@ -80,10 +80,10 @@ components:
     install_source: native Grok CLI
     version_probe: grok --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker grok
-    live_smoke: grok models
+    live_smoke: disabled
     capacity_probe: grok models
     forbidden_probe: hermes status --all
-    notes: Native Grok CLI is retained only for explicit legacy tasks. The alter tier uses Hermes xAI OAuth with Grok 4.6 high reasoning. Neither probe reports remaining quota or reset time.
+    notes: Retained only to parse and replay historical receipts. No active role, fallback, research, artifact, media, smoke, or capacity route may select it.
   bl:
     kind: specialist_cli
     release_requirement: optional_specialist

@@ -1412,7 +1412,7 @@ def test_project_rebuild_and_doctor_trust_ledgers_not_cached_indexes(
         runtime.rebuild_project()
 
 
-def test_runtime_policy_declares_project_rag_and_hermes_ark_primary() -> None:
+def test_runtime_policy_declares_project_rag_and_media_pending() -> None:
     root = Path(__file__).resolve().parents[1]
     policy = load_agentlab_configs(root, keys=["task_runtime_v2"])["task_runtime_v2"]
 
@@ -1421,14 +1421,12 @@ def test_runtime_policy_declares_project_rag_and_hermes_ark_primary() -> None:
     assert policy["knowledge"]["indexed_runtime_surface"] == [
         "runtime/knowledge/selected_artifacts.yml"
     ]
-    assert (
-        policy["worker_routing"]["visual_generation"]["primary_contract"]
-        == "hermes_ark_artifact_producer"
-    )
-    assert (
-        policy["worker_routing"]["visual_generation"]["fallback_contract"]
-        == "claude_seedance_artifact_fallback"
-    )
+    visual = policy["worker_routing"]["visual_generation"]
+    assert visual["availability"] == "local_adapter_pending"
+    assert visual["selectable"] is False
+    assert visual["primary_backend"] == "local_media_pending"
+    assert visual["primary_contract"] is None
+    assert visual["fallback_contract"] is None
 
 
 def test_task_lifecycle_is_projected_from_validated_transition_events(

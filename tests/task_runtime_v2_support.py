@@ -192,3 +192,46 @@ def _write_role_config(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
+    (config / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    role["invocation_contract"]: {
+                        "worker_id": role["worker"],
+                        "availability": "test_fixture_only",
+                        "selectable": True,
+                    }
+                    for role in _ROLES.values()
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    worker_roles: dict[str, list[str]] = {}
+    for role_name, role in _ROLES.items():
+        worker_roles.setdefault(role["worker"], []).append(role_name)
+    (config / "agent_role_bindings.yml").write_text(
+        yaml.safe_dump(
+            {
+                "roles": {
+                    role_name: {"allowed_workers": [role["worker"]]}
+                    for role_name, role in _ROLES.items()
+                },
+                "workers": {
+                    worker: {
+                        "worker_capable": True,
+                        "worker_capabilities": [
+                            "role_worker",
+                            "candidate_artifact_worker",
+                        ],
+                        "allowed_roles": roles,
+                        "forbidden_roles": [],
+                    }
+                    for worker, roles in worker_roles.items()
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )

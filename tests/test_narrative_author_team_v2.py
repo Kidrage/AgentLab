@@ -74,9 +74,9 @@ def test_professional_team_uses_the_governed_alter_tier() -> None:
     routes = profiles["modes"]["full_cli"]["tiers"]["alter"]
     expected_workers = {
         "supervisor": "hermes",
-        "researcher": "hermes",
+        "researcher": "agy",
         "narrative_planner": "agy",
-        "writer": "agy",
+        "writer": "claude_code",
         "reviewer": "agy",
     }
     for role, worker in expected_workers.items():
@@ -84,6 +84,20 @@ def test_professional_team_uses_the_governed_alter_tier() -> None:
         assert route["cli_agent"] == worker
         capacity_route = capacity["routes"][route["capacity_route"]]
         assert capacity_route["worker"] == worker
+    senior_editor = professional["senior_editor"]
+    assert senior_editor["execution_override"] == {
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_deepseek_narrative_audit",
+        "default": "deepseek_v4_flash_hermes_private",
+    }
+    independent_route = capacity["routes"][
+        senior_editor["capacity_route"]
+    ]
+    assert independent_route["worker"] == "hermes"
+    assert independent_route["invocation_contract"] == (
+        "hermes_deepseek_narrative_audit"
+    )
+    assert independent_route["model_key"] == "deepseek_v4_flash_hermes_private"
     for profile in professional.values():
         if profile["execution_kind"] != "cli_agent":
             continue

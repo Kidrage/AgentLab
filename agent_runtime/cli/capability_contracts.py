@@ -148,4 +148,7 @@ def register_capability_contract_commands(app: typer.Typer, console: Console) ->
             timeout_seconds=timeout_seconds,
             role_session=role_session_packet if isinstance(role_session_packet, dict) else {},
         )
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True),
+            soft_wrap=True,
+        )

@@ -43,8 +43,12 @@ For agent backend mode switching:
 - Use `AGENTLAB_MODE=full_cli` for local CLI-backed agents.
 - `full_cli` is the only configured agent backend mode. Unknown or retired
   `AGENTLAB_MODE` values do not resolve a role profile and must stop.
-- The default backend tier is `alter`: Hermes xAI OAuth with Grok 4.6 high reasoning plus Agy Gemini 3.6,
-  with governed Claude Code + DeepSeek fallback routes.
+- The default backend tier is `alter`: Hermes with Codex OAuth for supervision,
+  native Codex for code/text artifacts, Agy Gemini 3.6 plus Exa for sourced
+  research, Claude Code + DeepSeek V4 Pro for sealed long-form Writer packets,
+  and Hermes + DeepSeek V4 Flash for bounded support/audit roles. Performance
+  and low Writer tiers use Claude Code + DeepSeek V4 Flash.
+  Grok routes are historical-only and cannot be selected by an active tier.
 - Use `AGENTLAB_BUDGET_MODE=alter|max_quality|balanced|frugal` to select the
   `alter|full|performance|low` tier. A task line containing exactly `alter` or
   `budget_mode: alter` also selects it.

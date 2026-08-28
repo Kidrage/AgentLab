@@ -123,6 +123,23 @@ def test_retry_after_failure_is_classified_and_persisted_atomically(tmp_path):
     assert not ledger_path.with_suffix(".yml.tmp").exists()
 
 
+def test_historical_or_explicitly_nonselectable_route_is_blocked(tmp_path):
+    policy = _policy()
+    policy["routes"]["primary"]["availability"] = "historical_only"
+    policy["routes"]["primary"]["selectable"] = False
+    capacity = ModelCapacity(policy, tmp_path / "ledger.yml", clock=lambda: NOW)
+
+    decision = capacity.select_route(
+        "primary",
+        role="observer",
+        attempt_id="attempt-historical",
+    )
+
+    assert decision["status"] == "blocked"
+    assert decision["route_id"] is None
+    assert decision["failure_class"] == "route_not_selectable"
+
+
 def test_provider_reset_duration_is_parsed_without_inventing_remaining(tmp_path):
     capacity = ModelCapacity(_policy(), tmp_path / "ledger.yml", clock=lambda: NOW)
 
@@ -440,13 +457,9 @@ def test_repository_policy_declares_safe_pools_routes_and_unknown_quota_values(t
     assert writer_fallback["pool"] == writer["pool"]
     writer_agy = policy["routes"]["WriterAgy"]
     assert writer_agy["worker"] == "agy"
-    assert writer_agy["approved_fallbacks"] == ["Writer"]
-    assert writer_agy["fallback_on"] == [
-        "quota_exhausted",
-        "rate_limited",
-        "auth_missing",
-        "model_unavailable",
-    ]
+    assert writer_agy["approved_fallbacks"] == []
+    assert writer_agy["fallback_on"] == []
+    assert writer["selectable"] is True
     artifact = policy["routes"]["ArtifactProducer"]
     assert artifact["pool"] == "xai_subscription_shared"
     assert artifact["approved_fallbacks"] == []

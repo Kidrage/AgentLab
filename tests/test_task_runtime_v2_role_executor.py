@@ -106,6 +106,22 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
 ) -> None:
     config = tmp_path / "config"
     config.mkdir()
+    (config / "agent_role_bindings.yml").write_text(
+        yaml.safe_dump(
+            {
+                "roles": {"Writer": {"allowed_workers": ["claude_code"]}},
+                "workers": {
+                    "claude_code": {
+                        "worker_capable": True,
+                        "worker_capabilities": ["role_worker"],
+                        "allowed_roles": ["Writer"],
+                        "forbidden_roles": [],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     (config / "agent_model_profiles.yml").write_text(
         yaml.safe_dump(
             {
@@ -170,6 +186,21 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
                     "writer-model": {
                         "runtime_provider": "deepseek",
                         "model_id": "deepseek-v4-pro",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "claude_writer": {
+                        "worker_id": "claude_code",
+                        "availability": "test_fixture_only",
+                        "selectable": True,
                     }
                 }
             },
@@ -599,5 +630,5 @@ def test_role_executor_resolves_the_cli_runtime_provider_from_catalog() -> None:
 
     profile, provider = executor._resolve_profile("Writer")
 
-    assert provider == "agy-gemini-oauth"
-    assert profile["_resolved_model_id"] == "gemini-3.6-flash-high"
+    assert provider == "deepseek"
+    assert profile["_resolved_model_id"] == "deepseek-v4-pro"

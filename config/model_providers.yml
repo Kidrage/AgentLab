@@ -4,10 +4,10 @@ version: 2
 # 分层架构 (Model Tier Architecture) v3.0:
 #
 #   Agent backend 选择由 config/agent_model_profiles.yml 负责。
-#   full_cli 默认大脑层 Supervisor — Codex CLI OAuth / gpt-5.6-sol xhigh
-#   full_cli Observer — Agy Gemini/Claude OAuth 独立容量池
-#   full_cli Writer — Claude shell / DeepSeek V4
-#   full_cli Researcher/ArtifactProducer — Hermes Grok OAuth（独立合同）
+#   full_cli 默认大脑层 Supervisor — Hermes shell / Codex OAuth / gpt-5.6-sol xhigh
+#   full_cli Observer/Researcher — Agy / Gemini OAuth（Researcher 仅 Exa broker）
+#   full_cli Writer — Claude Code / DeepSeek V4 Pro；Flash 为分层降级路线
+#   ArtifactProducer — 文本 Codex；表格/演示 Qwen；媒体后端待本地适配器
 #   Gemini API key 路径 — gemini-2.5-flash-high，仅显式 fallback，不默认启用
 #   direct API 模式 — 使用本文件 provider defaults 与 model_catalog facts
 #
@@ -252,6 +252,8 @@ providers:
       - Never use `hermes status --all` as a probe; use `hermes auth status openai-codex`.
 
   grok-cli-oauth:
+    availability: historical_only
+    selectable: false
     type: oauth_cli
     display_name: Native Grok CLI OAuth
     command: grok
@@ -270,10 +272,12 @@ providers:
       - subscription_exhausted
       - provider_error
     notes:
-      - Retained for explicit legacy native-Grok tasks; the alter tier uses Hermes xAI OAuth.
+      - Retained only for historical native-Grok receipt replay; runtime selection is blocked.
       - "`grok models` confirms login and model availability but does not report a remaining percentage or reset time."
 
   xai-oauth:
+    availability: historical_only
+    selectable: false
     type: oauth_cli
     display_name: Hermes xAI OAuth
     command: hermes
@@ -292,13 +296,15 @@ providers:
       - subscription_exhausted
       - provider_error
     notes:
-      - Alter-tier Hermes Grok roles, Grok Researcher, and Grok media generation share this observed capacity pool.
+      - Historical Hermes/Grok receipts share this observed capacity pool; no current route may select it.
       - "`hermes auth status xai-oauth` is an auth/cooldown signal, not a weekly remaining percentage."
       - "Never use `hermes status --all`; its output is not safe for AgentLab logs."
 
   ark-agent-plan:
     type: oauth_cli
     display_name: Volcengine Ark Agent Plan via Hermes + Ark Skills
+    availability: unavailable_current_host
+    selectable: false
     command: hermes
     worker: hermes_ark
     invocation_contract: hermes_ark_artifact_producer
@@ -356,6 +362,8 @@ providers:
 
   # ── Agy / Antigravity Claude OAuth Observer 备用容量池 ─────────
   agy-claude-oauth:
+    availability: unavailable_current_host
+    selectable: false
     type: oauth_cli
     display_name: Agy Claude OAuth
     command: agy

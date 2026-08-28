@@ -151,19 +151,33 @@ def _governed_proposal_binding(
     if not canonical_role:
         return None, f"Unknown canonical role: {role_key}"
     catalog = _read_yaml(root / "config" / "model_catalog.yml", {}) or {}
-    if model_key not in (catalog.get("models") or {}):
+    models = catalog.get("models") or {}
+    if model_key not in models:
         return None, f"Unknown model catalog key: {model_key}"
+
+    def lifecycle_selectable(entry: Any) -> bool:
+        if not isinstance(entry, dict) or entry.get("selectable", True) is False:
+            return False
+        return str(entry.get("availability") or "active").strip() not in {
+            "historical_only",
+            "inactive",
+            "retired",
+            "unavailable_current_host",
+        }
+
+    model = models[model_key]
+    providers = catalog.get("providers") or {}
+    provider = providers.get(str(model.get("provider") or "")) or {}
+    if not lifecycle_selectable(model) or not lifecycle_selectable(provider):
+        return None, f"Model is not selectable on the current host: {model_key}"
 
     try:
         from agent_runtime.protocols import check_role_binding
     except ModuleNotFoundError:  # pragma: no cover - direct script path
         from protocols import check_role_binding
 
-    binding_allowed, binding_reason = check_role_binding(root, cli_agent, canonical_role)
-    if not binding_allowed:
-        return None, f"Protocol role binding rejected: {binding_reason}"
-
     capacity = _read_yaml(root / "config" / "model_capacity.yml", {}) or {}
+    pools = capacity.get("pools") or {}
     capacity_role = CAPACITY_ROLE_ALIASES.get(role_key, role_key)
     matches: list[tuple[str, dict[str, Any]]] = []
     for route_id, route in (capacity.get("routes") or {}).items():
@@ -173,6 +187,8 @@ def _governed_proposal_binding(
             _role_key(str(route.get("role") or "")) == capacity_role
             and str(route.get("worker") or "") == cli_agent
             and str(route.get("model_key") or "") == model_key
+            and lifecycle_selectable(route)
+            and lifecycle_selectable(pools.get(str(route.get("pool") or "")) or {})
         ):
             matches.append((str(route_id), route))
     if not matches:
@@ -188,7 +204,10 @@ def _governed_proposal_binding(
     for route_id, route in matches:
         contract_id = str(route.get("invocation_contract") or "")
         contract = contracts.get(contract_id) or {}
-        if str(contract.get("worker_id") or "") == cli_agent:
+        if (
+            str(contract.get("worker_id") or "") == cli_agent
+            and lifecycle_selectable(contract)
+        ):
             valid.append((route_id, route, contract_id))
     if not valid:
         return None, "Matching capacity route has no worker-compatible invocation contract"
@@ -199,6 +218,14 @@ def _governed_proposal_binding(
         return (0 if (tier == "low") == low_route else 1, route_id)
 
     route_id, _route, contract_id = sorted(valid, key=route_rank)[0]
+    binding_allowed, binding_reason = check_role_binding(
+        root,
+        cli_agent,
+        canonical_role,
+        contract_id,
+    )
+    if not binding_allowed:
+        return None, f"Protocol role binding rejected: {binding_reason}"
     return {
         "capacity_route": route_id,
         "invocation_contract": contract_id,
@@ -723,6 +750,28 @@ def _doctor_issues(root: Path) -> list[dict[str, str]]:
             "issue": "missing_model_fact_verification_date",
             "value": "",
         })
+    elif catalog:
+        try:
+            verified_date = datetime.fromisoformat(
+                str(catalog.get("last_verified"))
+            ).date()
+            valid_days = int(catalog.get("valid_until_days"))
+        except (TypeError, ValueError):
+            issues.append({
+                "severity": "error",
+                "scope": "model_catalog.last_verified",
+                "issue": "invalid_model_fact_verification_window",
+                "value": str(catalog.get("last_verified") or ""),
+            })
+        else:
+            age_days = (datetime.now(timezone.utc).date() - verified_date).days
+            if valid_days <= 0 or age_days > valid_days:
+                issues.append({
+                    "severity": "error",
+                    "scope": "model_catalog.last_verified",
+                    "issue": "stale_model_fact_verification_date",
+                    "value": str(catalog.get("last_verified")),
+                })
     if pricing and not pricing.get("last_verified"):
         issues.append({
             "severity": "error",

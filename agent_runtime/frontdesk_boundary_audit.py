@@ -262,26 +262,33 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "openclaw"
             and "workflow_shell" in (claude_worker.get("worker_capabilities") or [])
             and "role_worker" in (claude_worker.get("worker_capabilities") or [])
             and claude_worker.get("frontdesk_capable") is False
+            and claude_worker.get("selectable") is True
+            and set(claude_worker.get("allowed_roles") or [])
+            == {"Writer", "Reviewer"}
             else "fail",
             "evidence": ["config/agent_role_bindings.yml", "config/cli_workflow_shells.yml"],
-            "summary": "Hermes and Claude Code remain bounded role-session shells; Hermes FrontDesk is a separate profile",
+            "summary": "Hermes is a bounded role shell; Claude Code is selectable only for isolated Writer and Reviewer contracts",
         },
         {
-            "id": "hermes_grok_backend_uses_workflow_shell_without_role_leakage",
+            "id": "hermes_grok_backend_is_historical_and_nonselectable",
             "status": "pass"
-            if hermes_grok.get("execution_kernel") == "hermes_workflow_shell"
+            if hermes_grok.get("availability") == "historical_only"
+            and hermes_grok.get("selectable") is False
+            and hermes_grok.get("execution_kernel") == "hermes_workflow_shell"
             and hermes_grok.get("orchestration_scope") == "bounded_role_session_backend"
             and hermes_grok.get("worker_id") == "grok"
             and hermes_grok.get("role_owner") == "ArtifactProducer"
             and ((hermes_grok.get("agentlab_boundary") or {}).get("shell_state_is_not_project_memory") is True)
             else "fail",
             "evidence": ["config/media_generation_backends.yml", "config/cli_workflow_shells.yml"],
-            "summary": "Hermes workflow shell powers the Grok media backend, but ArtifactProducer/grok remains the AgentLab role-worker owner",
+            "summary": "The legacy Hermes/Grok media backend is retained for evidence replay but cannot be selected",
         },
         {
-            "id": "grok_cli_is_registered_as_internal_research_and_artifact_worker",
+            "id": "grok_cli_worker_is_historical_and_nonselectable",
             "status": "pass"
-            if "grok" in (researcher_role.get("allowed_workers") or [])
+            if grok_worker.get("availability") == "historical_only"
+            and grok_worker.get("selectable") is False
+            and "grok" in (researcher_role.get("allowed_workers") or [])
             and "grok" in (artifact_role.get("allowed_workers") or [])
             and grok_worker.get("worker_capable") is True
             and grok_worker.get("frontdesk_capable") is False
@@ -301,12 +308,18 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "openclaw"
             and "Writer" in (grok_worker.get("forbidden_roles") or [])
             else "fail",
             "evidence": ["config/agent_role_bindings.yml", "config/worker_invocation_contracts.yml"],
-            "summary": "Grok is the bounded alter-tier role worker for non-Agy roles, never a Writer or FrontDesk",
+            "summary": "Legacy Grok role bindings remain readable for receipts but central enforcement rejects them",
         },
         {
-            "id": "grok_current_contracts_use_hermes_surface",
+            "id": "grok_contracts_are_historical_and_nonselectable",
             "status": "pass"
-            if grok_native_contract.get("worker_id") == "grok"
+            if grok_native_contract.get("availability") == "historical_only"
+            and grok_native_contract.get("selectable") is False
+            and grok_research_contract.get("availability") == "historical_only"
+            and grok_research_contract.get("selectable") is False
+            and grok_media_contract.get("availability") == "historical_only"
+            and grok_media_contract.get("selectable") is False
+            and grok_native_contract.get("worker_id") == "grok"
             and grok_native_contract.get("command") == "grok"
             and grok_research_contract.get("worker_id") == "grok"
             and grok_research_contract.get("command") == "hermes"
@@ -318,17 +331,17 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "openclaw"
             == "media_backend_task_packet"
             else "fail",
             "evidence": ["config/worker_invocation_contracts.yml"],
-            "summary": "alter uses native Grok contracts while legacy research/media contracts remain explicitly on Hermes xAI OAuth",
+            "summary": "All Grok invocation contracts are historical evidence surfaces and cannot launch",
         },
         {
             "id": "artifact_producer_profiles_bind_current_codex_default",
             "status": "pass"
-            if set(codex_artifact_profiles) == {"full", "performance", "low"}
+            if set(codex_artifact_profiles) == {"alter", "full", "performance", "low"}
             else "fail",
             "evidence": ["config/agent_model_profiles.yml"],
             "summary": (
                 "ArtifactProducer default is Codex GPT-5.6 Sol medium in tiers: "
-                f"{sorted(codex_artifact_profiles)}; Grok remains a governed media backend"
+                f"{sorted(codex_artifact_profiles)}; media generation fails closed at the local-model placeholder"
             ),
         },
         {

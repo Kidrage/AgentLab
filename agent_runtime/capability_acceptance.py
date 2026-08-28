@@ -139,44 +139,48 @@ def _internal_writer_route_readiness(root: Path) -> dict[str, Any]:
     capacity = _read_yaml(root / "config" / "model_capacity.yml")
     routes = capacity.get("routes") or {}
     capacity_route = (routes.get(capacity_route_name) or {})
-    fallback_route = (routes.get("Writer") or {})
+    fallback_route = (routes.get("WriterFlash") or {})
     binding_ok = _role_worker_binding_ok(root, "Writer", worker)
     profile_ok = (
         profile.get("executor_type") == "cli_agent"
-        and worker == "agy"
-        and contract_name == "agy_writer"
+        and worker == "claude_code"
+        and contract_name == "claude_writer"
         and bool(model_key)
-        and capacity_route_name == "WriterAgy"
+        and capacity_route_name == "Writer"
     )
     model_ok = (
-        model.get("runtime_provider") == "agy-gemini-oauth"
-        and str(model.get("model_id") or "").startswith("gemini-")
-        and model.get("cli_model_id") == model.get("model_id")
+        model.get("provider") == "deepseek_official"
+        and model.get("model_id") == "deepseek-v4-pro"
+        and model.get("observed_cli_worker") == "claude_code"
+        and bool(model.get("observed_cli_verified"))
     )
     contract_ok = (
-        contract.get("worker_id") == "agy"
-        and contract.get("command") == "agy"
-        and contract.get("invocation_style") == "bounded_writer_task_packet"
-        and not contract.get("packet_delivery")
-        and set(contract.get("required_placeholders") or [])
-        == {"task_packet_path", "model_id"}
-        and "{task_packet_path}" in str(contract.get("template") or "")
+        contract.get("worker_id") == "claude_code"
+        and contract.get("command") == "claude"
+        and contract.get("availability") == "verified_current_host"
+        and contract.get("selectable") is True
+        and contract.get("packet_delivery") == "stdin"
+        and contract.get("required_placeholders") == ["model_id"]
+        and '--tools ""' in str(contract.get("template") or "")
+        and "--safe-mode" in str(contract.get("template") or "")
     )
     capacity_ok = (
         capacity_route.get("role") == "writer"
-        and capacity_route.get("worker") == "agy"
-        and capacity_route.get("invocation_contract") == "agy_writer"
+        and capacity_route.get("worker") == "claude_code"
+        and capacity_route.get("invocation_contract") == "claude_writer"
         and capacity_route.get("model_key") == model_key
-        and capacity_route.get("approved_fallbacks") == ["Writer"]
+        and capacity_route.get("approved_fallbacks") == ["WriterFlash"]
         and fallback_route.get("worker") == "claude_code"
         and fallback_route.get("invocation_contract") == "claude_writer"
-        and fallback_route.get("model_key") == "deepseek_v4_pro"
+        and fallback_route.get("model_key") == "deepseek_v4_flash"
     )
     auth = _probe_worker_auth(worker)
     config_ready = binding_ok and profile_ok and model_ok and contract_ok and capacity_ok
+    ready = config_ready and auth == "yes"
     return {
-        "ready": config_ready,
-        "status": "pass" if config_ready and auth == "yes" else ("candidate" if config_ready else "fail"),
+        "ready": ready,
+        "config_ready": config_ready,
+        "status": "pass" if ready else ("candidate" if config_ready else "fail"),
         "role": "Writer",
         "worker": worker,
         "invocation_contract": contract_name,
@@ -187,9 +191,9 @@ def _internal_writer_route_readiness(root: Path) -> dict[str, Any]:
         "model_provider": model.get("provider"),
         "checks": {
             "role_worker_binding": binding_ok,
-            "profile_selects_agy_writer": profile_ok,
-            "model_registered_as_agy_gemini": model_ok,
-            "agy_writer_contract_is_model_bound": contract_ok,
+            "profile_selects_claude_writer": profile_ok,
+            "model_registered_as_claude_deepseek": model_ok,
+            "claude_writer_contract_is_model_bound_and_isolated": contract_ok,
             "capacity_route_matches_profile": capacity_ok,
         },
     }
@@ -341,7 +345,12 @@ def _media_series_scaffold(root: Path) -> dict[str, Any]:
             "id": "media_series_scaffold",
             "title": "Media series production scaffold",
             "status": "retired",
-            "evidence": [str(audit_path)] if audit_path.exists() else [],
+            "evidence": [],
+            **(
+                {"historical_evidence": [str(audit_path)]}
+                if audit_path.exists()
+                else {}
+            ),
             "summary": (
                 "legacy media-series scaffold retired; new media production requires "
                 "a fresh ArtifactProducer task and candidate evidence"
@@ -1465,7 +1474,40 @@ def _trusted_runner_item(root: Path, item_id: str) -> tuple[dict[str, Any], Path
 
 def _trusted_runner_item_accepted(root: Path, item_id: str) -> tuple[bool, dict[str, Any], Path]:
     item, status_path = _trusted_runner_item(root, item_id)
-    accepted = item.get("status") == "pass" and item.get("returned_candidate_artifacts_accepted") is True
+    request = _read_yaml(
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_request.yml"
+    )
+    request_items = (
+        request.get("items", []) if isinstance(request.get("items"), list) else []
+    )
+    request_item = next(
+        (
+            candidate
+            for candidate in request_items
+            if isinstance(candidate, dict) and candidate.get("id") == item_id
+        ),
+        {},
+    )
+    lifecycle_current = not _legacy_live_runner_payload(request)
+    if item_id == "run_crown_internal_writer_eval":
+        lifecycle_current = lifecycle_current and all(
+            (
+                request_item.get("assigned_worker") == "claude_code",
+                request_item.get("invocation_contract") == "claude_writer",
+                request_item.get("model_key") == "deepseek_v4_pro",
+                item.get("assigned_worker") == "claude_code",
+                item.get("invocation_contract") == "claude_writer",
+                item.get("model_key") == "deepseek_v4_pro",
+            )
+        )
+    accepted = (
+        lifecycle_current
+        and item.get("status") == "pass"
+        and item.get("returned_candidate_artifacts_accepted") is True
+    )
     return accepted, item, status_path
 
 
@@ -1495,18 +1537,25 @@ def _crown_formal_live_eval(root: Path) -> dict[str, Any]:
         root,
         "run_crown_internal_writer_eval",
     )
+    trusted_request = _read_yaml(
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_request.yml"
+    )
+    trusted_runner_historical = _legacy_live_runner_payload(trusted_request)
     status = "pass" if internal_ready and trusted_accepted else ("candidate" if internal_ready else ("blocked" if blocked and not missing else "fail"))
     if internal_ready and trusted_accepted:
         summary = (
             "formal live one-chapter eval returned accepted trusted-runner Writer artifacts "
-            "through the internal Writer role-session: Agy Gemini OAuth with "
-            "Claude shell + DeepSeek V4 Pro capacity fallback"
+            "through the internal Claude Code Writer role-session with an exact "
+            "DeepSeek V4 Pro binding"
         )
         issues: list[str] = []
     elif internal_ready:
         summary = (
             "formal live one-chapter eval is routed through the internal Writer role-session: "
-            "Agy Gemini OAuth with Claude shell + DeepSeek V4 Pro capacity fallback; "
+            "Claude Code with exact DeepSeek V4 Pro binding and Flash-only approved fallback; "
             "route auth probe status="
             f"{writer_route.get('auth_probe') or 'unknown'}; previous blocked provider "
             "evidence is historical"
@@ -1518,23 +1567,30 @@ def _crown_formal_live_eval(root: Path) -> dict[str, Any]:
     else:
         summary = "formal live eval evidence missing"
         issues = missing
+    current_evidence = [
+        str(report_path),
+        str(error_path),
+        str(policy_note),
+        str(run_dir / "provider_incidents.yml"),
+        str(run_dir / "USER_DECISION_REQUIRED.md"),
+        str(root / "config" / "agent_model_profiles.yml"),
+        str(root / "config" / "agent_role_bindings.yml"),
+        str(root / "config" / "model_catalog.yml"),
+        str(root / "config" / "worker_invocation_contracts.yml"),
+        str(root / "config" / "model_capacity.yml"),
+    ]
+    if not trusted_runner_historical:
+        current_evidence.append(str(trusted_status_path))
     return {
         "id": "crown_formal_live_narrative_eval",
         "title": "Crown formal live narrative-eval harness",
         "status": status,
-        "evidence": [
-            str(report_path),
-            str(error_path),
-            str(policy_note),
-            str(run_dir / "provider_incidents.yml"),
-            str(run_dir / "USER_DECISION_REQUIRED.md"),
-            str(root / "config" / "agent_model_profiles.yml"),
-            str(root / "config" / "agent_role_bindings.yml"),
-            str(root / "config" / "model_catalog.yml"),
-            str(root / "config" / "worker_invocation_contracts.yml"),
-            str(root / "config" / "model_capacity.yml"),
-            str(trusted_status_path),
-        ],
+        "evidence": current_evidence,
+        **(
+            {"historical_evidence": [str(trusted_status_path)]}
+            if trusted_runner_historical and trusted_status_path.exists()
+            else {}
+        ),
         "summary": summary,
         "issues": issues,
         "details": {
@@ -1627,6 +1683,38 @@ def _grok_media_backend(root: Path) -> dict[str, Any]:
     invocation_contracts = _read_yaml(invocation_contracts_path)
     smoke = _read_yaml(historical_cli_smoke)
     session_smoke = _read_yaml(session_smoke_path)
+    production_grok_backend = (
+        (media_backend_config.get("backends") or {}).get("hermes_grok_oauth")
+        or {}
+    )
+    if (
+        production_grok_backend.get("selectable") is False
+        or production_grok_backend.get("availability") == "historical_only"
+    ):
+        return {
+            "id": "grok_xai_media_backend",
+            "title": "Historical Grok CLI media backend adapter",
+            "status": "retired",
+            "evidence": [
+                str(adapter),
+                str(media_backend_config_path),
+                str(role_bindings),
+                str(invocation_contracts_path),
+            ],
+            "summary": (
+                "Grok media is retained for replay/audit only; lifecycle gates "
+                "make it nonselectable and historical receipts cannot establish "
+                "current readiness or acceptance"
+            ),
+            "issues": [],
+            "details": {
+                "backend_id": "hermes_grok_oauth",
+                "availability": production_grok_backend.get("availability"),
+                "selectable": production_grok_backend.get("selectable"),
+                "historical_receipts_count_as_current": False,
+                "replacement_backend": "local_media_pending",
+            },
+        }
     missing = [
         str(path)
         for path in [
@@ -1869,13 +1957,36 @@ def _live_unblock_plan(root: Path) -> dict[str, Any]:
         if isinstance(report.get("session_health_gate"), dict)
         else {}
     )
-    valid = report.get("status") in {"ready_for_internal_live_smoke", "ready_or_not_blocked"} and len(items) >= 2
+    writer_item = next(
+        (item for item in items if item.get("id") == "run_crown_internal_writer_eval"),
+        {},
+    )
+    media_item = next(
+        (item for item in items if item.get("id") == "run_crown_internal_media_smoke"),
+        {},
+    )
+    writer_route = writer_item.get("route") if isinstance(writer_item.get("route"), dict) else {}
+    media_route = media_item.get("route") if isinstance(media_item.get("route"), dict) else {}
+    stale_lifecycle = (
+        writer_route.get("worker") != "claude_code"
+        or writer_route.get("invocation_contract") != "claude_writer"
+        or writer_route.get("capacity_route") != "Writer"
+        or media_route.get("worker_id") == "grok"
+        or media_route.get("backend_id") == "hermes_grok_oauth"
+    )
+    valid = (
+        not stale_lifecycle
+        and report.get("status")
+        in {"ready_for_internal_live_smoke", "ready_or_not_blocked"}
+        and len(items) >= 2
+    )
     return {
         "id": "internal_live_unblock_plan",
         "legacy_ids": ["live_external_unblock_plan"],
         "title": "Internal live-smoke execution plan",
-        "status": "pass" if valid else "fail",
-        "evidence": [str(path)],
+        "status": "retired" if stale_lifecycle else ("pass" if valid else "fail"),
+        "evidence": [] if stale_lifecycle else [str(path)],
+        **({"historical_evidence": [str(path)]} if stale_lifecycle else {}),
         "summary": (
             f"live unblock plan status={report.get('status')}; "
             f"session_gate={session_health_gate.get('status', 'missing')}; "
@@ -1883,7 +1994,11 @@ def _live_unblock_plan(root: Path) -> dict[str, Any]:
             f"acceptance_phase={acceptance_phase.get('status', 'missing')}; "
             f"final_acceptance_passed={acceptance_phase.get('final_acceptance_passed')}"
         ),
-        "issues": [] if valid else ["internal live-smoke plan missing or incomplete"],
+        "issues": (
+            ["live-smoke plan references a retired writer or media lifecycle"]
+            if stale_lifecycle
+            else ([] if valid else ["internal live-smoke plan missing or incomplete"])
+        ),
         "details": {
             "workflow_boundary": report.get("workflow_boundary"),
             "session_health_gate": session_health_gate,
@@ -1903,11 +2018,83 @@ def _live_unblock_plan(root: Path) -> dict[str, Any]:
     }
 
 
+def _legacy_live_runner_payload(payload: Any) -> bool:
+    """Identify materialized runner state bound to retired Agy/Grok routes."""
+    if not payload:
+        return False
+    rendered = yaml.safe_dump(payload, sort_keys=True, allow_unicode=True)
+    if any(
+        marker in rendered
+        for marker in (
+            "--writer-worker agy",
+            "grok-cli-smoke",
+            "hermes_grok_oauth",
+            "current_agy_writer_session_health",
+            "current_grok_session_health",
+        )
+    ):
+        return True
+
+    def walk(value: Any) -> bool:
+        if isinstance(value, list):
+            return any(walk(item) for item in value)
+        if not isinstance(value, dict):
+            return False
+        item_id = str(value.get("id") or value.get("item_id") or "")
+        assigned_worker = str(value.get("assigned_worker") or "")
+        backend = str(value.get("backend_id") or value.get("selected_backend") or "")
+        if item_id == "run_crown_internal_writer_eval" and assigned_worker == "agy":
+            return True
+        if item_id == "run_crown_internal_media_smoke" and (
+            assigned_worker == "grok" or "grok" in backend
+        ):
+            return True
+        return any(walk(item) for item in value.values())
+
+    return walk(payload)
+
+
+def _retired_live_runner_capability(
+    capability_id: str,
+    title: str,
+    paths: list[Path],
+    *,
+    legacy_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": capability_id,
+        "title": title,
+        "status": "retired",
+        "evidence": [],
+        "historical_evidence": [str(path) for path in paths if path.exists()],
+        "summary": (
+            "materialized runner evidence targets retired Agy Writer and/or Grok "
+            "media routes; it cannot establish current readiness"
+        ),
+        "issues": [],
+        "details": {
+            "historical_receipts_count_as_current": False,
+            "replacement_writer": "claude_code/deepseek-v4-pro",
+            "replacement_media_backend": "local_media_pending",
+        },
+    }
+    if legacy_ids:
+        payload["legacy_ids"] = legacy_ids
+    return payload
+
+
 def _external_acceptance_readiness(root: Path) -> dict[str, Any]:
     internal_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "internal_live_readiness.yml"
     legacy_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "external_acceptance_readiness.yml"
     path = internal_path if internal_path.exists() else legacy_path
     report = _read_yaml(path)
+    if _legacy_live_runner_payload(report):
+        return _retired_live_runner_capability(
+            "internal_live_readiness",
+            "Internal live-smoke readiness",
+            [path, *([legacy_path] if path != legacy_path else [])],
+            legacy_ids=["external_acceptance_readiness"],
+        )
     report_status = report.get("status")
     ready_items = report.get("ready_items", []) if isinstance(report.get("ready_items"), list) else []
     session_health_issues = (
@@ -1998,6 +2185,12 @@ def _trusted_live_runner_request(root: Path) -> dict[str, Any]:
     request_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_request.yml"
     script_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_request.sh"
     report = _read_yaml(request_path)
+    if _legacy_live_runner_payload(report):
+        return _retired_live_runner_capability(
+            "trusted_live_runner_request",
+            "Trusted live runner request",
+            [request_path, script_path],
+        )
     items = report.get("items", []) if isinstance(report.get("items"), list) else []
     writer_item = next(
         (
@@ -2085,6 +2278,12 @@ def _trusted_live_runner_request(root: Path) -> dict[str, Any]:
 def _trusted_live_runner_operator_handoff(root: Path) -> dict[str, Any]:
     path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_operator_handoff.yml"
     report = _read_yaml(path)
+    if _legacy_live_runner_payload(report):
+        return _retired_live_runner_capability(
+            "trusted_live_runner_operator_handoff",
+            "Trusted live runner operator handoff",
+            [path],
+        )
     steps = report.get("operator_steps", []) if isinstance(report.get("operator_steps"), list) else []
     step_by_id: dict[str, dict[str, Any]] = {}
     for item in steps:
@@ -2215,6 +2414,12 @@ def _trusted_live_runner_preflight(root: Path) -> dict[str, Any]:
         / "agentlab_capability_acceptance"
         / "trusted_live_runner_request.yml"
     )
+    if _legacy_live_runner_payload(request):
+        return _retired_live_runner_capability(
+            "trusted_live_runner_preflight",
+            "Trusted live runner local preflight",
+            [preflight_path],
+        )
     request_id = request.get("request_id")
     request_current = not request_id or report.get("request_id") == request_id
     status = report.get("status")
@@ -2263,6 +2468,12 @@ def _trusted_live_runner_status(root: Path) -> dict[str, Any]:
         / "agentlab_capability_acceptance"
         / "trusted_live_runner_request.yml"
     )
+    if _legacy_live_runner_payload(request):
+        return _retired_live_runner_capability(
+            "trusted_live_runner_status",
+            "Trusted live runner returned artifacts",
+            [status_path],
+        )
     request_id = request.get("request_id")
     request_current = not request_id or report.get("request_id") == request_id
     status = report.get("status")
@@ -2373,6 +2584,12 @@ def _trusted_live_runner_collect(root: Path) -> dict[str, Any]:
         / "agentlab_capability_acceptance"
         / "trusted_live_runner_request.yml"
     )
+    if _legacy_live_runner_payload(request):
+        return _retired_live_runner_capability(
+            "trusted_live_runner_collect",
+            "Trusted live runner collect/refresh",
+            [collect_path],
+        )
     request_id = request.get("request_id")
     request_current = not request_id or report.get("request_id") == request_id
     operator_handoff = _read_yaml(

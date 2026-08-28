@@ -11,11 +11,11 @@ authority:
 modes:
   single_cli_company:
     role_preferences:
-      Supervisor: [codex, claude_code, hermes]
-      PromptEngineer: [claude_code, hermes]
-      NarrativePlanner: [agy, claude_code]
-      Coder: [claude_code, codex, aider]
-      ArtifactProducer: [grok, codex, qwen]
+      Supervisor: [codex, hermes]
+      PromptEngineer: [hermes]
+      NarrativePlanner: [agy]
+      Coder: [codex, aider]
+      ArtifactProducer: [codex, qwen]
   hybrid_local_company:
     role_preferences:
       RepoScout: [rg]
@@ -27,23 +27,23 @@ modes:
     role_preferences:
       RepoScout: [rg, gemini]
       InterfaceMapper: [ast_grep]
-      Coder: [codex, claude_code]
+      Coder: [codex]
       TesterAuditor: [pytest]
       Verifier: [ruff, mypy, eslint]
       Archivist: [git]
   max_quality_swarm:
     role_preferences:
-      Supervisor: [codex, claude_code, hermes, qwen, gemini]
-      NarrativePlanner: [claude_code, agy]
-      Coder: [claude_code, aider]
-      ArtifactProducer: [grok, codex, qwen]
+      Supervisor: [codex, hermes, qwen, gemini]
+      NarrativePlanner: [agy]
+      Coder: [codex, aider]
+      ArtifactProducer: [codex, qwen]
   frontdesk_gateway:
     role_preferences:
       Supervisor: [codex, hermes, qwen, gemini]
 tiers:
   alter:
     cost_ceiling: high
-    preferred_workers: [grok, agy, claude_code]
+    preferred_workers: [codex, agy, hermes]
   low:
     cost_ceiling: low
     preferred_workers: [gemini, agy, rg, ast_grep, pytest, ruff, eslint, mypy, git]
@@ -52,4 +52,4 @@ tiers:
     preferred_workers: []
   max_quality:
     cost_ceiling: high
-    preferred_workers: [claude_code, codex, hermes]
+    preferred_workers: [codex, hermes, agy]

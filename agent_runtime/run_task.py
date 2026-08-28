@@ -5206,6 +5206,8 @@ def live_unblock_plan_cmd(
         console.print(f"wrote {out}")
     else:
         console.print(text.rstrip())
+    if report.get("status") != "ready_for_internal_live_smoke":
+        raise typer.Exit(code=1)
 
 
 @app.command("external-acceptance-readiness")

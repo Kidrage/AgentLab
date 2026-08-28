@@ -212,6 +212,58 @@ DEFAULT_WORKER_COSTS = {
     }
 }
 
+
+def _llm_worker_cost(
+    *,
+    raw_tokens: int,
+    cacheable_tokens: int,
+    effective_tokens: int,
+    latency_seconds: float,
+    permission_risk: str,
+    mutation_risk: str,
+) -> dict[str, Any]:
+    return {
+        "fixed_startup_cost": {
+            "raw_prompt_tokens": raw_tokens,
+            "cacheable_prompt_tokens": cacheable_tokens,
+            "expected_cache_hit_rate": 0.75,
+            "effective_prompt_tokens": effective_tokens,
+            "estimated_cached_input_discount": "medium",
+            "estimated_latency_s": latency_seconds,
+            "operator_friction": "low",
+        },
+        "cache_profile": {
+            "stable_prefix_hash": None,
+            "skill_context_hash": None,
+            "mcp_manifest_hash": None,
+            "last_cache_hit_observed": "unknown",
+            "cache_confidence": "medium",
+        },
+        "variable_cost": {
+            "task_specific_context_tokens": 2500,
+            "context_tokens_per_kb": 180,
+            "output_tokens_expected": 1800,
+            "dollars_per_call": "unknown",
+        },
+        "non_token_costs": {
+            "coordination_cost": "medium",
+            "permission_risk": permission_risk,
+            "state_mutation_risk": mutation_risk,
+        },
+        "hidden_costs": ["context_duplication", "handoff_interpretation"],
+        "confidence": "medium",
+    }
+
+
+DEFAULT_WORKER_COSTS.update(
+    {
+        "hermes": _llm_worker_cost(raw_tokens=7000, cacheable_tokens=5000, effective_tokens=2000, latency_seconds=4.0, permission_risk="medium", mutation_risk="medium"),
+        "codex": _llm_worker_cost(raw_tokens=9000, cacheable_tokens=7000, effective_tokens=2200, latency_seconds=6.0, permission_risk="high", mutation_risk="high"),
+        "agy": _llm_worker_cost(raw_tokens=6000, cacheable_tokens=4000, effective_tokens=1800, latency_seconds=4.0, permission_risk="medium", mutation_risk="low"),
+        "qwen": _llm_worker_cost(raw_tokens=6000, cacheable_tokens=4000, effective_tokens=1800, latency_seconds=4.0, permission_risk="medium", mutation_risk="medium"),
+    }
+)
+
 def load_worker_costs(config_path: Optional[Path] = None) -> Dict[str, Any]:
     if config_path and config_path.exists():
         try:
@@ -286,7 +338,9 @@ def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict
         worker_id = role_policy.get_candidate_worker(role)
         
         # Load worker cost template
-        w_cost_dict = worker_costs.get(worker_id, DEFAULT_WORKER_COSTS.get("claude_code"))
+        w_cost_dict = worker_costs.get(worker_id)
+        if not isinstance(w_cost_dict, dict):
+            raise ValueError(f"No activation cost is configured for worker {worker_id!r}")
         act_cost = ActivationCost.from_dict({"worker_id": worker_id, **w_cost_dict})
         
         # Calculate cache profile dynamically

@@ -188,32 +188,26 @@ agents:
     high_risk: true
   claude_code:
     display_name: Claude Code
-    class: coding_agent
-    primary_roles: [pure_writer, chinese_prose, narrative_rewrite_planning, developmental_editing, deep_analysis, architecture, multi_file_implementation, review]
+    class: governed_narrative_worker
+    primary_roles: [pure_writer, chinese_prose, independent_narrative_review]
+    allowed_agentlab_roles: [Writer, Reviewer]
+    governed_contracts: [claude_writer, claude_narrative_audit]
+    generic_invocation_selectable: false
     invocation:
       command: claude
-      noninteractive: >-
-        claude --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
-        perform only the assigned work and report actual changes."
       writer: >-
         claude --model deepseek-v4-pro --effort max --max-budget-usd 1.00
-        --permission-mode bypassPermissions --output-format json --tools "" -p "Treat the
+        --safe-mode --restricted --strict-mcp-config --disable-slash-commands
+        --no-chrome --no-session-persistence --permission-mode dontAsk
+        --output-format json --tools "" -p "Treat the
         complete sealed Writer packet on stdin as the only task context; return
         final Chinese prose candidate envelopes and native usage metadata."
       writer_packet_delivery: stdin
-      narrative_planner: >-
-        claude --model deepseek-v4-pro --effort max --max-budget-usd 2.00
-        --permission-mode plan --output-format json --tools "" -p "Read only
-        the sealed NarrativePlanner packet at {task_packet_path}; return raw
-        candidate chapter_state_plan.yml YAML and no prose."
+      reviewer_contract: config/worker_invocation_contracts.yml#claude_narrative_audit
     writer_model: deepseek_v4_pro
-    narrative_planner_model: deepseek_v4_pro
-    ultracode_policy:
-      opt_in_only: true
-      requires_packet_fields: [ultracode_opt_in, writer_mode, work_type]
-      allowed_work: [developmental_edit, structure, continuity, revision_plan]
-      forbidden_work: [final_prose_draft]
-    high_risk: true
+    writer_flash_model: deepseek_v4_flash
+    reviewer_model: deepseek_v4_pro
+    high_risk: medium
   qwen:
     display_name: Qwen Code
     class: general_agent
@@ -275,7 +269,7 @@ agents:
     default_model: gemini-3.6-flash-high
     observer_models:
       primary: gemini-3.6-flash-high
-      fallback: Claude Sonnet 4.6 (Thinking)
+      fallback: null
       capacity_source: config/model_capacity.yml
       remaining: null
       reset_at: null
@@ -284,9 +278,11 @@ agents:
     region_requirement: VPN/proxy to a Gemini-supported region when local region is blocked.
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
-    may_execute_agentlab_roles_directly: [Observer, Reviewer, NarrativePlanner, Writer]
+    may_execute_agentlab_roles_directly: [Observer, Researcher, Reviewer, NarrativePlanner, Writer, Scribe]
     high_risk: true
   grok:
+    availability: historical_only
+    selectable: false
     display_name: Native Grok OAuth Alter Worker
     class: subscription_first_general_role_worker
     primary_roles: [supervision, repository_analysis, research, coding, artifact_production, testing, verification, archiving]

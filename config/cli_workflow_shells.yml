@@ -679,6 +679,8 @@ shells:
       - narrative heavy-audit stdin packets require the private role-session approval gate and source inventory
 
   grok:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     command: hermes
     agentlab_scope: research_and_media_workflow_shell

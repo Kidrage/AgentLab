@@ -158,6 +158,8 @@ pools:
         confidence: unknown
 
   xai_subscription_shared:
+    availability: historical_only
+    selectable: false
     shared_pool_id: xai_subscription_shared
     provider: hermes_xai_oauth
     billing_mode: subscription
@@ -184,6 +186,8 @@ pools:
         confidence: unknown
 
   grok_cli_subscription:
+    availability: historical_only
+    selectable: false
     shared_pool_id: grok_cli_subscription
     provider: grok_cli_oauth
     billing_mode: subscription
@@ -228,6 +232,25 @@ pools:
         source_kind: unknown
         confidence: unknown
 
+  hermes_deepseek_private:
+    shared_pool_id: hermes_deepseek_private
+    provider: hermes_deepseek_private
+    billing_mode: metered_api
+    probe: null
+    probe_capability:
+      kind: none
+      reports_remaining: false
+      reports_reset_at: false
+      recovery_source: runtime_failure_evidence_only
+    declared_windows:
+      rolling:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+
   dashscope_metered_api:
     shared_pool_id: dashscope_metered_api
     provider: dashscope_cn
@@ -251,17 +274,17 @@ routes:
   ProfessionalSupervisorStrict:
     role: supervisor
     worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
+    invocation_contract: hermes_supervisor
+    model_key: codex_gpt_5_6_sol_xhigh_hermes_oauth
+    pool: openai_codex_agentic
     approved_fallbacks: []
     fallback_on: []
   ProfessionalResearcherStrict:
     role: researcher
-    worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
+    worker: agy
+    invocation_contract: agy_research
+    model_key: gemini_3_6_flash_high_agy_oauth
+    pool: agy_gemini_observer
     approved_fallbacks: []
     fallback_on: []
   ProfessionalNarrativePlannerStrict:
@@ -283,9 +306,9 @@ routes:
   ProfessionalIndependentReviewerStrict:
     role: reviewer
     worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
+    invocation_contract: hermes_deepseek_narrative_audit
+    model_key: deepseek_v4_flash_hermes_private
+    pool: hermes_deepseek_private
     approved_fallbacks: []
     fallback_on: []
   Supervisor:
@@ -294,9 +317,11 @@ routes:
     invocation_contract: codex_supervisor
     model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
     pool: codex_cli_agentic
-    approved_fallbacks: [SupervisorDeepSeek]
-    fallback_on: [rate_limited, quota_exhausted, auth_missing, model_unavailable]
+    approved_fallbacks: []
+    fallback_on: []
   SupervisorDeepSeek:
+    availability: unavailable_current_host
+    selectable: false
     role: supervisor
     worker: claude_code
     invocation_contract: claude_supervisor_fallback
@@ -312,9 +337,11 @@ routes:
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
-    approved_fallbacks: [ObserverClaude]
-    fallback_on: [quota_exhausted, rate_limited, model_unavailable, network_required]
+    approved_fallbacks: []
+    fallback_on: []
   ObserverClaude:
+    availability: unavailable_current_host
+    selectable: false
     role: observer
     worker: agy
     invocation_contract: agy_observer
@@ -331,9 +358,11 @@ routes:
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
-    approved_fallbacks: [VisualReviewerClaude]
-    fallback_on: [quota_exhausted, rate_limited, model_unavailable, network_required]
+    approved_fallbacks: []
+    fallback_on: []
   VisualReviewerClaude:
+    availability: unavailable_current_host
+    selectable: false
     role: reviewer
     worker: agy
     invocation_contract: agy_visual_reviewer
@@ -345,14 +374,16 @@ routes:
 
   Researcher:
     role: researcher
-    worker: grok
-    invocation_contract: grok_research
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
+    worker: agy
+    invocation_contract: agy_research
+    model_key: gemini_3_6_flash_high_agy_oauth
+    pool: agy_gemini_observer
     approved_fallbacks: []
     fallback_on: []
 
   ArtifactProducer:
+    availability: historical_only
+    selectable: false
     role: artifact_producer
     worker: grok
     invocation_contract: grok_media
@@ -398,6 +429,8 @@ routes:
     fallback_on: []
 
   NarrativePlannerRewrite:
+    availability: unavailable_current_host
+    selectable: false
     role: narrative_planner
     worker: claude_code
     invocation_contract: claude_narrative_planner
@@ -431,10 +464,12 @@ routes:
     invocation_contract: agy_writer
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
-    approved_fallbacks: [Writer]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable]
+    approved_fallbacks: []
+    fallback_on: []
 
   Writer:
+    availability: verified_current_host
+    selectable: true
     role: writer
     worker: claude_code
     invocation_contract: claude_writer
@@ -444,6 +479,8 @@ routes:
     fallback_on: [model_unavailable]
     fallback_cost_policy: explicit_preapproved_lower_cost_model
   WriterUltracode:
+    availability: unavailable_current_host
+    selectable: false
     role: writer
     worker: claude_code
     invocation_contract: claude_writer_ultracode
@@ -453,6 +490,8 @@ routes:
     fallback_on: []
     activation_policy: explicit_sealed_packet_only
   WriterFlash:
+    availability: verified_current_host
+    selectable: true
     role: writer
     worker: claude_code
     invocation_contract: claude_writer
@@ -461,6 +500,8 @@ routes:
     approved_fallbacks: []
     fallback_on: []
   WriterLow:
+    availability: verified_current_host
+    selectable: true
     role: writer
     worker: claude_code
     invocation_contract: claude_writer
@@ -472,11 +513,11 @@ routes:
   AlterSupervisor:
     role: supervisor
     worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [SupervisorDeepSeek]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    invocation_contract: hermes_supervisor
+    model_key: codex_gpt_5_6_sol_xhigh_hermes_oauth
+    pool: openai_codex_agentic
+    approved_fallbacks: []
+    fallback_on: []
   AlterObserver:
     role: observer
     worker: agy
@@ -484,17 +525,19 @@ routes:
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
-    approved_fallbacks: [ObserverClaude]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    approved_fallbacks: []
+    fallback_on: []
   AlterRepoScout:
     role: reposcout
-    worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterRepoScoutDeepSeekPro]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_high_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
   AlterRepoScoutDeepSeekPro:
+    availability: unavailable_current_host
+    selectable: false
     role: reposcout
     worker: claude_code
     invocation_contract: claude
@@ -504,13 +547,15 @@ routes:
     fallback_on: []
   AlterInterfaceMapper:
     role: interface_mapper
-    worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterInterfaceMapperDeepSeekPro]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
   AlterInterfaceMapperDeepSeekPro:
+    availability: unavailable_current_host
+    selectable: false
     role: interface_mapper
     worker: claude_code
     invocation_contract: claude
@@ -520,13 +565,15 @@ routes:
     fallback_on: []
   AlterResearcher:
     role: researcher
-    worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterResearcherDeepSeekPro]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    worker: agy
+    invocation_contract: agy_research
+    model_key: gemini_3_6_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    approved_fallbacks: []
+    fallback_on: []
   AlterResearcherDeepSeekPro:
+    availability: unavailable_current_host
+    selectable: false
     role: researcher
     worker: claude_code
     invocation_contract: claude
@@ -537,12 +584,14 @@ routes:
   AlterPromptEngineer:
     role: prompt_engineer
     worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterPromptEngineerDeepSeekFlash]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    invocation_contract: hermes_deepseek
+    model_key: deepseek_v4_flash_hermes_private
+    pool: hermes_deepseek_private
+    approved_fallbacks: []
+    fallback_on: []
   AlterPromptEngineerDeepSeekFlash:
+    availability: unavailable_current_host
+    selectable: false
     role: prompt_engineer
     worker: claude_code
     invocation_contract: claude
@@ -552,13 +601,15 @@ routes:
     fallback_on: []
   AlterCoder:
     role: coder
-    worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterCoderDeepSeekPro]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
   AlterCoderDeepSeekPro:
+    availability: unavailable_current_host
+    selectable: false
     role: coder
     worker: claude_code
     invocation_contract: claude
@@ -568,12 +619,12 @@ routes:
     fallback_on: []
   AlterArtifactProducer:
     role: artifact_producer
-    worker: hermes
-    invocation_contract: hermes_alter_artifact
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterArtifactProducerCodexMedium]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_medium_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
   AlterArtifactProducerCodexMedium:
     role: artifact_producer
     worker: codex
@@ -588,9 +639,11 @@ routes:
     invocation_contract: agy_narrative_planner
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
-    approved_fallbacks: [AlterNarrativePlannerDeepSeekPro]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    approved_fallbacks: []
+    fallback_on: []
   AlterNarrativePlannerDeepSeekPro:
+    availability: unavailable_current_host
+    selectable: false
     role: narrative_planner
     worker: claude_code
     invocation_contract: claude_narrative_planner
@@ -601,12 +654,14 @@ routes:
   AlterTesterAuditor:
     role: tester_auditor
     worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterTesterAuditorDeepSeekPro]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    invocation_contract: hermes_deepseek
+    model_key: deepseek_v4_flash_hermes_private
+    pool: hermes_deepseek_private
+    approved_fallbacks: []
+    fallback_on: []
   AlterTesterAuditorDeepSeekPro:
+    availability: unavailable_current_host
+    selectable: false
     role: tester_auditor
     worker: claude_code
     invocation_contract: claude
@@ -617,12 +672,14 @@ routes:
   AlterVerifier:
     role: verifier
     worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterVerifierDeepSeekFlash]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    invocation_contract: hermes_deepseek
+    model_key: deepseek_v4_flash_hermes_private
+    pool: hermes_deepseek_private
+    approved_fallbacks: []
+    fallback_on: []
   AlterVerifierDeepSeekFlash:
+    availability: unavailable_current_host
+    selectable: false
     role: verifier
     worker: claude_code
     invocation_contract: claude
@@ -633,12 +690,14 @@ routes:
   AlterArchivist:
     role: archivist
     worker: hermes
-    invocation_contract: hermes_alter_high
-    model_key: grok_4_6_hermes_oauth
-    pool: xai_subscription_shared
-    approved_fallbacks: [AlterArchivistDeepSeekFlash]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    invocation_contract: hermes_deepseek
+    model_key: deepseek_v4_flash_hermes_private
+    pool: hermes_deepseek_private
+    approved_fallbacks: []
+    fallback_on: []
   AlterArchivistDeepSeekFlash:
+    availability: unavailable_current_host
+    selectable: false
     role: archivist
     worker: claude_code
     invocation_contract: claude
@@ -648,18 +707,19 @@ routes:
     fallback_on: []
   AlterWriter:
     role: writer
-    worker: agy
-    invocation_contract: agy_writer
-    model_key: gemini_3_6_flash_high_agy_oauth
-    pool: agy_gemini_observer
-    approved_fallbacks: [Writer]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    worker: claude_code
+    invocation_contract: claude_writer
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
+    approved_fallbacks: [WriterFlash]
+    fallback_on: [model_unavailable]
+    fallback_cost_policy: explicit_preapproved_lower_cost_model
   AlterWriterStrict:
     role: writer
-    worker: agy
-    invocation_contract: agy_writer
-    model_key: gemini_3_6_flash_high_agy_oauth
-    pool: agy_gemini_observer
+    worker: claude_code
+    invocation_contract: claude_writer
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
     approved_fallbacks: []
     fallback_on: []
   AlterReviewer:
@@ -668,9 +728,11 @@ routes:
     invocation_contract: agy_reviewer
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
-    approved_fallbacks: [AlterReviewerDeepSeekPro]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    approved_fallbacks: []
+    fallback_on: []
   AlterReviewerDeepSeekPro:
+    availability: verified_current_host
+    selectable: true
     role: reviewer
     worker: claude_code
     invocation_contract: claude_narrative_audit
@@ -685,17 +747,19 @@ routes:
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
-    approved_fallbacks: [VisualReviewerClaude]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    approved_fallbacks: []
+    fallback_on: []
   AlterScribe:
     role: scribe
     worker: agy
     invocation_contract: agy_scribe
     model_key: gemini_3_6_flash_high_agy_oauth
     pool: agy_gemini_observer
-    approved_fallbacks: [AlterScribeDeepSeekFlash]
-    fallback_on: [quota_exhausted, rate_limited, auth_missing, model_unavailable, network_required]
+    approved_fallbacks: []
+    fallback_on: []
   AlterScribeDeepSeekFlash:
+    availability: unavailable_current_host
+    selectable: false
     role: scribe
     worker: claude_code
     invocation_contract: claude

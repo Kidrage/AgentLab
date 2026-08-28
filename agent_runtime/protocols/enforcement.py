@@ -268,7 +268,12 @@ def _frontdesk_project_state_sources(root: Path) -> dict[str, list[str]]:
     return sources
 
 
-def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
+def check_role_binding(
+    root: Path,
+    worker: str,
+    role: str,
+    invocation_contract: str | None = None,
+) -> tuple[bool, str]:
     bindings = _load_policy(root, "agent_role_bindings.yml")
     canonical_role = _normalize_role(role)
     worker_cfg = ((bindings.get("workers") or {}).get(worker) or {})
@@ -277,9 +282,49 @@ def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
     forbidden_by_worker = worker_cfg.get("forbidden_roles") or []
     allowed_by_role = role_cfg.get("allowed_workers") or []
     capabilities = set(worker_capabilities(worker_cfg))
+    contract_name = str(invocation_contract or "").strip()
+    worker_contracts = (
+        (worker_cfg.get("contract_bound_roles") or {}).get(canonical_role) or []
+    )
+    role_contracts = (
+        (role_cfg.get("contract_bound_workers") or {}).get(worker) or []
+    )
+    contract_declared_for_binding = bool(contract_name) and (
+        contract_name in worker_contracts and contract_name in role_contracts
+    )
+    invocation_contracts = _load_policy(root, "worker_invocation_contracts.yml")
+    contract_cfg = (
+        (invocation_contracts.get("contracts") or {}).get(contract_name) or {}
+    )
+    if contract_name:
+        if not contract_cfg:
+            return False, f"invocation contract '{contract_name}' is not declared"
+        if contract_cfg.get("worker_id") != worker:
+            return False, (
+                f"invocation contract '{contract_name}' belongs to worker "
+                f"'{contract_cfg.get('worker_id') or 'unknown'}', not '{worker}'"
+            )
+        if (
+            contract_cfg.get("selectable", True) is False
+            or str(contract_cfg.get("availability") or "active")
+            in {"historical_only", "retired", "inactive", "unavailable_current_host"}
+        ):
+            return False, f"invocation contract '{contract_name}' is not selectable"
+    contract_bound_allowed = contract_declared_for_binding and (
+        contract_cfg.get("worker_id") == worker
+        and contract_cfg.get("selectable", True) is not False
+        and str(contract_cfg.get("availability") or "active")
+        not in {"historical_only", "retired", "inactive"}
+    )
 
     if not worker_cfg:
         return False, f"worker '{worker}' is not bound in config/agent_role_bindings.yml"
+    if (
+        worker_cfg.get("selectable") is False
+        or str(worker_cfg.get("availability") or "").strip() == "historical_only"
+    ):
+        availability = str(worker_cfg.get("availability") or "inactive")
+        return False, f"worker '{worker}' is not selectable (availability={availability})"
     if worker_cfg.get("frontdesk_capable") and not worker_cfg.get("worker_capable"):
         return False, f"worker '{worker}' is frontdesk-only and cannot execute AgentLab role '{canonical_role}'"
     if canonical_role in {"ArtifactProducer", "Writer"}:
@@ -287,12 +332,14 @@ def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
             return False, f"worker '{worker}' lacks candidate_artifact_worker or role_worker capability"
     elif "role_worker" not in capabilities:
         return False, f"worker '{worker}' lacks role_worker capability for AgentLab role '{canonical_role}'"
-    if canonical_role in forbidden_by_worker:
+    if canonical_role in forbidden_by_worker and not contract_bound_allowed:
         return False, f"worker '{worker}' is explicitly forbidden for role '{canonical_role}'"
-    if canonical_role not in allowed_by_worker:
+    if canonical_role not in allowed_by_worker and not contract_bound_allowed:
         return False, f"worker '{worker}' is not listed in allowed_roles for '{canonical_role}'"
-    if worker not in allowed_by_role:
+    if worker not in allowed_by_role and not contract_bound_allowed:
         return False, f"role '{canonical_role}' does not list worker '{worker}' in allowed_workers"
+    if contract_bound_allowed:
+        return True, "contract-bound role binding allowed"
     return True, "role binding allowed"
 
 
@@ -463,10 +510,16 @@ def build_role_session(
     *,
     project: str = "AgentLab",
     task_id: str = "task_0001",
+    invocation_contract: str | None = None,
 ) -> dict[str, Any]:
     root = Path(root)
     canonical_role = _normalize_role(role)
-    allowed, reason = check_role_binding(root, worker, canonical_role)
+    allowed, reason = check_role_binding(
+        root,
+        worker,
+        canonical_role,
+        invocation_contract,
+    )
     if canonical_role in {"Coder", "Writer"}:
         try:
             from agent_runtime.revision_governance import revision_dispatch_status
@@ -493,6 +546,7 @@ def build_role_session(
         "binding": {
             "allowed": allowed,
             "reason": reason,
+            "invocation_contract": invocation_contract,
         },
         "revision_dispatch": dispatch,
         "project": project,
@@ -692,8 +746,22 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
     for role in AGENTLAB_ROLES:
         role_cfg = roles.get(role) or {}
         allowed_workers = role_cfg.get("allowed_workers") or []
-        checks.append(_check(bool(allowed_workers), "role_has_allowed_worker", f"{role} has allowed workers"))
+        selectable_workers = [
+            worker
+            for worker in allowed_workers
+            if ((workers.get(worker) or {}).get("selectable", True) is not False)
+        ]
+        checks.append(_check(bool(selectable_workers), "role_has_allowed_worker", f"{role} has selectable workers"))
         for worker in allowed_workers:
+            if (workers.get(worker) or {}).get("selectable", True) is False:
+                checks.append(
+                    _check(
+                        True,
+                        "role_worker_binding_inactive",
+                        f"{role}/{worker}: retained only as a nonselectable binding",
+                    )
+                )
+                continue
             allowed, reason = check_role_binding(root, worker, role)
             checks.append(_check(allowed, "role_worker_binding_valid", f"{role}/{worker}: {reason}"))
 
@@ -717,9 +785,9 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
         ),
         _check(
             agy_info.get("may_execute_agentlab_roles_directly")
-            == ["Observer", "Reviewer", "NarrativePlanner", "Writer"],
+            == ["Observer", "Researcher", "Reviewer", "NarrativePlanner", "Writer", "Scribe"],
             "agy_role_scope_is_bounded",
-            "agy direct role scope is limited to Observer, Reviewer, NarrativePlanner, and Writer",
+            "agy direct role scope is limited to Observer, sourced Researcher, Reviewer, NarrativePlanner, Writer, and Scribe",
         ),
     ])
 

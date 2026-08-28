@@ -54,16 +54,17 @@ def _write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
-def test_models_show_lists_writer_agy_gemini_default():
+def test_models_show_lists_writer_claude_deepseek_default():
     result = runner.invoke(app, ["models", "show", "--role", "Writer"])
 
     assert result.exit_code == 0
     assert "writer" in result.output
-    assert "agy" in result.output
-    assert "gemini_3_6_flash_high_agy_oauth" in result.output
+    assert "claude_code" in result.output
+    assert "deepseek_v4_pro" in result.output
+    assert "WriterFlash" in result.output
 
 
-def test_models_show_lists_observer_supervisor_and_grok_research_routes():
+def test_models_show_lists_observer_supervisor_and_agy_research_routes():
     observer = runner.invoke(app, ["models", "show", "--role", "Observer"])
     supervisor = runner.invoke(app, ["models", "show", "--role", "Supervisor"])
     researcher = runner.invoke(app, ["models", "show", "--role", "Researcher"])
@@ -72,12 +73,11 @@ def test_models_show_lists_observer_supervisor_and_grok_research_routes():
     assert "agy" in observer.output
     assert "gemini_3_6_flash_high_agy_oauth" in observer.output
     assert supervisor.exit_code == 0
-    assert "grok_4_6_hermes_oauth" in supervisor.output
+    assert "codex_gpt_5_6_sol_xhigh_hermes_oauth" in supervisor.output
     assert "hermes" in supervisor.output
-    assert "SupervisorDeepSeek" in supervisor.output
     assert researcher.exit_code == 0
-    assert "hermes" in researcher.output
-    assert "grok_4_6_hermes_oauth" in researcher.output
+    assert "agy" in researcher.output
+    assert "gemini_3_6_flash_high_agy_oauth" in researcher.output
 
 
 def test_models_capacity_keeps_unobserved_remaining_and_reset_null():
@@ -147,7 +147,7 @@ def test_model_proposal_round_trip_on_temp_root(tmp_path):
 
     proposed = runner.invoke(
         local_app,
-        ["models", "propose", "--role", "Writer", "--cli", "claude_code", "--model", "deepseek_v4_flash"],
+        ["models", "propose", "--role", "ArtifactProducer", "--cli", "qwen", "--model", "qwen3_6_flash_dashscope"],
     )
     assert proposed.exit_code == 0
     data = yaml.safe_load(proposed.output)
@@ -163,9 +163,9 @@ def test_model_proposal_round_trip_on_temp_root(tmp_path):
     profiles = yaml.safe_load(
         (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
     )
-    writer = profiles["modes"][profiles["default_mode"]]["tiers"]["alter"]["writer"]
-    assert writer["invocation_contract"] == "claude_writer"
-    assert writer["capacity_route"] == "WriterFlash"
+    artifact = profiles["modes"][profiles["default_mode"]]["tiers"]["alter"]["artifact_producer"]
+    assert artifact["invocation_contract"] == "qwen_artifact"
+    assert artifact["capacity_route"] == "ArtifactProducerQwenLow"
 
 
 def test_model_proposal_can_update_all_output_tiers_atomically(tmp_path):
@@ -183,11 +183,11 @@ def test_model_proposal_can_update_all_output_tiers_atomically(tmp_path):
             "models",
             "propose",
             "--role",
-            "Writer",
+            "ArtifactProducer",
             "--cli",
-            "claude_code",
+            "qwen",
             "--model",
-            "deepseek_v4_flash",
+            "qwen3_6_flash_dashscope",
             "--all-tiers",
         ],
     )
@@ -206,11 +206,8 @@ def test_model_proposal_can_update_all_output_tiers_atomically(tmp_path):
     )
     tiers = profiles["modes"][profiles["default_mode"]]["tiers"]
     for tier in ("alter", "full", "performance", "low"):
-        assert tiers[tier]["writer"]["default"] == "deepseek_v4_flash"
-    assert tiers["alter"]["writer"]["capacity_route"] == "WriterFlash"
-    assert tiers["full"]["writer"]["capacity_route"] == "WriterFlash"
-    assert tiers["performance"]["writer"]["capacity_route"] == "WriterFlash"
-    assert tiers["low"]["writer"]["capacity_route"] == "WriterLow"
+        assert tiers[tier]["artifact_producer"]["default"] == "qwen3_6_flash_dashscope"
+        assert tiers[tier]["artifact_producer"]["capacity_route"] == "ArtifactProducerQwenLow"
 
 
 def test_model_apply_recovers_if_proposal_receipt_write_is_interrupted(
@@ -229,11 +226,11 @@ def test_model_apply_recovers_if_proposal_receipt_write_is_interrupted(
             "models",
             "propose",
             "--role",
-            "Writer",
+            "ArtifactProducer",
             "--cli",
-            "claude_code",
+            "qwen",
             "--model",
-            "deepseek_v4_flash",
+            "qwen3_6_flash_dashscope",
         ],
     )
     proposal_id = yaml.safe_load(proposed.output)["proposal_id"]
@@ -352,7 +349,7 @@ def test_model_proposal_rejects_forbidden_worker_and_contract_model_drift(tmp_pa
         ],
     )
     assert forbidden.exit_code == 1
-    assert "Protocol role binding rejected" in forbidden.output
+    assert "No governed capacity route matches" in forbidden.output
 
     wrong_supervisor_model = runner.invoke(
         local_app,
@@ -369,6 +366,23 @@ def test_model_proposal_rejects_forbidden_worker_and_contract_model_drift(tmp_pa
     )
     assert wrong_supervisor_model.exit_code == 1
     assert "No governed capacity route matches" in wrong_supervisor_model.output
+
+    for role in ("Observer", "VisualReviewer"):
+        historical_agy_claude = runner.invoke(
+            local_app,
+            [
+                "models",
+                "propose",
+                "--role",
+                role,
+                "--cli",
+                "agy",
+                "--model",
+                "claude_sonnet_4_6_agy_oauth",
+            ],
+        )
+        assert historical_agy_claude.exit_code == 1
+        assert "not selectable on the current host" in historical_agy_claude.output
     assert list(_proposal_dir(root).glob("*.yml")) == []
 
 
@@ -382,12 +396,12 @@ def test_model_apply_revalidates_proposal_binding_before_mutation(tmp_path):
     register_model_commands(local_app, root, Console(width=120))
     proposed = runner.invoke(
         local_app,
-        ["models", "propose", "--role", "Writer", "--cli", "claude_code", "--model", "deepseek_v4_flash"],
+        ["models", "propose", "--role", "ArtifactProducer", "--cli", "qwen", "--model", "qwen3_6_flash_dashscope"],
     )
     proposal_id = yaml.safe_load(proposed.output)["proposal_id"]
     path = _proposal_dir(root) / f"{proposal_id}.yml"
     proposal = yaml.safe_load(path.read_text(encoding="utf-8"))
-    proposal["cli_agent"] = "qwen"
+    proposal["cli_agent"] = "codex"
     _write_yaml(path, proposal)
     profiles_before = (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
 
@@ -588,21 +602,35 @@ def test_models_doctor_current_pricing_graph_passes():
     assert _doctor_issues(ROOT) == []
 
 
+def test_models_doctor_rejects_expired_model_fact_catalog(tmp_path: Path):
+    from agent_runtime.cli.models import _doctor_issues
+
+    root = _copy_config_root(tmp_path)
+    catalog_path = root / "config" / "model_catalog.yml"
+    catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    catalog["last_verified"] = "2026-01-01"
+    catalog["valid_until_days"] = 14
+    _write_yaml(catalog_path, catalog)
+
+    issue_names = {issue["issue"] for issue in _doctor_issues(root)}
+    assert "stale_model_fact_verification_date" in issue_names
+
+
 def test_recommended_brain_topology_and_model_facts_match_current_roles():
     groups = yaml.safe_load(
         (ROOT / "config" / "hermes_brain_model_groups.yml").read_text(encoding="utf-8")
     )
     chain = groups["brain_layouts"]["recommended"]["brain_chain"]
     assert chain == {
-        "supervisor": "deepseek_v4_pro",
-        "writer": "gemini_3_6_flash_high_agy_oauth",
+        "supervisor": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+        "writer": "deepseek_v4_pro",
         "multimodal_observer": "gemini_3_6_flash_high_agy_oauth",
-        "observer_fallback": "claude_sonnet_4_6_agy_oauth",
-        "social_web_research": "grok_4_6_hermes_oauth",
+        "observer_fallback": None,
+        "social_web_research": "gemini_3_6_flash_high_agy_oauth",
         "artifact_producer": "codex_gpt_5_6_sol_medium_cli_oauth",
         "performance_narrative_planner": "gemini_3_6_flash_high_agy_oauth",
         "full_narrative_planner": "gemini_3_6_flash_high_agy_oauth",
-        "independent_verifier": "deepseek_v4_flash",
+        "independent_verifier": "deepseek_v4_flash_hermes_private",
     }
 
     catalog = yaml.safe_load(
@@ -613,9 +641,13 @@ def test_recommended_brain_topology_and_model_facts_match_current_roles():
         assert set(provider.get("default_models") or []) <= catalog_keys
     for layout in groups["brain_layouts"].values():
         assert set(layout.get("examples") or []) <= catalog_keys
-        assert set((layout.get("brain_chain") or {}).values()) <= catalog_keys
+        assert {
+            value for value in (layout.get("brain_chain") or {}).values() if value
+        } <= catalog_keys
 
     grok = groups["providers"]["grok_xai"]
+    assert grok["availability"] == "historical_only"
+    assert grok["selectable"] is False
     assert grok["role"] == "social_web_research_and_registered_media_tool_orchestration"
     assert grok["direct_media_generation"] is False
     assert grok["audio_generation"] is False

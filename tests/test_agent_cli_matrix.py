@@ -27,41 +27,47 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
     full_cli, cli = build_matrices(ROOT)
     rows = {(row["tier"], row["profile_key"]): row for row in full_cli}
 
-    assert rows[("full", "supervisor")]["cli_agent"] == "claude_code"
-    assert rows[("full", "supervisor")]["model_key"] == "deepseek_v4_pro"
-    assert rows[("full", "supervisor")]["capacity_route"] == "SupervisorDeepSeek"
+    assert rows[("full", "supervisor")]["cli_agent"] == "hermes"
+    assert rows[("full", "supervisor")]["model_key"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+    assert rows[("full", "supervisor")]["capacity_route"] == "AlterSupervisor"
     assert rows[("full", "supervisor")]["fallback_routes"] == ""
     assert rows[("full", "supervisor")]["fallback_cli_agent"] == ""
     assert rows[("full", "supervisor")]["fallback_model_key"] == ""
     assert rows[("full", "observer")]["cli_agent"] == "agy"
     assert rows[("full", "observer")]["model_key"] == "gemini_3_6_flash_high_agy_oauth"
     assert rows[("full", "observer")]["capacity_route"] == "Observer"
-    assert rows[("full", "observer")]["fallback_routes"] == "ObserverClaude"
-    assert rows[("full", "observer")]["fallback_cli_agent"] == "agy"
-    assert rows[("full", "observer")]["fallback_model_key"] == "claude_sonnet_4_6_agy_oauth"
-    assert rows[("full", "writer")]["cli_agent"] == "agy"
-    assert rows[("full", "writer")]["model_key"] == "gemini_3_6_flash_high_agy_oauth"
-    assert rows[("full", "writer")]["capacity_route"] == "WriterAgy"
-    assert rows[("full", "writer")]["fallback_routes"] == "Writer"
+    assert rows[("full", "observer")]["fallback_routes"] == ""
+    assert rows[("full", "observer")]["fallback_cli_agent"] == ""
+    assert rows[("full", "observer")]["fallback_model_key"] == ""
+    assert rows[("full", "writer")]["cli_agent"] == "claude_code"
+    assert rows[("full", "writer")]["model_key"] == "deepseek_v4_pro"
+    assert rows[("full", "writer")]["capacity_route"] == "Writer"
+    assert rows[("full", "writer")]["fallback_routes"] == "WriterFlash"
     assert rows[("full", "writer")]["fallback_cli_agent"] == "claude_code"
-    assert rows[("full", "writer")]["fallback_model_key"] == "deepseek_v4_pro"
-    assert rows[("full", "researcher")]["cli_agent"] == "grok"
+    assert rows[("full", "writer")]["fallback_model_key"] == "deepseek_v4_flash"
+    assert rows[("full", "researcher")]["cli_agent"] == "agy"
+    assert rows[("full", "researcher")]["invocation_contract"] == "agy_research"
     assert rows[("full", "artifact_producer")]["invocation_contract"] == "codex"
     assert rows[("full", "artifact_producer")]["artifact_types"] == (
         "text | image | video | audio | spreadsheet | presentation | mixed"
     )
     artifact_dispatch = rows[("full", "artifact_producer")]["artifact_dispatch"]
     assert (
-        "text|spreadsheet|presentation=>"
+        "text=>codex_cli/codex/codex/ArtifactProducerCodex"
+    ) in artifact_dispatch
+    assert (
+        "spreadsheet|presentation=>"
         "qwen_cli/qwen/qwen_artifact/ArtifactProducerQwenMax"
     ) in artifact_dispatch
-    assert "image|video=>grok_media/grok/grok_media/ArtifactProducer" in artifact_dispatch
+    assert (
+        "image|video=>local_media_pending/local_media//" in artifact_dispatch
+    )
     assert "audio|mixed=>unsupported" in artifact_dispatch
     assert "ArtifactProducerQwenLow" in rows[("low", "artifact_producer")][
         "artifact_dispatch"
     ]
     for tier in ("full", "performance", "low"):
-        assert rows[(tier, "reviewer")]["cli_agent"] == "claude_code"
+        assert rows[(tier, "reviewer")]["cli_agent"] == "agy"
         assert rows[(tier, "visual_reviewer")]["cli_agent"] == "agy"
         assert rows[(tier, "visual_reviewer")]["role"] == "Reviewer"
         assert rows[(tier, "scribe")]["cli_agent"] == "agy"
@@ -69,10 +75,10 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
         assert rows[(tier, "visual_reviewer")]["role_binding_status"] == "ok"
         assert rows[(tier, "scribe")]["role_binding_status"] == "ok"
     assert all(row["role_binding_status"] in {"ok", "not_applicable"} for row in full_cli)
-    assert rows[("low", "writer")]["capacity_route"] == "WriterAgy"
-    assert rows[("low", "writer")]["fallback_routes"] == "Writer"
-    assert rows[("low", "writer")]["fallback_cli_agent"] == "claude_code"
-    assert rows[("low", "writer")]["fallback_model_key"] == "deepseek_v4_pro"
+    assert rows[("low", "writer")]["capacity_route"] == "WriterLow"
+    assert rows[("low", "writer")]["fallback_routes"] == ""
+    assert rows[("low", "writer")]["fallback_cli_agent"] == ""
+    assert rows[("low", "writer")]["fallback_model_key"] == ""
     assert {row["component"] for row in cli} >= {"hermes", "claude_code", "codex", "qwen", "agy"}
     for row in [*full_cli, *cli]:
         assert row["generated_non_authoritative"] == "true"
@@ -97,14 +103,15 @@ def test_matrix_rejects_regression_of_scoped_default_performance_route(
     profiles_path = tmp_path / "config" / "agent_model_profiles.yml"
     profiles = yaml.safe_load(profiles_path.read_text(encoding="utf-8"))
     route = profiles["modes"]["full_cli"]["tiers"]["performance"]["reposcout"]
-    route["cli_agent"] = "codex"
-    route["invocation_contract"] = "codex"
+    route["cli_agent"] = "claude_code"
+    route["invocation_contract"] = "claude"
+    route["default"] = "deepseek_v4_pro"
     profiles_path.write_text(
         yaml.safe_dump(profiles, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="required default route.*claude_code"):
+    with pytest.raises(ValueError, match="required default route.*codex"):
         build_matrices(tmp_path)
 
 
@@ -131,7 +138,7 @@ def test_heavy_audit_alias_roles_resolve_to_bound_cli_workers() -> None:
         for role in ("Reviewer",):
             preview = resolve_agent_execution_preview(ROOT, plan, role)
             assert preview["executor_type"] == "cli_agent"
-            assert preview["cli_agent"] == "claude_code"
+            assert preview["cli_agent"] == "agy"
             assert preview["role_binding_allowed"] is True
         scribe = resolve_agent_execution_preview(ROOT, plan, "Scribe")
         assert scribe["executor_type"] == "cli_agent"

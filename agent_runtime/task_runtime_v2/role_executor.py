@@ -1016,6 +1016,16 @@ class RoleAttemptExecutor:
             "performance": "balanced",
             "low": "frugal",
         }.get(tier, "balanced")
+        from agent_runtime.protocols.enforcement import check_role_binding
+
+        binding_allowed, binding_reason = check_role_binding(
+            self.root,
+            str(profile.get("cli_agent") or ""),
+            role,
+            str(profile.get("invocation_contract") or "") or None,
+        )
+        if not binding_allowed:
+            raise InvalidTransition(f"role binding denied: {binding_reason}")
         return profile, provider
 
     def _build_plan(

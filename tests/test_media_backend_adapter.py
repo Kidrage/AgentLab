@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +20,7 @@ from agent_runtime.media_backend_adapter import (
     preflight_media_contract,
     validate_media_live_role_session,
 )
+from agent_runtime.brain.media_generation_router import _filter_chain
 from agent_runtime.run_task import app
 from agent_runtime.pipeline_runner import (
     _execute_media_backend_role_outputs,
@@ -28,6 +30,95 @@ from agent_runtime.pipeline_runner import (
 
 ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
+
+
+def test_router_filters_historical_grok_from_any_configured_chain() -> None:
+    config = yaml.safe_load(
+        (ROOT / "config" / "media_generation_backends.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    chain = _filter_chain(
+        ["hermes_grok_oauth", "grok_direct", "local_media_pending"],
+        config["backends"],
+        "image",
+    )
+
+    assert chain == ["local_media_pending"]
+
+
+def _historical_grok_test_root(tmp_path: Path) -> Path:
+    """Build an isolated runtime that re-enables the retired Grok media route.
+
+    Production keeps every Grok lifecycle surface nonselectable.  A few adapter
+    tests still need to exercise the deeper capacity/receipt logic, so they use
+    this explicit test-only copy instead of weakening the repository config.
+    """
+    runtime_root = tmp_path / "runtime"
+    config_dir = runtime_root / "config"
+    shutil.copytree(ROOT / "config", config_dir)
+
+    capacity = yaml.safe_load((config_dir / "model_capacity.yml").read_text())
+    capacity["routes"]["ArtifactProducer"].update(
+        {"availability": "test_fixture_only", "selectable": True}
+    )
+    (config_dir / "model_capacity.yml").write_text(
+        yaml.safe_dump(capacity, sort_keys=False), encoding="utf-8"
+    )
+
+    bindings = yaml.safe_load((config_dir / "agent_role_bindings.yml").read_text())
+    bindings["workers"]["grok"].update(
+        {"availability": "test_fixture_only", "selectable": True}
+    )
+    for worker_id in ("hermes_ark", "claude_ark"):
+        bindings["workers"][worker_id].update(
+            {"availability": "test_fixture_only", "selectable": True}
+        )
+    (config_dir / "agent_role_bindings.yml").write_text(
+        yaml.safe_dump(bindings, sort_keys=False), encoding="utf-8"
+    )
+
+    media_backends = yaml.safe_load(
+        (config_dir / "media_generation_backends.yml").read_text()
+    )
+    for backend_id in ("hermes_grok_oauth", "grok_direct"):
+        media_backends["backends"][backend_id].update(
+            {
+                "availability": "test_fixture_only",
+                "selectable": True,
+                "auth_state": "ready",
+                "adapter_state": "ready",
+            }
+        )
+    for backend_id in (
+        "hermes_ark_seedance_skill",
+        "claude_seedance_agent_plan_skill",
+    ):
+        media_backends["backends"][backend_id].update(
+            {
+                "availability": "test_fixture_only",
+                "selectable": True,
+                "auth_state": "ready",
+                "adapter_state": "ready",
+            }
+        )
+    (config_dir / "media_generation_backends.yml").write_text(
+        yaml.safe_dump(media_backends, sort_keys=False), encoding="utf-8"
+    )
+    contracts = yaml.safe_load(
+        (config_dir / "worker_invocation_contracts.yml").read_text()
+    )
+    for contract_id in (
+        "hermes_ark_artifact_producer",
+        "claude_seedance_artifact_fallback",
+    ):
+        contracts["contracts"][contract_id].update(
+            {"availability": "test_fixture_only", "selectable": True}
+        )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(contracts, sort_keys=False), encoding="utf-8"
+    )
+    return runtime_root
 
 
 def test_media_dry_run_keeps_root_and_nested_receipts_identical(tmp_path: Path) -> None:
@@ -69,6 +160,7 @@ def test_media_dry_run_keeps_root_and_nested_receipts_identical(tmp_path: Path) 
 def test_pipeline_execute_materializes_verified_media_role_receipts(
     tmp_path: Path, monkeypatch
 ) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "media_generation_contract.yml").write_text(
@@ -133,7 +225,7 @@ def test_pipeline_execute_materializes_verified_media_role_receipts(
     )
 
     result = _execute_media_backend_role_outputs(
-        ROOT,
+        runtime_root,
         run_dir,
         "Demo",
         "task-media",
@@ -162,6 +254,7 @@ def test_pipeline_execute_materializes_verified_media_role_receipts(
 def test_pipeline_execute_blocks_receipt_without_actual_generation_model(
     tmp_path: Path, monkeypatch
 ) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "media_generation_contract.yml").write_text(
@@ -201,7 +294,7 @@ def test_pipeline_execute_blocks_receipt_without_actual_generation_model(
     )
 
     result = _execute_media_backend_role_outputs(
-        ROOT,
+        runtime_root,
         run_dir,
         "Demo",
         "task-media",
@@ -217,6 +310,7 @@ def test_pipeline_execute_blocks_receipt_without_actual_generation_model(
 def test_pipeline_pending_capacity_probes_exact_xai_auth_shape_before_execution(
     tmp_path: Path, monkeypatch
 ) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     contract = _oauth_contract()
@@ -256,7 +350,7 @@ def test_pipeline_pending_capacity_probes_exact_xai_auth_shape_before_execution(
     )
 
     result = _execute_media_backend_role_outputs(
-        ROOT,
+        runtime_root,
         run_dir,
         "Demo",
         "task-media-pending",
@@ -379,6 +473,7 @@ def test_pipeline_rejects_handwritten_backend_outside_capacity_route(
 def test_pipeline_media_capacity_route_blocks_unsupported_modality_before_provider(
     tmp_path: Path, monkeypatch
 ) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     contract = _oauth_contract()
@@ -400,7 +495,7 @@ def test_pipeline_media_capacity_route_blocks_unsupported_modality_before_provid
     )
 
     result = _execute_media_backend_role_outputs(
-        ROOT,
+        runtime_root,
         run_dir,
         "Demo",
         "task-media-audio",
@@ -419,6 +514,7 @@ def test_pipeline_media_capacity_route_blocks_unsupported_modality_before_provid
 def test_pipeline_capacity_failure_opens_shared_xai_pool(
     tmp_path: Path, monkeypatch
 ) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "media_generation_contract.yml").write_text(
@@ -436,7 +532,7 @@ def test_pipeline_capacity_failure_opens_shared_xai_pool(
     )
 
     result = _execute_media_backend_role_outputs(
-        ROOT,
+        runtime_root,
         run_dir,
         "Demo",
         "task-media-quota",
@@ -573,9 +669,10 @@ def _artifact_role_session(contract: dict | None = None) -> dict:
     }
 
 
-def test_preflight_blocks_grok_direct_without_xai_key() -> None:
+def test_preflight_blocks_grok_direct_without_xai_key(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     with patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False):
-        report = preflight_media_contract(_contract(), ROOT)
+        report = preflight_media_contract(_contract(), runtime_root)
 
     assert report["status"] == "blocked"
     assert report["block_reason"] == "missing_auth"
@@ -585,9 +682,10 @@ def test_preflight_blocks_grok_direct_without_xai_key() -> None:
     assert auth_check["accepted_env"] == ["XAI_API_KEY", "GROK_API_KEY"]
 
 
-def test_preflight_blocks_grok_direct_with_xai_key_until_explicit_approval() -> None:
+def test_preflight_blocks_grok_direct_with_xai_key_until_explicit_approval(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     with patch.dict(os.environ, {"XAI_API_KEY": "test-key"}, clear=False):
-        report = preflight_media_contract(_contract(), ROOT)
+        report = preflight_media_contract(_contract(), runtime_root)
 
     assert report["status"] == "blocked"
     assert report["block_reason"] == "approval_required"
@@ -599,17 +697,34 @@ def test_preflight_blocks_grok_direct_with_xai_key_until_explicit_approval() -> 
     assert auth_check["accepted_env"] == ["XAI_API_KEY", "GROK_API_KEY"]
 
 
-def test_preflight_blocks_grok_direct_with_grok_key_alias_until_explicit_approval() -> None:
+def test_preflight_blocks_grok_direct_with_grok_key_alias_until_explicit_approval(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     with patch.dict(os.environ, {"XAI_API_KEY": "", "GROK_API_KEY": "test-key"}, clear=False):
-        report = preflight_media_contract(_contract(), ROOT)
+        report = preflight_media_contract(_contract(), runtime_root)
 
     assert report["status"] == "blocked"
     assert report["block_reason"] == "approval_required"
     assert report["api_key_configured"] is True
 
 
-def test_preflight_allows_local_grok_cli_without_api_key() -> None:
-    report = preflight_media_contract(_oauth_contract(), ROOT, command_probe=lambda _backend: True)
+def test_production_preflight_blocks_historical_grok_before_command_probe() -> None:
+    command_probed = False
+
+    def probe(_backend):
+        nonlocal command_probed
+        command_probed = True
+        return True
+
+    report = preflight_media_contract(_oauth_contract(), ROOT, command_probe=probe)
+
+    assert report["status"] == "blocked"
+    assert report["block_reason"] == "backend_not_selectable"
+    assert command_probed is False
+
+
+def test_preflight_allows_test_fixture_local_grok_cli_without_api_key(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
+    report = preflight_media_contract(_oauth_contract(), runtime_root, command_probe=lambda _backend: True)
 
     assert report["status"] == "ready"
     assert report["adapter_kind"] == "local_grok_cli"
@@ -624,13 +739,14 @@ def test_preflight_allows_local_grok_cli_without_api_key() -> None:
     assert local_cli_check["command"] == "hermes"
 
 
-def test_preflight_rejects_stale_audio_contract_before_provider_execution() -> None:
+def test_preflight_rejects_stale_audio_contract_before_provider_execution(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     contract = _oauth_contract()
     contract["modality"] = "audio"
 
     report = preflight_media_contract(
         contract,
-        ROOT,
+        runtime_root,
         command_probe=lambda _backend: True,
     )
 
@@ -645,22 +761,44 @@ def test_preflight_rejects_stale_audio_contract_before_provider_execution() -> N
     assert "audio" not in modality_check["configured_modalities"]
 
 
-def test_task_only_hermes_ark_preflight_requires_override_and_authorization() -> None:
+def test_retired_seedance_backends_block_before_command_probe() -> None:
+    probed: list[str] = []
+    for backend_id in (
+        "hermes_ark_seedance_skill",
+        "claude_seedance_agent_plan_skill",
+    ):
+        contract = _seedance_skill_contract()
+        contract["selected_backend"] = backend_id
+        contract["task_backend_override"] = backend_id
+        report = preflight_media_contract(
+            contract,
+            ROOT,
+            command_probe=lambda backend: probed.append(backend["command"]) or True,
+        )
+        assert report["status"] == "blocked"
+        assert report["block_reason"] == "backend_not_selectable"
+    assert probed == []
+
+
+def test_task_only_hermes_ark_preflight_requires_override_and_authorization(
+    tmp_path: Path,
+) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     contract = _seedance_skill_contract()
     contract.pop("task_backend_override")
 
-    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+    report = preflight_media_contract(contract, runtime_root, command_probe=lambda _backend: True)
 
     assert report["status"] == "blocked"
     assert report["block_reason"] == "task_backend_override_required"
 
     contract["task_backend_override"] = contract["selected_backend"]
     contract["user_authorized_live_generation"] = False
-    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+    report = preflight_media_contract(contract, runtime_root, command_probe=lambda _backend: True)
     assert report["block_reason"] == "user_authorization_required"
 
     contract["user_authorized_live_generation"] = True
-    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+    report = preflight_media_contract(contract, runtime_root, command_probe=lambda _backend: True)
     assert report["status"] == "ready"
     assert report["backend"]["selection_scope"] == "explicit_task_override_only"
     assert report["backend"]["worker_id"] == "hermes_ark"
@@ -669,6 +807,7 @@ def test_task_only_hermes_ark_preflight_requires_override_and_authorization() ->
 
 
 def test_hermes_ark_execution_verifies_seedance_asset_and_receipts(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     contract = _seedance_skill_contract()
     asset = tmp_path / "assets" / "task-video.mp4"
 
@@ -702,7 +841,7 @@ def test_hermes_ark_execution_verifies_seedance_asset_and_receipts(tmp_path: Pat
 
     result = execute_media_contract(
         contract,
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         timeout_seconds=600,
@@ -740,8 +879,9 @@ def test_hermes_ark_execution_verifies_seedance_asset_and_receipts(tmp_path: Pat
 def test_build_hermes_ark_payload_plan_registers_skill_instruction(
     tmp_path: Path,
 ) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     backend = preflight_media_contract(
-        _seedance_skill_contract(), ROOT, command_probe=lambda _backend: True
+        _seedance_skill_contract(), runtime_root, command_probe=lambda _backend: True
     )["backend"]
 
     plan = build_hermes_ark_payload_plan(
@@ -764,6 +904,7 @@ def test_build_hermes_ark_payload_plan_registers_skill_instruction(
 def test_hermes_ark_worker_failure_exposes_registered_claude_fallback(
     tmp_path: Path,
 ) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     def failed_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
             args=args,
@@ -775,7 +916,7 @@ def test_hermes_ark_worker_failure_exposes_registered_claude_fallback(
     contract = _seedance_skill_contract()
     result = execute_media_contract(
         contract,
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=failed_runner,
@@ -792,13 +933,14 @@ def test_hermes_ark_worker_failure_exposes_registered_claude_fallback(
     assert ledger["provider_model"] == "skill_auto"
 
 
-def test_claude_skill_is_available_as_task_scoped_fallback() -> None:
+def test_claude_skill_is_available_only_in_test_fixture(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     contract = _seedance_skill_contract()
     contract["selected_backend"] = "claude_seedance_agent_plan_skill"
     contract["task_backend_override"] = "claude_seedance_agent_plan_skill"
     contract["artifact_producer_worker"] = "claude_ark"
 
-    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+    report = preflight_media_contract(contract, runtime_root, command_probe=lambda _backend: True)
 
     assert report["status"] == "ready"
     assert report["backend"]["worker_id"] == "claude_ark"
@@ -811,6 +953,7 @@ def test_claude_skill_is_available_as_task_scoped_fallback() -> None:
 
 
 def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         assert args[:5] == ["hermes", "--ignore-rules", "--provider", "xai-oauth", "-m"]
         assert "-z" in args
@@ -818,7 +961,7 @@ def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: 
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=fake_runner,
@@ -840,6 +983,7 @@ def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: 
 
 
 def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     asset = tmp_path / "poster.png"
 
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
@@ -860,7 +1004,7 @@ def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_pat
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=fake_runner,
@@ -903,6 +1047,7 @@ def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_pat
 
 
 def test_local_grok_cli_blocks_unregistered_reported_generation_model(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     asset = tmp_path / "poster.png"
 
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
@@ -919,7 +1064,7 @@ def test_local_grok_cli_blocks_unregistered_reported_generation_model(tmp_path: 
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=fake_runner,
@@ -936,6 +1081,7 @@ def test_local_grok_cli_blocks_unregistered_reported_generation_model(tmp_path: 
 
 
 def test_local_grok_cli_secret_gate_blocks_before_command(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     contract = _oauth_contract()
     secret = "sk-" + ("b" * 40)
     contract["prompt"] = f"Generate a poster with credential: {secret}"
@@ -947,7 +1093,7 @@ def test_local_grok_cli_secret_gate_blocks_before_command(tmp_path: Path) -> Non
 
     result = execute_media_contract(
         contract,
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=fake_runner,
@@ -963,12 +1109,13 @@ def test_local_grok_cli_secret_gate_blocks_before_command(tmp_path: Path) -> Non
 
 
 def test_local_grok_cli_timeout_writes_generation_ledger(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     def timeout_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         raise subprocess.TimeoutExpired(args, timeout, output=b"partial stdout", stderr=b"partial stderr")
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=timeout_runner,
@@ -987,6 +1134,7 @@ def test_local_grok_cli_timeout_writes_generation_ledger(tmp_path: Path) -> None
 
 
 def test_local_grok_cli_timeout_classifies_settings_fetch_failure(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     def timeout_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         raise subprocess.TimeoutExpired(
             args,
@@ -997,7 +1145,7 @@ def test_local_grok_cli_timeout_classifies_settings_fetch_failure(tmp_path: Path
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=timeout_runner,
@@ -1013,6 +1161,7 @@ def test_local_grok_cli_timeout_classifies_settings_fetch_failure(tmp_path: Path
 
 
 def test_local_grok_cli_nonzero_classifies_settings_fetch_failure(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     def failed_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
             args=args,
@@ -1023,7 +1172,7 @@ def test_local_grok_cli_nonzero_classifies_settings_fetch_failure(tmp_path: Path
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=failed_runner,
@@ -1039,6 +1188,7 @@ def test_local_grok_cli_nonzero_classifies_settings_fetch_failure(tmp_path: Path
 
 
 def test_local_grok_cli_nonzero_classifies_transport_failure(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     def failed_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
             args=args,
@@ -1052,7 +1202,7 @@ def test_local_grok_cli_nonzero_classifies_transport_failure(tmp_path: Path) -> 
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=failed_runner,
@@ -1072,6 +1222,7 @@ def test_local_grok_cli_nonzero_classifies_transport_failure(tmp_path: Path) -> 
 
 
 def test_local_grok_cli_successful_exit_with_connection_error_is_not_text_handoff(tmp_path: Path) -> None:
+    runtime_root = _historical_grok_test_root(tmp_path)
     def failed_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
             args=args,
@@ -1082,7 +1233,7 @@ def test_local_grok_cli_successful_exit_with_connection_error_is_not_text_handof
 
     result = execute_media_contract(
         _oauth_contract(),
-        ROOT,
+        runtime_root,
         tmp_path,
         live=True,
         command_runner=failed_runner,
@@ -1150,8 +1301,8 @@ def test_media_backend_execute_cli_generates_role_session_from_worker(tmp_path: 
     assert result.exit_code == 0
     response = yaml.safe_load(result.output)
     assert response["status"] == "blocked"
-    assert response["reason"] == "missing_auth"
-    assert response["reason"] != "missing_role_session"
+    assert response["reason"] == "invalid_role_session"
+    assert response["reason"] != "missing_auth"
 
 
 def test_media_live_role_session_validation_rejects_frontdesk_packet() -> None:

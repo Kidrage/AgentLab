@@ -127,9 +127,9 @@ def test_writer_without_explicit_opt_in_keeps_the_pure_writer_contract(
     )
 
     assert profile.get("writer_workflow_activation_status") is None
-    assert profile["cli_agent"] == "agy"
-    assert profile["invocation_contract"] == "agy_writer"
-    assert profile["capacity_route"] == "WriterAgy"
+    assert profile["cli_agent"] == "claude_code"
+    assert profile["invocation_contract"] == "claude_writer"
+    assert profile["capacity_route"] == "WriterFlash"
 
 
 def test_narrative_planner_resolves_fixed_agy_gemini_route(
@@ -234,7 +234,7 @@ def test_narrative_planner_context_accepts_only_hash_bound_inputs(
     assert run_dir / "narrative_rewrite_contract.yml" in sources
 
 
-def test_writer_ultracode_opt_in_reaches_cli_only_through_dedicated_route(
+def test_writer_ultracode_opt_in_blocks_known_unavailable_claude_route(
     tmp_path: Path,
 ) -> None:
     from agent_runner import run_agent_model
@@ -271,12 +271,8 @@ def test_writer_ultracode_opt_in_reaches_cli_only_through_dedicated_route(
             Path(plan.run_dir) / "revision_plan.md",
         )
 
-    assert result.status == "completed"
-    profile = observed["profile"]
-    assert profile["invocation_contract"] == "claude_writer_ultracode"
-    assert profile["capacity_selected_route"] == "WriterUltracode"
-    assert profile["capacity_selection_kind"] == "primary"
-    assert observed["sealed_messages"]
+    assert result.status == "blocked_user_decision"
+    assert observed == {}
 
 
 def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: Path) -> None:
@@ -294,10 +290,10 @@ def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: 
     )
 
     assert profile["artifact_type"] == "text"
-    assert profile["artifact_provider"] == "qwen_cli"
-    assert profile["cli_agent"] == "qwen"
-    assert profile["invocation_contract"] == "qwen_artifact"
-    assert profile["capacity_route"] == "ArtifactProducerQwen"
+    assert profile["artifact_provider"] == "codex_cli"
+    assert profile["cli_agent"] == "codex"
+    assert profile["invocation_contract"] == "codex"
+    assert profile["capacity_route"] == "ArtifactProducerCodex"
     assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
 
     request_path.write_text("Generate an audio narration.wav", encoding="utf-8")
@@ -394,8 +390,8 @@ def test_artifact_producer_materializes_contract_before_cli_execution(
         assert contract_path.exists()
         contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
         assert contract["artifact_type"] == "text"
-        assert contract["routing"]["selected"]["provider_id"] == "qwen_cli"
-        assert profile["cli_agent"] == "qwen"
+        assert contract["routing"]["selected"]["provider_id"] == "codex_cli"
+        assert profile["cli_agent"] == "codex"
         for raw_path in contract["validation"]["required_paths"]:
             target = Path(plan.project_root) / raw_path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -420,7 +416,7 @@ def test_artifact_producer_materializes_contract_before_cli_execution(
         )
 
     assert result.status == "completed"
-    assert result.raw_usage["capacity_route_id"] == "ArtifactProducerQwen"
+    assert result.raw_usage["capacity_route_id"] == "ArtifactProducerCodex"
 
 
 def test_artifact_producer_context_resolves_internal_project_config_symlink(
@@ -536,6 +532,22 @@ workers:
     forbidden_roles: [Supervisor, Coder, Writer, Observer]
 """.strip()
         + "\n",
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_supervisor": {"worker_id": "hermes"},
+                    "claude": {"worker_id": "claude_code"},
+                    "claude_writer": {"worker_id": "claude_code"},
+                    "codex": {"worker_id": "codex"},
+                    "qwen": {"worker_id": "qwen"},
+                    "qwen_narrative_literary_ab": {"worker_id": "qwen"},
+                }
+            },
+            sort_keys=False,
+        ),
         encoding="utf-8",
     )
 
@@ -866,7 +878,7 @@ def test_narrative_heavy_audit_cli_roles_receive_sealed_context(
     assert result.status == "completed"
     assert observed["sealed_messages"] == messages
     profile = observed["profile"]
-    assert profile["invocation_contract"] == "claude_narrative_audit"
+    assert profile["invocation_contract"] == "agy_reviewer"
     source_names = {
         Path(path).name for path in observed["outbound_source_paths"]
     }
@@ -2753,8 +2765,8 @@ class TestPromptEngineerMapping:
             "not 'execution_prompt_engineer'"
         )
         prom_role = full_tier["prompt_engineer"]
-        assert prom_role.get("cli_agent") == "claude_code"
-        assert prom_role.get("invocation_contract") == "claude"
+        assert prom_role.get("cli_agent") == "hermes"
+        assert prom_role.get("invocation_contract") == "hermes_deepseek"
 
     def test_shared_role_key_normalizer_handles_compact_names(self):
         """Role aliases are owned by one shared normalizer, not agent_runner."""

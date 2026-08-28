@@ -2650,7 +2650,12 @@ def _check_cli_role_binding(agentlab_root: Path, agent_name: str, cli_role_profi
     except Exception:
         from protocols.enforcement import check_role_binding
 
-    return check_role_binding(agentlab_root, worker, agent_name)
+    return check_role_binding(
+        agentlab_root,
+        worker,
+        agent_name,
+        str(cli_role_profile.get("invocation_contract") or "") or None,
+    )
 
 
 def _blocked_role_binding_result(agent_name: str, worker: str, reason: str) -> LLMCallResult:

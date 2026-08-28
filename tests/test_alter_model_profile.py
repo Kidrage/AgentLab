@@ -28,7 +28,8 @@ def test_alter_is_the_default_subscription_first_tier() -> None:
     assert resolved is not None
     assert resolved["resolved_tier"] == "alter"
     assert resolved["cli_agent"] == "hermes"
-    assert resolved["default"] == "grok_4_6_hermes_oauth"
+    assert resolved["invocation_contract"] == "hermes_supervisor"
+    assert resolved["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
 
 
 def test_alter_keyword_is_an_exact_task_trigger() -> None:
@@ -50,7 +51,7 @@ def test_configure_agent_updates_only_tiers_declared_by_each_mode() -> None:
     assert _configured_tiers_for_update({"full": {}}, "ALTER") == ["alter"]
 
 
-def test_alter_tier_routes_grok_work_through_hermes_and_keeps_agy_primaries() -> None:
+def test_alter_tier_uses_codex_agy_hermes_and_isolated_claude_without_grok() -> None:
     profiles = _yaml("config/agent_model_profiles.yml")
     alter = profiles["modes"]["full_cli"]["tiers"]["alter"]
     assert {role for role in alter} == {
@@ -74,58 +75,72 @@ def test_alter_tier_routes_grok_work_through_hermes_and_keeps_agy_primaries() ->
             "scribe",
         )
     }
-    assert {cfg["cli_agent"] for cfg in alter.values()} == {"hermes", "agy"}
+    assert {cfg["cli_agent"] for cfg in alter.values()} == {
+        "hermes",
+        "agy",
+        "codex",
+        "claude_code",
+    }
 
-    assert alter["supervisor"]["invocation_contract"] == "hermes_alter_high"
-    for role, cfg in alter.items():
-        if cfg["cli_agent"] == "hermes":
-            assert cfg["default"] == "grok_4_6_hermes_oauth", role
-            assert cfg["reasoning_effort"] == "high", role
+    expected = {
+        "supervisor": ("hermes", "hermes_supervisor", "codex_gpt_5_6_sol_xhigh_hermes_oauth"),
+        "observer": ("agy", "agy_observer", "gemini_3_6_flash_high_agy_oauth"),
+        "reposcout": ("codex", "codex", "codex_gpt_5_6_sol_high_cli_oauth"),
+        "interface_mapper": ("codex", "codex", "codex_gpt_5_6_sol_xhigh_cli_oauth"),
+        "researcher": ("agy", "agy_research", "gemini_3_6_flash_high_agy_oauth"),
+        "prompt_engineer": ("hermes", "hermes_deepseek", "deepseek_v4_flash_hermes_private"),
+        "coder": ("codex", "codex", "codex_gpt_5_6_sol_xhigh_cli_oauth"),
+        "artifact_producer": ("codex", "codex", "codex_gpt_5_6_sol_medium_cli_oauth"),
+        "narrative_planner": ("agy", "agy_narrative_planner", "gemini_3_6_flash_high_agy_oauth"),
+        "tester_auditor": ("hermes", "hermes_deepseek", "deepseek_v4_flash_hermes_private"),
+        "verifier": ("hermes", "hermes_deepseek", "deepseek_v4_flash_hermes_private"),
+        "archivist": ("hermes", "hermes_deepseek", "deepseek_v4_flash_hermes_private"),
+        "writer": ("claude_code", "claude_writer", "deepseek_v4_pro"),
+        "reviewer": ("agy", "agy_reviewer", "gemini_3_6_flash_high_agy_oauth"),
+        "visual_reviewer": ("agy", "agy_visual_reviewer", "gemini_3_6_flash_high_agy_oauth"),
+        "scribe": ("agy", "agy_scribe", "gemini_3_6_flash_high_agy_oauth"),
+    }
+    for role, (worker, contract, model) in expected.items():
+        assert (
+            alter[role]["cli_agent"],
+            alter[role]["invocation_contract"],
+            alter[role]["default"],
+        ) == (worker, contract, model)
 
-    contracts = _yaml("config/worker_invocation_contracts.yml")["contracts"]
-    for contract_name in {"hermes_alter_high", "hermes_alter_artifact"}:
-        contract = contracts[contract_name]
-        assert contract["worker_id"] == "hermes"
-        assert contract["workflow_shell_profile"] == "agentlabalter"
-        assert contract["required_shell_state"] == {
-            "model.provider": "xai-oauth",
-            "model.default": "grok-4.6",
-            "agent.reasoning_effort": "high",
-            "fallback_providers": [],
-            "fallback_model": None,
-        }
-        assert "hermes -p agentlabalter chat -Q" in contract["template"]
+    serialized = yaml.safe_dump(alter)
+    assert "grok" not in serialized.lower()
+    assert "xai" not in serialized.lower()
 
 
-def test_alter_capacity_routes_have_governed_deepseek_fallbacks() -> None:
+def test_alter_capacity_routes_are_exact_and_do_not_fallback_to_grok() -> None:
     profiles = _yaml("config/agent_model_profiles.yml")
     capacity = _yaml("config/model_capacity.yml")
     routes = capacity["routes"]
     alter = profiles["modes"]["full_cli"]["tiers"]["alter"]
 
-    multimodal_exceptions = {"observer", "visual_reviewer"}
     for role, profile in alter.items():
         route = routes[profile["capacity_route"]]
         assert route["worker"] == profile["cli_agent"]
         assert route["invocation_contract"] == profile["invocation_contract"]
         assert route["model_key"] == profile["default"]
-        assert route["approved_fallbacks"], role
-        fallback = routes[route["approved_fallbacks"][0]]
-        if role in multimodal_exceptions:
-            assert fallback["worker"] == "agy"
-            assert fallback["model_key"] == "claude_sonnet_4_6_agy_oauth"
-        elif role == "artifact_producer":
-            assert fallback["worker"] == "codex"
-            assert fallback["model_key"] == "codex_gpt_5_6_sol_medium_cli_oauth"
-        else:
-            assert fallback["worker"] == "claude_code"
-            assert fallback["model_key"] in {"deepseek_v4_pro", "deepseek_v4_flash"}
+        if role in {"observer", "narrative_planner", "writer", "reviewer", "visual_reviewer", "scribe"}:
+            continue
+        assert route["approved_fallbacks"] == [], role
+        assert route["fallback_on"] == [], role
+        assert "grok" not in yaml.safe_dump(route).lower(), role
 
 
-def test_alter_artifact_dispatch_uses_the_hermes_grok_artifact_contract() -> None:
+def test_alter_text_artifact_dispatch_uses_codex_without_media_generation() -> None:
     policy = _yaml("config/artifact_task_policy.yml")
-    provider = policy["providers"]["hermes_grok"]
+    provider = policy["providers"]["codex_cli"]
 
-    assert provider["worker"] == "hermes"
-    assert provider["invocation_contract"] == "hermes_alter_artifact"
+    assert provider["worker"] == "codex"
+    assert provider["invocation_contract"] == "codex"
     assert provider["capacity_routes"]["alter"] == "AlterArtifactProducer"
+    assert provider["handles"] == ["text"]
+    assert not any(
+        {"image", "video"}.intersection(candidate.get("handles", []))
+        for candidate in policy["providers"].values()
+        if candidate.get("availability", "active")
+        not in {"pending_local_model", "historical_only"}
+    )

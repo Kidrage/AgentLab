@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-08-28T05:03:02.329488+00:00`
+- Generated at: `2026-08-28T08:22:54.035747+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-youjia-p3`
-- HEAD: `3b69677`
+- HEAD: `792d806`
 - Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,10 +88,10 @@
 
 ### Categories
 
-- code: 1094 files, 11452173 bytes
-- literature: 424 files, 2429843 bytes
+- code: 1094 files, 11486106 bytes
+- literature: 424 files, 2430234 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3271688 bytes
+- structured_data: 554 files, 3278783 bytes
 
 ### Common Extensions
 
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `792d806 2026-08-28 fix: validate paired blueprint shard envelopes`
 - `3b69677 2026-08-27 docs: refresh kernel stabilization handoff`
 - `b720735 2026-08-27 test(narrative): reject edit delimiter near misses`
 - `e7f1027 2026-08-27 fix(narrative): strip bare cli edit trailers`
@@ -251,13 +252,49 @@
 - `810b42a 2026-08-01 Automate detached narrative acceptance`
 - `9d02aa8 2026-08-01 Merge GitHub unified-stable into 250 relay work`
 - `1cf89cb 2026-07-31 Expose user acceptance gate in work-item CLI`
-- `1c67167 2026-07-31 docs: record relay watcher activation`
 
 ## Current Changes
 
-- `## codex/shanhe-youjia-p3`
-- ` M agent_runtime/narrative/blueprint_shards.py`
-- ` M tests/test_narrative_blueprint_shards.py`
+- `## codex/shanhe-youjia-p3...origin/codex/shanhe-youjia-p3`
+- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M agent_runtime/brain/media_generation_router.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/frontdesk_boundary_audit.py`
+- ` M agent_runtime/protocols/artifact_task.py`
+- ` M agent_runtime/protocols/enforcement.py`
+- ` M config/README.md`
+- ` M config/agent_model_profiles.yml`
+- ` M config/agent_role_bindings.yml`
+- ` M config/artifact_task_policy.yml`
+- ` M config/cli_workflow_shells.yml`
+- ` M config/hermes_brain_model_groups.yml`
+- ` M config/media_generation_backends.yml`
+- ` M config/mode_tier_worker_policy.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_providers.yml`
+- ` M config/role_assignment_policy.yml`
+- ` M config/runtime_cli_requirements.yml`
+- ` M config/shared_agent_directory.yml`
+- ` M config/worker_capability_defaults.yml`
+- ` M config/worker_fallback_policy.yml`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M docs/ARTIFACT_PRODUCER_PROTOCOL.md`
+- ` M scripts/generate_agent_cli_matrix.py`
+- ` M tests/test_agent_cli_matrix.py`
+- ` M tests/test_alter_model_profile.py`
+- ` M tests/test_artifact_task_protocol.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_m1_mission_compiler_v2.py`
+- ` M tests/test_m2_role_assignment_router.py`
+- ` M tests/test_m2_worker_governance.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_narrative_author_team_v2.py`
+- ` M tests/test_production_pack_role_session_request.py`
+- ` M tests/test_protocol_enforcement.py`
 
 ## Related Repositories
 
@@ -775,6 +812,34 @@ system preference remain required before Gate 2 scaling or Phase 5.
   `pending -> applying -> applied` state transition. Final repository regression
   is 3,437 passed / 2 skipped / 11 warnings, and the physical two-project
   invariant still holds after the suite.
+- 2026-08-28 CST: The production-stable default remains `full_cli/alter`, with
+  zero selectable Grok routes: Hermes + Codex OAuth xhigh owns Supervisor;
+  native Codex owns code and text artifacts; Agy Gemini 3.6 Flash owns sourced
+  research through an Exa-only, hash-receipted broker boundary; Claude Code +
+  DeepSeek V4 Pro owns sealed long-form Writer packets (performance/low use V4
+  Flash); Hermes + its private DeepSeek V4 Flash provider owns bounded
+  support/audit roles; the professional senior editor has a separate strict
+  no-browse audit contract.
+  Image/video generation fails closed as `local_media_backend_pending` until a
+  verified local adapter exists. Historical Grok contracts, models, backends,
+  and receipts remain replayable but are explicitly nonselectable. Live probes
+  passed for Hermes/DeepSeek and Agy/Gemini+Exa (with the authorized temporary
+  Japan node and restoration to Hong Kong line 2). Fresh sandbox-external,
+  no-tool probes completed on both Claude Code DeepSeek V4 Pro and V4 Flash with
+  exact modelUsage binding, zero tool calls and zero subagents. AgentLab now
+  copies only an allowlisted provider/auth/proxy environment from private Claude
+  settings into a safe-mode/restricted child, so user hooks, plugins, skills,
+  MCP, memory and workspace discovery are not loaded. The final repository suite
+  passes 3,719 tests with 21 skipped and 11 expected missing-fixture warnings in
+  680.69 seconds. Model doctor passes with only seven optional API-key warnings;
+  protocol doctor passes 117 checks with zero failures. The current capability
+  evidence chain verifies with 29 current and 10 historical items, and its
+  hygiene check passes. Overall capability remains honestly `candidate` until
+  fresh governed provider role-session artifacts and human acceptance exist;
+  no legacy Agy Writer, Grok media, or retired runner receipt can promote it.
+  Independent Standards and Spec reviews found no remaining release blocker.
+  This delivery is isolated on `codex/shanhe-youjia-p3`; merge only through a
+  reviewed PR to `main`.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

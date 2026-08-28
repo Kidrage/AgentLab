@@ -56,6 +56,8 @@ contracts:
       on_invalid_invocation: stop_and_report
 
   hermes_alter_high:
+    availability: historical_only
+    selectable: false
     worker_id: hermes
     display_name: Hermes Alter Grok 4.6 High
     command: hermes
@@ -103,6 +105,8 @@ contracts:
       on_auth_required: capacity_manager
 
   hermes_alter_artifact:
+    availability: historical_only
+    selectable: false
     worker_id: hermes
     display_name: Hermes Alter Grok 4.6 High Artifact Producer
     command: hermes
@@ -152,8 +156,10 @@ contracts:
 
   hermes_supervisor:
     worker_id: hermes
-    display_name: Legacy Hermes Supervisor (Codex OAuth, Non-Default)
-    default_path: false
+    display_name: Hermes Governed Supervisor (Codex OAuth)
+    availability: verified_current_host
+    selectable: true
+    default_path: true
     command: hermes
     invocation_style: governed_supervisor_task_packet
     workflow_shell: true
@@ -199,7 +205,139 @@ contracts:
       on_binary_missing: stop_and_report
       on_auth_required: capacity_manager
 
+  hermes_deepseek:
+    worker_id: hermes
+    display_name: Hermes DeepSeek Flash Governed Role Worker
+    command: hermes
+    invocation_style: governed_deepseek_task_packet
+    packet_delivery: inline_prompt
+    max_inline_packet_bytes: 180000
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - model_execution_chain_<role>.yml
+      - model_execution_receipt_<role>_<route>_<attempt>.yml
+      - changed_files_or_findings.yml
+    template: >-
+      hermes --provider {provider} -m {model_id} --safe-mode -t "" -z
+      "Treat the sealed AgentLab role task packet appended to this prompt as
+      the only task context.
+      Perform only the assigned role. Do not switch provider or model, invoke
+      subagents, expand scope, promote candidates, or use undeclared network
+      tools. Return concise findings, verification, and blockers."
+    required_placeholders: [provider, model_id]
+    required_runtime_provider: deepseek
+    required_model_keys: [deepseek_v4_flash_hermes_private]
+    fallback_providers: []
+    fallback_model: null
+    safe_probe: [hermes, config, check]
+    forbidden_probes: [[hermes, status, --all]]
+    expected_parse:
+      argv_prefix: [hermes, --provider, deepseek, -m]
+    validation:
+      shlex_parse_required: true
+      require_existing_binary: false
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
+      on_auth_required: stop_and_report
+
+  hermes_deepseek_narrative_audit:
+    availability: verified_current_host
+    selectable: true
+    worker_id: hermes
+    display_name: Hermes DeepSeek Sealed Independent Narrative Audit
+    command: hermes
+    invocation_style: sealed_narrative_audit_task_packet
+    packet_delivery: inline_prompt
+    max_inline_packet_bytes: 180000
+    structured_output: narrative_heavy_audit
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    coalescing_allowed: false
+    required_receipts:
+      - outbound_context_manifest_reviewer.yml
+      - model_execution_chain_reviewer.yml
+      - model_execution_receipt_reviewer_<route>_<attempt>.yml
+      - narrative_heavy_audit_output_contract.yml
+    template: >-
+      hermes --provider {provider} -m {model_id} --safe-mode -t "" -z
+      "Treat the sealed AgentLab senior-editor packet appended to this prompt
+      as the only task context.
+      Audit every requested chapter against its exact evidence, continuity,
+      character intent, hook, POV, dialogue, rhythm, and length contracts.
+      Treat unsupported persistent facts as blocking continuity failures. Do
+      not browse, read any other workspace path, edit prose or production,
+      promote facts, switch provider/model, or invoke subagents. Return only
+      the requested independent review artifacts and blocking findings."
+    required_placeholders: [provider, model_id]
+    required_runtime_provider: deepseek
+    required_model_keys: [deepseek_v4_flash_hermes_private]
+    fallback_providers: []
+    fallback_model: null
+    safe_probe: [hermes, config, check]
+    forbidden_probes: [[hermes, status, --all]]
+    expected_parse:
+      argv_prefix: [hermes, --provider, deepseek, -m, deepseek-v4-flash]
+    validation:
+      shlex_parse_required: true
+      require_existing_binary: false
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
+      on_auth_required: stop_and_report
+
+  agy_research:
+    worker_id: agy
+    display_name: Agy Gemini Sourced Web Researcher
+    command: agy
+    invocation_style: sourced_research_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - workspace_context_control
+      - permission_and_sandbox_control
+    required_receipts:
+      - outbound_context_manifest_researcher.yml
+      - 03_research_notes.md
+      - sources_receipt.yml
+      - model_execution_chain_researcher.yml
+      - model_execution_receipt_researcher_<route>_<attempt>.yml
+    allowed_mcp_tools: [web_search_exa, web_fetch_exa]
+    allowed_broker_tools: [view_file, call_mcp_tool]
+    template: >-
+      agy --sandbox --model "{model_id}" --output-format stream-json
+      --disable-slash-commands -p "Read only the bounded AgentLab Researcher
+      task packet at {task_packet_path}. Use only the Exa MCP tools
+      web_search_exa and web_fetch_exa for requested public web evidence.
+      Preserve every query, source URL, retrieval time, and evidence locator;
+      distinguish source facts from inference. Do not inspect the project
+      workspace, edit files, invoke subagents, generate prose or media, or use
+      any other tool. Return a concise report with an explicit Sources section."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [agy, mcp, list]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: stop_and_report
+
   claude:
+    availability: unavailable_current_host
+    selectable: false
     worker_id: claude_code
     display_name: Claude Code
     command: claude
@@ -254,6 +392,8 @@ contracts:
       on_invalid_invocation: stop_and_report
 
   claude_writer:
+    availability: verified_current_host
+    selectable: true
     worker_id: claude_code
     display_name: Claude Shell DeepSeek Writer
     command: claude
@@ -261,6 +401,9 @@ contracts:
     packet_delivery: stdin
     workflow_shell: true
     coalescing_allowed: false
+    environment:
+      load_user_settings_env: true
+      expected_base_url: https://api.deepseek.com/anthropic
     required_receipts:
       - outbound_context_manifest_writer.yml
       - model_execution_chain_writer.yml
@@ -268,7 +411,9 @@ contracts:
       - narrative_delivery_receipt.yml
     template: >-
       claude --model "{model_id}" --effort max --max-budget-usd 1.00
-      --permission-mode bypassPermissions --output-format json --tools "" -p "Treat the
+      --safe-mode --restricted --strict-mcp-config --disable-slash-commands
+      --no-chrome --no-session-persistence --permission-mode dontAsk
+      --output-format json --tools "" -p "Treat the
       complete sealed AgentLab Writer packet on stdin as the only task context.
       Follow its messages in order and act as a pure Writer: produce high-quality
       final Chinese prose while preserving voice, POV, continuity, and length
@@ -326,6 +471,8 @@ contracts:
       on_quota_exhausted: capacity_manager
 
   claude_narrative_planner:
+    availability: unavailable_current_host
+    selectable: false
     worker_id: claude_code
     display_name: Claude Shell DeepSeek Narrative Rewrite Planner
     command: claude
@@ -360,6 +507,8 @@ contracts:
       on_quota_exhausted: stop_and_report
 
   claude_narrative_audit:
+    availability: verified_current_host
+    selectable: true
     worker_id: claude_code
     display_name: Claude Shell DeepSeek Sealed Narrative Audit Role
     command: claude
@@ -368,6 +517,9 @@ contracts:
     structured_output: narrative_heavy_audit
     workflow_shell: true
     coalescing_allowed: false
+    environment:
+      load_user_settings_env: true
+      expected_base_url: https://api.deepseek.com/anthropic
     required_receipts:
       - outbound_context_manifest_reviewer.yml
       - model_execution_chain_reviewer.yml
@@ -375,7 +527,9 @@ contracts:
       - narrative_heavy_audit_output_contract.yml
     template: >-
       claude --model "{model_id}" --effort max --max-budget-usd 3.00
-      --permission-mode bypassPermissions --output-format json --tools ""
+      --safe-mode --restricted --strict-mcp-config --disable-slash-commands
+      --no-chrome --no-session-persistence --permission-mode dontAsk
+      --output-format json --tools ""
       --json-schema '{narrative_audit_schema}' -p "Treat the complete sealed
       AgentLab narrative-audit role packet on stdin as the only task context.
       Perform only the role assigned by that packet. When assigned Reviewer,
@@ -406,6 +560,8 @@ contracts:
       on_quota_exhausted: stop_and_report
 
   claude_supervisor_fallback:
+    availability: unavailable_current_host
+    selectable: false
     worker_id: claude_code
     display_name: Claude Shell DeepSeek Supervisor Capacity Fallback
     command: claude
@@ -440,6 +596,8 @@ contracts:
       on_quota_exhausted: capacity_manager
 
   claude_writer_ultracode:
+    availability: unavailable_current_host
+    selectable: false
     worker_id: claude_code
     display_name: Claude Shell DeepSeek Writer Developmental Ultracode
     command: claude
@@ -1013,6 +1171,8 @@ contracts:
       on_quota_exhausted: capacity_manager
 
   grok_native_high:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     display_name: Native Grok OAuth High-Reasoning Worker
     command: grok
@@ -1043,6 +1203,8 @@ contracts:
       on_auth_required: capacity_manager
 
   grok_native_medium:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     display_name: Native Grok OAuth Medium-Reasoning Worker
     command: grok
@@ -1073,6 +1235,8 @@ contracts:
       on_auth_required: capacity_manager
 
   grok_native_research_medium:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     display_name: Native Grok OAuth Research Worker
     command: grok
@@ -1105,6 +1269,8 @@ contracts:
       on_auth_required: capacity_manager
 
   grok_native_low:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     display_name: Native Grok OAuth Low-Reasoning Worker
     command: grok
@@ -1135,6 +1301,8 @@ contracts:
       on_auth_required: capacity_manager
 
   grok_native_artifact_low:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     display_name: Native Grok OAuth Artifact Worker
     command: grok
@@ -1167,6 +1335,8 @@ contracts:
       on_auth_required: capacity_manager
 
   grok_research:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     display_name: Hermes Grok OAuth Research Worker
     command: hermes
@@ -1202,6 +1372,8 @@ contracts:
       on_auth_required: capacity_manager
 
   grok_media:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     display_name: Hermes Grok OAuth Media Worker
     command: hermes
@@ -1254,6 +1426,8 @@ contracts:
 
   hermes_ark_artifact_producer:
     worker_id: hermes_ark
+    availability: historical_only
+    selectable: false
     display_name: Hermes + Ark Skills Seedance Artifact Producer
     command: hermes
     invocation_style: sealed_media_request
@@ -1291,6 +1465,8 @@ contracts:
 
   claude_seedance_artifact_fallback:
     worker_id: claude_ark
+    availability: historical_only
+    selectable: false
     display_name: Claude + Ark Seedance Skill Fallback Artifact Producer
     command: claude
     invocation_style: sealed_media_request

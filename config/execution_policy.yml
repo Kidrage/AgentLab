@@ -40,10 +40,10 @@ budget_mode_policy:
     - default: alter
   mode_philosophy:
     alter:
-      goal: 优先消耗 Grok/Agy OAuth 订阅滚动额度
+      goal: 优先使用已验证可用的 Codex、Agy/Gemini 与 Hermes/DeepSeek 执行面
       allow_sacrifice: [非必要的最高推理档位]
       forbid_sacrifice: [权限隔离, 测试闭环, 多模态输入能力]
-      fallback: Claude Code with DeepSeek Pro or Flash through model_capacity.yml
+      fallback: 未经实时健康验证不自动切换 provider；Claude Code 仅在已验证的 Writer/Reviewer DeepSeek Pro/Flash 合同中可选
     frugal:
       goal: 最低成本跑通
       allow_sacrifice: [推理深度, 审查覆盖率, 模型强度]

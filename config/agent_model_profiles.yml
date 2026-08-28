@@ -18,9 +18,8 @@ professional_role_profiles:
     capacity_route: ProfessionalIndependentReviewerStrict
     execution_override:
       cli_agent: hermes
-      invocation_contract: hermes_alter_high
-      default: grok_4_6_hermes_oauth
-      reasoning_effort: high
+      invocation_contract: hermes_deepseek_narrative_audit
+      default: deepseek_v4_flash_hermes_private
   reader_simulation_panel: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent, capacity_route: ProfessionalReviewerStrict}
   state_projector: {base_role_key: scribe, execution_tier: deterministic, execution_kind: deterministic_tool}
 authority:
@@ -50,7 +49,7 @@ tier_policy:
   tiers:
     alter:
       budget_aliases: [alter, altered]
-      intent: subscription_first_native_grok_and_agy_with_deepseek_fallback
+      intent: subscription_first_codex_agy_and_deepseek_without_active_grok
     full:
       budget_aliases: [max_quality, full, high_reasoning]
       intent: highest_quality_local_or_api_execution
@@ -67,10 +66,10 @@ modes:
       full:
         supervisor:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_supervisor_fallback
-          default: deepseek_v4_pro
-          capacity_route: SupervisorDeepSeek
+          cli_agent: hermes
+          invocation_contract: hermes_supervisor
+          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
+          capacity_route: AlterSupervisor
         observer:
           executor_type: cli_agent
           cli_agent: agy
@@ -79,30 +78,34 @@ modes:
           capacity_route: Observer
         reposcout:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_high_cli_oauth
+          capacity_route: AlterRepoScout
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          capacity_route: AlterInterfaceMapper
         researcher:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_research
-          default: grok_4_6_hermes_oauth
+          cli_agent: agy
+          invocation_contract: agy_research
+          default: gemini_3_6_flash_high_agy_oauth
           capacity_route: Researcher
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_flash
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterPromptEngineer
         coder:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          capacity_route: AlterCoder
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
@@ -117,30 +120,34 @@ modes:
           capacity_route: NarrativePlannerAgy
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterTesterAuditor
         verifier:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_flash
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterVerifier
         archivist:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: agy
-          invocation_contract: agy_writer
-          default: gemini_3_6_flash_high_agy_oauth
-          capacity_route: WriterAgy
+          cli_agent: claude_code
+          invocation_contract: claude_writer
+          default: deepseek_v4_pro
+          capacity_route: Writer
         reviewer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_narrative_audit
-          default: deepseek_v4_pro
+          cli_agent: agy
+          invocation_contract: agy_reviewer
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterReviewer
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
@@ -155,10 +162,10 @@ modes:
       performance:
         supervisor:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_supervisor_fallback
-          default: deepseek_v4_pro
-          capacity_route: SupervisorDeepSeek
+          cli_agent: hermes
+          invocation_contract: hermes_supervisor
+          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
+          capacity_route: AlterSupervisor
         observer:
           executor_type: cli_agent
           cli_agent: agy
@@ -167,33 +174,34 @@ modes:
           capacity_route: Observer
         reposcout:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_high_cli_oauth
+          capacity_route: AlterRepoScout
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          capacity_route: AlterInterfaceMapper
         researcher:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_research
-          default: grok_4_6_hermes_oauth
+          cli_agent: agy
+          invocation_contract: agy_research
+          default: gemini_3_6_flash_high_agy_oauth
           capacity_route: Researcher
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_flash
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterPromptEngineer
         coder:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          binary_candidates:
-            - claude
-            - ccs
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          capacity_route: AlterCoder
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
@@ -208,30 +216,34 @@ modes:
           capacity_route: NarrativePlannerAgy
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterTesterAuditor
         verifier:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_flash
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterVerifier
         archivist:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: agy
-          invocation_contract: agy_writer
-          default: gemini_3_6_flash_high_agy_oauth
-          capacity_route: WriterAgy
+          cli_agent: claude_code
+          invocation_contract: claude_writer
+          default: deepseek_v4_flash
+          capacity_route: WriterFlash
         reviewer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_narrative_audit
-          default: deepseek_v4_pro
+          cli_agent: agy
+          invocation_contract: agy_reviewer
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterReviewer
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
@@ -247,9 +259,9 @@ modes:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          invocation_contract: hermes_supervisor
+          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
+          reasoning_effort: xhigh
           capacity_route: AlterSupervisor
         observer:
           executor_type: cli_agent
@@ -259,46 +271,40 @@ modes:
           capacity_route: AlterObserver
         reposcout:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_high_cli_oauth
           capacity_route: AlterRepoScout
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
           capacity_route: AlterInterfaceMapper
         researcher:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          cli_agent: agy
+          invocation_contract: agy_research
+          default: gemini_3_6_flash_high_agy_oauth
           capacity_route: AlterResearcher
         prompt_engineer:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
           capacity_route: AlterPromptEngineer
         coder:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
           external_ide_allowed: true
           capacity_route: AlterCoder
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_alter_artifact
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_medium_cli_oauth
           capacity_route: AlterArtifactProducer
         narrative_planner:
           executor_type: cli_agent
@@ -309,29 +315,26 @@ modes:
         tester_auditor:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
           capacity_route: AlterTesterAuditor
         verifier:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
           capacity_route: AlterVerifier
         archivist:
           executor_type: cli_agent
           cli_agent: hermes
-          invocation_contract: hermes_alter_high
-          default: grok_4_6_hermes_oauth
-          reasoning_effort: high
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
           capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: agy
-          invocation_contract: agy_writer
-          default: gemini_3_6_flash_high_agy_oauth
+          cli_agent: claude_code
+          invocation_contract: claude_writer
+          default: deepseek_v4_pro
           capacity_route: AlterWriter
         reviewer:
           executor_type: cli_agent
@@ -354,10 +357,10 @@ modes:
       low:
         supervisor:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_supervisor_fallback
-          default: deepseek_v4_pro
-          capacity_route: SupervisorDeepSeek
+          cli_agent: hermes
+          invocation_contract: hermes_supervisor
+          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
+          capacity_route: AlterSupervisor
         observer:
           executor_type: cli_agent
           cli_agent: agy
@@ -369,30 +372,31 @@ modes:
           cli_agent: codex
           invocation_contract: codex
           default: codex_gpt_5_6_sol_high_cli_oauth
+          capacity_route: AlterRepoScout
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          capacity_route: AlterInterfaceMapper
         researcher:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_research
-          default: grok_4_6_hermes_oauth
+          cli_agent: agy
+          invocation_contract: agy_research
+          default: gemini_3_6_flash_high_agy_oauth
           capacity_route: Researcher
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_flash
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterPromptEngineer
         coder:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          binary_candidates:
-            - claude
-            - ccs
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          capacity_route: AlterCoder
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
@@ -407,30 +411,34 @@ modes:
           capacity_route: NarrativePlannerAgy
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterTesterAuditor
         verifier:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_flash
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterVerifier
         archivist:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          default: deepseek_v4_pro
+          cli_agent: hermes
+          invocation_contract: hermes_deepseek
+          default: deepseek_v4_flash_hermes_private
+          capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: agy
-          invocation_contract: agy_writer
-          default: gemini_3_6_flash_high_agy_oauth
-          capacity_route: WriterAgy
+          cli_agent: claude_code
+          invocation_contract: claude_writer
+          default: deepseek_v4_flash
+          capacity_route: WriterLow
         reviewer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_narrative_audit
-          default: deepseek_v4_pro
+          cli_agent: agy
+          invocation_contract: agy_reviewer
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterReviewer
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy

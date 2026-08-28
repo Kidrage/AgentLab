@@ -1,6 +1,8 @@
 """Auth probe to safely detect if required API keys are configured."""
 
+import json
 import os
+from pathlib import Path
 
 def probe_auth(worker_id: str) -> str:
     """Safe authentication probe that never leaks keys."""
@@ -57,11 +59,25 @@ def probe_auth(worker_id: str) -> str:
         return "unknown"
         
     if clean_id == "claude":
-        # Safe detection of CCS config files without reading or leaking content
-        provider_dir = os.path.expanduser("~/.claude-provider")
-        if os.path.isfile(os.path.join(provider_dir, "active")) or \
-           os.path.isfile(os.path.join(provider_dir, "config")):
+        # Inspect only the two governed DeepSeek binding fields.  Values are
+        # never returned or logged by this boolean probe.
+        settings_path = Path.home() / ".claude" / "settings.json"
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            settings = {}
+        private_env = settings.get("env") if isinstance(settings, dict) else {}
+        if (
+            isinstance(private_env, dict)
+            and bool(str(private_env.get("ANTHROPIC_AUTH_TOKEN") or "").strip())
+            and str(private_env.get("ANTHROPIC_BASE_URL") or "").rstrip("/")
+            == "https://api.deepseek.com/anthropic"
+        ):
             return "yes"
+        # Governed Claude routes are bound only to the exact private
+        # DeepSeek endpoint above.  Generic CCS markers and ambient API keys
+        # cannot establish that provider/auth binding.
+        return "no"
         
     for k in keys:
         if os.environ.get(k):

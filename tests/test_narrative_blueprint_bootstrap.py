@@ -39,6 +39,7 @@ def _copy_authorities(root: Path) -> None:
         "model_providers.yml",
         "model_capacity.yml",
         "worker_invocation_contracts.yml",
+        "agent_role_bindings.yml",
     ):
         shutil.copy2(ROOT / "config" / name, config / name)
 

@@ -101,11 +101,23 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
         worker: str = typer.Option(..., "--worker", help="CLI worker id to bind to this role."),
         project: str = typer.Option("AgentLab", "--project"),
         task_id: str = typer.Option("task_0001", "--task-id"),
+        invocation_contract: str | None = typer.Option(
+            None,
+            "--invocation-contract",
+            help="Exact contract required for a contract-bound worker-role exception.",
+        ),
     ) -> None:
         """Print the enforced role session packet for a worker-role assignment."""
         from agent_runtime.protocols import build_role_session
 
-        packet = build_role_session(project_root, role, worker, project=project, task_id=task_id)
+        packet = build_role_session(
+            project_root,
+            role,
+            worker,
+            project=project,
+            task_id=task_id,
+            invocation_contract=invocation_contract,
+        )
         console.print(yaml.safe_dump(packet, sort_keys=False, allow_unicode=True).rstrip())
         if not packet.get("binding", {}).get("allowed"):
             raise typer.Exit(code=1)

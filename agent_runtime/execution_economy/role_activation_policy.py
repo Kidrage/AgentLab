@@ -19,19 +19,19 @@ class RoleActivationPolicy:
         if "roles" not in self.policy:
             self.policy["roles"] = {
                 "Supervisor": {
-                    "candidate_worker": "claude_code",
+                    "candidate_worker": "hermes",
                     "expected_benefit": {"quality_gain": "high", "risk_reduction": "medium", "speed_gain": "medium", "recovery_value": "medium"}
                 },
                 "PromptEngineer": {
-                    "candidate_worker": "claude_code",
+                    "candidate_worker": "hermes",
                     "expected_benefit": {"quality_gain": "medium", "risk_reduction": "low", "speed_gain": "low", "recovery_value": "none"}
                 },
                 "Coder": {
-                    "candidate_worker": "claude_code",
+                    "candidate_worker": "codex",
                     "expected_benefit": {"quality_gain": "high", "risk_reduction": "high", "speed_gain": "high", "recovery_value": "high"}
                 },
                 "Researcher": {
-                    "candidate_worker": "claude_code",
+                    "candidate_worker": "agy",
                     "expected_benefit": {"quality_gain": "medium", "risk_reduction": "low", "speed_gain": "medium", "recovery_value": "none"}
                 },
                 "RepoScout": {
@@ -55,18 +55,38 @@ class RoleActivationPolicy:
                     "expected_benefit": {"quality_gain": "low", "risk_reduction": "low", "speed_gain": "medium", "recovery_value": "none"}
                 }
             }
+        roles = self.policy.setdefault("roles", {})
+        for role, worker in {
+            "Observer": "agy",
+            "ArtifactProducer": "codex",
+            "NarrativePlanner": "agy",
+            "Writer": "claude_code",
+            "Reviewer": "agy",
+            "Scribe": "agy",
+        }.items():
+            roles.setdefault(
+                role,
+                {
+                    "candidate_worker": worker,
+                    "expected_benefit": {
+                        "quality_gain": "high" if role in {"NarrativePlanner", "Writer", "Reviewer"} else "medium",
+                        "risk_reduction": "high" if role in {"NarrativePlanner", "Reviewer", "Scribe"} else "medium",
+                        "speed_gain": "medium",
+                        "recovery_value": "medium",
+                    },
+                },
+            )
 
     def get_role_policy(self, role: str) -> Dict[str, Any]:
         """Get the configuration dictionary for a given role."""
         roles_config = self.policy.get("roles", {})
-        return roles_config.get(role, {
-            "candidate_worker": "claude_code",
-            "expected_benefit": {"quality_gain": "low", "risk_reduction": "low", "speed_gain": "low", "recovery_value": "none"}
-        })
+        if role not in roles_config:
+            raise KeyError(f"No activation policy is configured for role {role!r}")
+        return roles_config[role]
 
     def get_candidate_worker(self, role: str) -> str:
         """Get the default candidate worker ID for a role."""
-        return self.get_role_policy(role).get("candidate_worker", "claude_code")
+        return self.get_role_policy(role).get("candidate_worker", "codex")
 
     def get_expected_benefit(self, role: str, task_size: str = "medium") -> Dict[str, str]:
         """Get expected benefits dictionary for a role."""

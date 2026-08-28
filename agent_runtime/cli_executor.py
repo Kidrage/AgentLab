@@ -127,6 +127,42 @@ _ALLOWED_CONTRACT_ENV_UNSETS = {
     "CLAUDE_CODE_EFFORT_LEVEL",
     *_AGY_DIRECT_API_KEY_ENV_VARS,
 }
+_CLAUDE_SETTINGS_ENV_ALLOWLIST = {
+    "ALL_PROXY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_MODEL",
+    "API_TIMEOUT_MS",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+}
+_CLAUDE_AMBIENT_PROVIDER_ENV_DENYLIST = {
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_FOUNDRY_API_KEY",
+    "ANTHROPIC_FOUNDRY_RESOURCE",
+    "AZURE_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "CLAUDE_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_FOUNDRY",
+    "CLAUDE_CODE_USE_VERTEX",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_DEFAULT_REGION",
+    "AWS_PROFILE",
+    "AWS_REGION",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "CLOUD_ML_REGION",
+    "GCLOUD_PROJECT",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_QUOTA_PROJECT",
+}
 _CLAUDE_RUNTIME_RECEIPT_CONTRACTS = {
     "claude_narrative_audit",
     "claude_supervisor_fallback",
@@ -778,7 +814,12 @@ def _load_cli_usage_sidecar(packet_path: Path, agent_name: str, cli_agent_name: 
     return None
 
 
-def _extract_cli_usage_from_output(stdout: str, stderr: str) -> dict[str, Any] | None:
+def _extract_cli_usage_from_output(
+    stdout: str,
+    stderr: str,
+    *,
+    stdout_envelope_only: bool = False,
+) -> dict[str, Any] | None:
     whole_stdout = stdout.strip()
     if whole_stdout.startswith(("{", "[")):
         try:
@@ -790,6 +831,8 @@ def _extract_cli_usage_from_output(stdout: str, stderr: str) -> dict[str, Any] |
             usage = _coerce_usage_payload(candidate)
             if usage:
                 return usage
+    if stdout_envelope_only:
+        return None
     for line in reversed((stdout + "\n" + stderr).splitlines()):
         stripped = line.strip()
         if not stripped:
@@ -812,7 +855,7 @@ def _extract_cli_usage_from_output(stdout: str, stderr: str) -> dict[str, Any] |
 
 def _extract_cli_result_text(stdout: str, cli_agent_name: str) -> str:
     """Return the provider's textual result while retaining raw stdout in logs."""
-    if cli_agent_name not in {"claude_code", "qwen", "codex"}:
+    if cli_agent_name not in {"agy", "claude_code", "qwen", "codex"}:
         return stdout.strip()
     if cli_agent_name == "codex":
         result = ""
@@ -833,15 +876,292 @@ def _extract_cli_result_text(stdout: str, cli_agent_name: str) -> str:
     try:
         payload = json.loads(stdout.strip())
     except (json.JSONDecodeError, TypeError):
-        return stdout.strip()
-    candidates = reversed(payload) if isinstance(payload, list) else [payload]
+        if cli_agent_name != "agy":
+            return stdout.strip()
+        events: list[Any] = []
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(event, dict):
+                events.append(event)
+        candidates = reversed(events)
+    else:
+        candidates = reversed(payload) if isinstance(payload, list) else [payload]
     for candidate in candidates:
         if not isinstance(candidate, dict):
             continue
         result = candidate.get("result")
         if isinstance(result, str) and result.strip():
             return result.strip()
+        if cli_agent_name == "agy" and isinstance(result, dict):
+            response = result.get("response")
+            if isinstance(response, str) and response.strip():
+                return response.strip()
     return stdout.strip()
+
+
+def _agy_research_tool_audit(
+    stdout: str,
+    invocation_contract: dict[str, Any],
+    run_dir: Path,
+    *,
+    expected_model_id: str,
+) -> dict[str, Any]:
+    """Bind Agy research evidence to one model, conversation, and Exa result."""
+    allowed_tools = {
+        str(item).strip()
+        for item in invocation_contract.get("allowed_mcp_tools", [])
+        if str(item).strip()
+    }
+    allowed_broker_tools = {
+        str(item).strip()
+        for item in invocation_contract.get("allowed_broker_tools", [])
+        if str(item).strip()
+    }
+    events: list[Any] = []
+    for line in stdout.splitlines():
+        try:
+            events.append(json.loads(line))
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+    observed_tools: list[str] = []
+    observed_broker_tools: list[str] = []
+    observed_mcp_tools: list[str] = []
+    unauthorized_broker_calls: list[str] = []
+    queries: list[str] = []
+    source_urls: list[str] = []
+    source_event_hashes: list[str] = []
+    source_locators: list[str] = []
+    final_answer_urls: list[str] = []
+    issues: list[str] = []
+    agy_state_root = (
+        Path.home() / ".gemini" / "antigravity-cli"
+    ).resolve(strict=False)
+
+    def remember_unique(values: list[str], value: str) -> None:
+        if value and value not in values:
+            values.append(value)
+
+    init_events = [
+        event
+        for event in events
+        if isinstance(event, dict) and event.get("event") == "init"
+    ]
+    conversation_id = ""
+    if len(init_events) != 1:
+        issues.append("agy_research_single_init_event_required")
+    else:
+        init_event = init_events[0]
+        conversation_id = str(init_event.get("conversation_id") or "").strip()
+        init = init_event.get("init")
+        init = init if isinstance(init, dict) else {}
+        if not conversation_id:
+            issues.append("agy_research_conversation_id_missing")
+        if str(init.get("model") or "").strip() != expected_model_id:
+            issues.append("agy_research_init_model_mismatch")
+
+    completed_exa_calls: list[dict[str, Any]] = []
+    for event_index, event in enumerate(events):
+        if not isinstance(event, dict) or event.get("event") != "step_update":
+            continue
+        update = event.get("step_update")
+        if not isinstance(update, dict) or update.get("step_type") != "tool":
+            continue
+        broker_tool = str(update.get("tool_name") or "").strip()
+        state = str(update.get("state") or "").strip().upper()
+        event_conversation_id = str(update.get("conversation_id") or "").strip()
+        tool_info = update.get("tool_info")
+        tool_info = tool_info if isinstance(tool_info, dict) else {}
+        parameters = tool_info.get("parameters")
+        parameters = parameters if isinstance(parameters, dict) else {}
+        remember_unique(observed_broker_tools, broker_tool)
+        if event_conversation_id != conversation_id or not conversation_id:
+            unauthorized_broker_calls.append(
+                f"{broker_tool or 'missing_tool_name'}:conversation_mismatch"
+            )
+        if state not in {"ACTIVE", "DONE"}:
+            unauthorized_broker_calls.append(
+                f"{broker_tool or 'missing_tool_name'}:invalid_state:{state or 'missing'}"
+            )
+        if broker_tool not in allowed_broker_tools:
+            unauthorized_broker_calls.append(
+                f"{broker_tool or 'missing_tool_name'}:not_allowed"
+            )
+            continue
+        if broker_tool == "call_mcp_tool":
+            server_name = str(parameters.get("ServerName") or "").strip()
+            tool_name = str(parameters.get("ToolName") or "").strip()
+            remember_unique(observed_mcp_tools, tool_name)
+            remember_unique(observed_tools, tool_name)
+            if server_name != "exa" or tool_name not in allowed_tools:
+                unauthorized_broker_calls.append(
+                    f"call_mcp_tool:{server_name or 'missing_server'}:"
+                    f"{tool_name or 'missing_tool'}"
+                )
+                continue
+            if state == "DONE" and event_conversation_id == conversation_id:
+                arguments = parameters.get("Arguments")
+                arguments = arguments if isinstance(arguments, dict) else {}
+                query = str(
+                    arguments.get("query") or arguments.get("url") or ""
+                ).strip()
+                remember_unique(queries, query)
+                completed_exa_calls.append(
+                    {
+                        "event_index": event_index,
+                        "step_id": str(
+                            update.get("step_id")
+                            or update.get("step_index")
+                            or tool_info.get("step_id")
+                            or tool_info.get("step_index")
+                            or event_index
+                        ),
+                        "tool": tool_name,
+                        "query": query,
+                    }
+                )
+            continue
+
+        absolute_path = str(parameters.get("AbsolutePath") or "").replace("\\", "/")
+        schema_match = re.search(
+            r"/\.gemini/antigravity-cli/mcp/exa/"
+            r"(web_search_exa|web_fetch_exa)\.json$",
+            absolute_path,
+        )
+        result_match = re.search(
+            r"/\.gemini/antigravity-cli/brain/([^/]+)/"
+            r"\.system_generated/steps/([0-9]+)/output\.txt$",
+            absolute_path,
+        )
+        if schema_match and schema_match.group(1) in allowed_tools:
+            try:
+                Path(absolute_path).resolve(strict=False).relative_to(
+                    agy_state_root / "mcp" / "exa"
+                )
+            except ValueError:
+                unauthorized_broker_calls.append(
+                    "view_file:exa_schema_outside_runtime_root"
+                )
+            continue
+        result_step_id = result_match.group(2) if result_match else ""
+        bound_call = next(
+            (
+                call
+                for call in completed_exa_calls
+                if call["event_index"] < event_index
+                and call["step_id"] == result_step_id
+            ),
+            None,
+        )
+        result_bound = bool(
+            state == "DONE"
+            and result_match
+            and result_match.group(1) == conversation_id
+            and bound_call
+        )
+        if not result_bound:
+            unauthorized_broker_calls.append(
+                "view_file:path_outside_exa_runtime_boundary"
+            )
+            continue
+        result_path = Path(absolute_path)
+        try:
+            if result_path.is_symlink() or not result_path.is_file():
+                raise OSError("missing_or_symlink")
+            resolved_result_path = result_path.resolve(strict=True)
+            resolved_result_path.relative_to(agy_state_root / "brain")
+            result_bytes = resolved_result_path.read_bytes()
+            if len(result_bytes) > 5 * 1024 * 1024:
+                raise OSError("result_too_large")
+        except (OSError, ValueError):
+            unauthorized_broker_calls.append("view_file:exa_result_unreadable")
+            continue
+        result_text = result_bytes.decode("utf-8", errors="replace")
+        for match in re.findall(r"https?://[^\s\]\[<>{}\"']+", result_text):
+            remember_unique(source_urls, match.rstrip(".,;:)"))
+        source_event_hashes.append(hashlib.sha256(result_bytes).hexdigest())
+        remember_unique(source_locators, absolute_path)
+
+    for event in events:
+        if not isinstance(event, dict) or not (
+            event.get("event") == "result" or event.get("type") == "result"
+        ):
+            continue
+        result = event.get("result")
+        response = result.get("response") if isinstance(result, dict) else result
+        if not isinstance(response, str):
+            continue
+        for match in re.findall(r"https?://[^\s\]\[<>{}\"']+", response):
+            remember_unique(final_answer_urls, match.rstrip(".,;:)"))
+
+    unauthorized_tools = sorted(
+        tool for tool in observed_tools if tool not in allowed_tools
+    )
+    if not allowed_tools:
+        issues.append("agy_research_tool_allowlist_missing")
+    if not allowed_broker_tools:
+        issues.append("agy_research_broker_allowlist_missing")
+    if not events:
+        issues.append("agy_research_stream_events_missing")
+    if not observed_tools:
+        issues.append("agy_research_tool_events_missing")
+    if unauthorized_tools:
+        issues.extend(
+            f"agy_research_unauthorized_tool:{tool}"
+            for tool in unauthorized_tools
+        )
+    if unauthorized_broker_calls:
+        issues.extend(
+            f"agy_research_unauthorized_broker_call:{item}"
+            for item in unauthorized_broker_calls
+        )
+    if not queries:
+        issues.append("agy_research_query_evidence_missing")
+    if not completed_exa_calls:
+        issues.append("agy_research_completed_exa_call_missing")
+    if not source_locators:
+        issues.append("agy_research_bound_result_missing")
+    if not source_urls:
+        issues.append("agy_research_source_urls_missing")
+    unbound_final_urls = sorted(set(final_answer_urls) - set(source_urls))
+    if source_urls and not final_answer_urls:
+        issues.append("agy_research_final_answer_sources_missing")
+    if unbound_final_urls:
+        issues.append("agy_research_final_answer_source_not_bound")
+
+    status = "pass" if not issues else "blocked"
+    receipt = {
+        "schema_version": 1,
+        "status": status,
+        "worker": "agy",
+        "role": "Researcher",
+        "allowed_tools": sorted(allowed_tools),
+        "observed_tools": observed_tools,
+        "observed_broker_tools": observed_broker_tools,
+        "observed_mcp_tools": observed_mcp_tools,
+        "unauthorized_tools": unauthorized_tools,
+        "unauthorized_broker_calls": sorted(set(unauthorized_broker_calls)),
+        "queries": queries,
+        "source_urls": source_urls,
+        "final_answer_urls": final_answer_urls,
+        "unbound_final_answer_urls": unbound_final_urls,
+        "source_locators": source_locators,
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "source_event_sha256": source_event_hashes,
+        "stdout_sha256": hashlib.sha256(stdout.encode("utf-8")).hexdigest(),
+        "event_count": len(events),
+        "raw_source_content_persisted": False,
+        "issues": sorted(set(issues)),
+    }
+    receipt_path = run_dir / "sources_receipt.yml"
+    receipt_path.write_text(
+        yaml.safe_dump(receipt, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    return {**receipt, "receipt_path": str(receipt_path)}
 
 
 def _narrative_heavy_audit_output_schema(
@@ -1273,6 +1593,41 @@ def _narrative_heavy_audit_blocks_from_output(
     return "\n\n".join(blocks)
 
 
+def _validate_narrative_heavy_audit_output(
+    stdout: str,
+    agent_name: str,
+    *,
+    run_dir: Path,
+    task_id: str,
+) -> tuple[str | None, str | None]:
+    """Validate structured audit output before a provider attempt can pass."""
+
+    blocks = _narrative_heavy_audit_blocks_from_output(stdout, agent_name)
+    if not blocks:
+        return None, "narrative_heavy_audit_output_missing_or_unparseable"
+    try:
+        from agent_runtime.narrative_heavy_audit import (
+            materialize_narrative_heavy_audit_content,
+        )
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from narrative_heavy_audit import materialize_narrative_heavy_audit_content
+
+    with tempfile.TemporaryDirectory(prefix="agentlab-heavy-audit-validate-") as tmp:
+        validation_dir = Path(tmp)
+        continuity = run_dir / "continuity_failure_report.yml"
+        if continuity.is_file():
+            shutil.copy2(continuity, validation_dir / continuity.name)
+        valid = materialize_narrative_heavy_audit_content(
+            blocks,
+            validation_dir,
+            task_id,
+            agent_name,
+        )
+    if not valid:
+        return None, "narrative_heavy_audit_output_schema_invalid"
+    return blocks, None
+
+
 def _external_cli_usage(
     packet_path: Path,
     argv: list[str],
@@ -1280,12 +1635,22 @@ def _external_cli_usage(
     cli_agent_name: str,
     stdout: str = "",
     stderr: str = "",
+    *,
+    allow_sidecar: bool = True,
+    stdout_envelope_only: bool = False,
 ) -> dict[str, Any]:
-    return (
-        _load_cli_usage_sidecar(packet_path, agent_name, cli_agent_name)
-        or _extract_cli_usage_from_output(stdout, stderr)
-        or _external_cli_usage_estimate(packet_path, argv, stdout, stderr)
+    reported = _extract_cli_usage_from_output(
+        stdout,
+        stderr,
+        stdout_envelope_only=stdout_envelope_only,
     )
+    if reported:
+        return reported
+    if allow_sidecar:
+        sidecar = _load_cli_usage_sidecar(packet_path, agent_name, cli_agent_name)
+        if sidecar:
+            return sidecar
+    return _external_cli_usage_estimate(packet_path, argv, stdout, stderr)
 
 
 def _render_command(
@@ -1331,6 +1696,24 @@ def _render_command(
     # Split respecting simple quoting (no shell glob expansion needed here)
     import shlex
     return shlex.split(rendered)
+
+
+def _bind_inline_task_packet(argv: list[str], packet_text: str) -> list[str]:
+    """Append a sealed packet to the Hermes prompt without shell expansion."""
+
+    prompt_indexes = [
+        index for index, value in enumerate(argv) if value in {"-z", "--oneshot"}
+    ]
+    if len(prompt_indexes) != 1 or prompt_indexes[0] + 1 >= len(argv):
+        raise ValueError("inline packet delivery requires exactly one Hermes prompt")
+    prompt_index = prompt_indexes[0] + 1
+    argv[prompt_index] = (
+        f"{argv[prompt_index]}\n\n"
+        "<agentlab_sealed_task_packet>\n"
+        f"{packet_text}\n"
+        "</agentlab_sealed_task_packet>"
+    )
+    return argv
 
 
 def _ensure_cli_log_file_arg(argv: list[str], run_dir: Path, cli_agent_name: str) -> Path | None:
@@ -1529,7 +1912,7 @@ def _runtime_provider_for_catalog_model(model_entry: dict[str, Any]) -> str:
 def _model_invocation_values(
     role_profile: dict[str, Any],
     agentlab_root: str | Path,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Resolve model placeholders for CLI templates from the model catalog."""
     model_key = str(role_profile.get("default") or role_profile.get("provider") or "")
     values = {
@@ -1543,6 +1926,8 @@ def _model_invocation_values(
             or role_profile.get("provider")
             or ""
         ),
+        "availability": "active",
+        "selectable": True,
     }
     if not model_key:
         return values
@@ -1569,6 +1954,8 @@ def _model_invocation_values(
         model_entry.get("provider") or values["catalog_provider"]
     )
     values["provider"] = _runtime_provider_for_catalog_model(model_entry)
+    values["availability"] = str(model_entry.get("availability") or "active")
+    values["selectable"] = model_entry.get("selectable", True) is not False
     return values
 
 
@@ -1617,6 +2004,36 @@ def _contract_process_environment(
     process_env = os.environ.copy()
     contract = _resolve_invocation_contract(role_profile, agentlab_root)
     environment = contract.get("environment") or {}
+    if (
+        str(role_profile.get("cli_agent") or "").strip() == "claude_code"
+        and isinstance(environment, dict)
+        and environment.get("load_user_settings_env") is True
+    ):
+        # Claude's custom DeepSeek endpoint is stored in the user's private
+        # settings.  Safe mode intentionally does not load that file, so copy
+        # only the narrow provider/auth/proxy allowlist into the child process.
+        # Values never enter receipts or logs; ``applied`` records names only.
+        # Do not let an ambient shell silently satisfy the governed provider
+        # binding.  These names are sourced exclusively from the private
+        # settings file for this child process.
+        for name in list(process_env):
+            if (
+                name.startswith("ANTHROPIC_")
+                or name.startswith("CLAUDE_CODE_USE_")
+                or name in _CLAUDE_AMBIENT_PROVIDER_ENV_DENYLIST
+            ):
+                process_env.pop(name, None)
+        settings_path = Path.home() / ".claude" / "settings.json"
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            settings = {}
+        settings_env = settings.get("env") if isinstance(settings, dict) else {}
+        if isinstance(settings_env, dict):
+            for name in sorted(_CLAUDE_SETTINGS_ENV_ALLOWLIST):
+                value = settings_env.get(name)
+                if isinstance(value, (str, int, float)) and str(value).strip():
+                    process_env[name] = str(value)
     if (
         str(role_profile.get("invocation_contract") or "").strip()
         in {
@@ -1680,6 +2097,7 @@ def _contract_process_environment(
 
     if str(role_profile.get("cli_agent") or "").strip() == "agy":
         governed_contracts = {
+            "agy_research",
             "agy_observer",
             "agy_visual_reviewer",
             "agy_narrative_planner",
@@ -1712,6 +2130,7 @@ def _agy_oauth_preflight(
 
     contract_name = str(role_profile.get("invocation_contract") or "").strip()
     governed = contract_name in {
+        "agy_research",
         "agy_observer",
         "agy_visual_reviewer",
         "agy_narrative_planner",
@@ -1727,6 +2146,13 @@ def _agy_oauth_preflight(
         str(role_profile.get("default") or "") == requested_model_key
     )
     command_binding_verified = False
+
+    def option_value(name: str) -> str | None:
+        if name not in argv:
+            return None
+        index = argv.index(name)
+        return argv[index + 1] if index + 1 < len(argv) else None
+
     if argv and Path(argv[0]).name == "agy" and "--model" in argv:
         model_index = argv.index("--model")
         command_binding_verified = (
@@ -1738,9 +2164,15 @@ def _agy_oauth_preflight(
             command_binding_verified = command_binding_verified and "--sandbox" in argv
         if contract_name == "agy_narrative_planner":
             command_binding_verified = command_binding_verified and (
-                "--mode" in argv
-                and argv.index("--mode") + 1 < len(argv)
-                and argv[argv.index("--mode") + 1] == "plan"
+                option_value("--mode") == "plan"
+            )
+        if contract_name == "agy_research":
+            command_binding_verified = command_binding_verified and all(
+                (
+                    option_value("--output-format") == "stream-json",
+                    "--disable-slash-commands" in argv,
+                    "--mode" not in argv,
+                )
             )
 
     issues: list[str] = []
@@ -2428,6 +2860,7 @@ def _claude_runtime_preflight(
     model_values: dict[str, str],
     packet_payload: dict[str, Any],
     invocation_contract: dict[str, Any],
+    process_env: dict[str, str],
 ) -> dict[str, Any]:
     contract_name = str(role_profile.get("invocation_contract") or "").strip()
     if (
@@ -2442,12 +2875,41 @@ def _claude_runtime_preflight(
     profile_binding_verified = bool(requested_model_key) and (
         str(role_profile.get("default") or "") == requested_model_key
     )
+    environment = (
+        invocation_contract.get("environment")
+        if isinstance(invocation_contract.get("environment"), dict)
+        else {}
+    )
+    private_settings_required = environment.get("load_user_settings_env") is True
+    expected_base_url = str(environment.get("expected_base_url") or "").rstrip("/")
+    observed_base_url = str(process_env.get("ANTHROPIC_BASE_URL") or "").rstrip("/")
+    private_environment_verified = (
+        not private_settings_required
+        or (
+            bool(str(process_env.get("ANTHROPIC_AUTH_TOKEN") or "").strip())
+            and bool(expected_base_url)
+            and observed_base_url == expected_base_url
+        )
+    )
 
     # These governed contracts are deliberately exact.  Treat the command as
     # a capability boundary rather than merely checking the selected model:
     # accepting extra flags here could re-enable tools, remote control,
     # browser access, fallback models, or filesystem mutation without the
     # sealed Writer/Supervisor packet authorizing that wider surface.
+    isolated_no_tool_arguments = [
+        "--safe-mode",
+        "--restricted",
+        "--strict-mcp-config",
+        "--disable-slash-commands",
+        "--no-chrome",
+        "--no-session-persistence",
+    ]
+    schema_value = ""
+    if "--json-schema" in argv:
+        schema_index = argv.index("--json-schema") + 1
+        if schema_index < len(argv):
+            schema_value = argv[schema_index]
     expected_arguments = {
         "claude_narrative_audit": [
             "--model",
@@ -2456,14 +2918,15 @@ def _claude_runtime_preflight(
             "max",
             "--max-budget-usd",
             "3.00",
+            *isolated_no_tool_arguments,
             "--permission-mode",
-            "bypassPermissions",
+            "dontAsk",
             "--output-format",
             "json",
             "--tools",
             "",
             "--json-schema",
-            argv[14] if len(argv) > 14 else "",
+            schema_value,
             "-p",
         ],
         "claude_writer": [
@@ -2473,8 +2936,9 @@ def _claude_runtime_preflight(
             "max",
             "--max-budget-usd",
             "1.00",
+            *isolated_no_tool_arguments,
             "--permission-mode",
-            "bypassPermissions",
+            "dontAsk",
             "--output-format",
             "json",
             "--tools",
@@ -2517,8 +2981,8 @@ def _claude_runtime_preflight(
     )
     if contract_name == "claude_narrative_audit":
         try:
-            rendered_schema = json.loads(argv[14])
-        except (IndexError, TypeError, json.JSONDecodeError):
+            rendered_schema = json.loads(schema_value)
+        except (TypeError, json.JSONDecodeError):
             rendered_schema = None
         packet_agent = str(packet_payload.get("agent") or "")
         expected_schemas = [
@@ -2593,6 +3057,8 @@ def _claude_runtime_preflight(
     issues: list[str] = []
     if not profile_binding_verified:
         issues.append("claude_profile_model_binding_mismatch")
+    if not private_environment_verified:
+        issues.append("claude_private_deepseek_environment_mismatch")
     if not command_binding_verified:
         issues.append("claude_command_model_binding_mismatch")
     issues.extend(f"claude_forbidden_command_flag:{flag}" for flag in forbidden_flags)
@@ -2620,6 +3086,9 @@ def _claude_runtime_preflight(
         "requested_cli_model_id": requested_cli_model_id or None,
         "profile_binding_verified": profile_binding_verified,
         "command_binding_verified": command_binding_verified,
+        "private_settings_environment_required": private_settings_required,
+        "private_deepseek_environment_verified": private_environment_verified,
+        "expected_base_url": expected_base_url or None,
         "forbidden_command_flags": forbidden_flags,
         "ultracode_activation_applicable": ultracode,
         "ultracode_activation_verified": ultracode and not any(
@@ -2700,14 +3169,15 @@ def _claude_provider_model_mismatch(
     ]
     if not reported and usage.get("provider_reported_model_id"):
         reported = [str(usage["provider_reported_model_id"])]
-    if not reported:
-        return False
+    # Governed Claude contracts are selectable only when the provider proves
+    # one exact model identity.  Missing or multi-model metadata is ambiguous
+    # and must fail closed rather than receiving a pass receipt.
+    if len(reported) != 1:
+        return True
     selected = _normalized_model_identity(
         str(preflight.get("selected_model_id") or "")
     )
-    return not selected or not any(
-        _normalized_model_identity(item) == selected for item in reported
-    )
+    return not selected or _normalized_model_identity(reported[0]) != selected
 
 
 def _write_claude_model_receipt(
@@ -3240,6 +3710,76 @@ def _hermes_supervisor_preflight(
     """
     invocation_contract = str(role_profile.get("invocation_contract") or "")
     contract = _resolve_invocation_contract(role_profile, agentlab_root)
+    if invocation_contract in {
+        "hermes_deepseek",
+        "hermes_deepseek_narrative_audit",
+    }:
+        expected_provider = str(contract.get("required_runtime_provider") or "")
+        allowed_model_keys = {
+            str(item)
+            for item in contract.get("required_model_keys", [])
+            if str(item).strip()
+        }
+        expected_model_key = str(role_profile.get("default") or "")
+        expected_model = str(model_values.get("model_id") or "")
+        issues: list[str] = []
+        if expected_provider != "deepseek":
+            issues.append("required_runtime_provider_mismatch")
+        if expected_model_key not in allowed_model_keys:
+            issues.append("configured_model_key_not_allowed")
+        if model_values.get("provider") != expected_provider:
+            issues.append("catalog_provider_mismatch")
+        if model_values.get("model_key") != expected_model_key:
+            issues.append("catalog_model_key_mismatch")
+        expected_prefix = [
+            "--provider",
+            expected_provider,
+            "-m",
+            expected_model,
+            "--safe-mode",
+            "-t",
+            "",
+        ]
+        command_bound = (
+            len(argv) == 12
+            and Path(argv[0]).name == "hermes"
+            and argv[1:8] == expected_prefix
+            and argv[8] == "--usage-file"
+            and bool(str(argv[9]).strip())
+            and argv[10] in {"-z", "--oneshot"}
+            and bool(str(argv[11]).strip())
+        )
+        if not command_bound:
+            issues.append("hermes_deepseek_command_binding_mismatch")
+        return {
+            "applicable": True,
+            "status": "pass" if not issues else "fail",
+            "issues": sorted(set(issues)),
+            "required_shell_state": {
+                "model.provider": expected_provider,
+                "model.default": expected_model,
+                "fallback_providers": [],
+                "fallback_model": None,
+            },
+            "observed_shell_state": {
+                "model.provider": model_values.get("provider"),
+                "model.default": model_values.get("model_id"),
+                "fallback_providers": [],
+                "fallback_model": None,
+                "fallback_state_source": "hermes_safe_mode_builtin_defaults",
+                "toolsets": [],
+            },
+            "command_binding_verified": command_bound,
+            "capacity_route": role_profile.get("capacity_selected_route"),
+            "capacity_pool": role_profile.get("capacity_pool"),
+            "attempt_id": role_profile.get("_runtime_model_execution_attempt_id"),
+            "selection_kind": role_profile.get("_runtime_capacity_selection_kind"),
+            "provider_process_started": False,
+            "worker": "hermes",
+            "role": agent_name,
+            "invocation_contract": invocation_contract,
+            "evidence_source": "runtime_verified_safe_mode_argv_and_catalog_binding",
+        }
     if invocation_contract == "codex_supervisor":
         expected_model_key = str(contract.get("required_model_key") or "")
         expected_provider = str(contract.get("required_runtime_provider") or "")
@@ -4181,12 +4721,32 @@ def run_cli_agent(
         role_profile,
         plan.agentlab_root,
     )
+    if (
+        resolved_invocation_contract.get("selectable") is False
+        or str(resolved_invocation_contract.get("availability") or "").strip()
+        == "historical_only"
+    ):
+        return CliAgentNotAvailable(
+            cli_agent=str(role_profile.get("cli_agent") or "unknown"),
+            reason="invocation_contract_not_selectable",
+            detail="Historical invocation contracts cannot start provider processes.",
+        )
     contract_worker_id = str(
         resolved_invocation_contract.get("worker_id") or ""
     ).strip()
     contract_model_profile = str(
         resolved_invocation_contract.get("model_profile") or ""
     ).strip()
+    requested_worker_id = str(role_profile.get("cli_agent") or "").strip()
+    if contract_worker_id and contract_worker_id != requested_worker_id:
+        return CliAgentNotAvailable(
+            cli_agent=requested_worker_id or "unknown",
+            reason="invocation_contract_worker_mismatch",
+            detail=(
+                f"Invocation contract belongs to '{contract_worker_id}', not "
+                f"requested worker '{requested_worker_id or 'unknown'}'."
+            ),
+        )
     if contract_worker_id:
         role_profile["cli_agent"] = contract_worker_id
     if contract_model_profile:
@@ -4211,6 +4771,18 @@ def run_cli_agent(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     bounded_messages = sealed_messages is not None or task_messages is not None
+    if (
+        str(role_profile.get("invocation_contract") or "") == "agy_research"
+        and not bounded_messages
+    ):
+        return CliAgentNotAvailable(
+            cli_agent=cli_agent_name,
+            reason="agy_research_bounded_context_required",
+            detail=(
+                "Agy Researcher requires sealed_messages or task_messages before "
+                "any provider process can start."
+            ),
+        )
     packet_payload = _task_packet_payload(
         agent_name,
         plan,
@@ -4341,6 +4913,15 @@ def run_cli_agent(
         packet_payload["context_policy"] = context_policy
     packet_text = json.dumps(packet_payload, indent=2, ensure_ascii=False)
     model_values = _model_invocation_values(role_profile, plan.agentlab_root)
+    if (
+        model_values.get("selectable") is False
+        or model_values.get("availability") == "historical_only"
+    ):
+        return CliAgentNotAvailable(
+            cli_agent=cli_agent_name,
+            reason="model_not_selectable",
+            detail="Historical catalog models cannot start provider processes.",
+        )
     process_env, contract_env_unset = _contract_process_environment(
         role_profile,
         plan.agentlab_root,
@@ -4585,14 +5166,33 @@ def run_cli_agent(
         bounded_messages
         and resolved_invocation_contract.get("packet_delivery") == "stdin"
     )
+    inline_packet_prompt = (
+        bounded_messages
+        and resolved_invocation_contract.get("packet_delivery") == "inline_prompt"
+    )
+    max_inline_packet_bytes = int(
+        resolved_invocation_contract.get("max_inline_packet_bytes") or 180_000
+    )
     if (
-        resolved_invocation_contract.get("packet_delivery") == "stdin"
+        inline_packet_prompt
+        and len(packet_text.encode("utf-8")) > max_inline_packet_bytes
+    ):
+        return CliAgentNotAvailable(
+            cli_agent=cli_agent_name,
+            reason="inline_packet_too_large",
+            detail=(
+                f"Sealed packet exceeds {max_inline_packet_bytes} bytes; shard the "
+                "role task before invoking Hermes."
+            ),
+        )
+    if (
+        resolved_invocation_contract.get("packet_delivery") in {"stdin", "inline_prompt"}
         and not bounded_messages
     ):
         return CliAgentNotAvailable(
             cli_agent=cli_agent_name,
-            reason="stdin_packet_requires_bounded_messages",
-            detail="stdin packet delivery is valid only for sealed role sessions",
+            reason="sealed_packet_requires_bounded_messages",
+            detail="sealed packet delivery is valid only for bounded role sessions",
         )
     try:
         narrative_audit_schema = (
@@ -4619,8 +5219,10 @@ def run_cli_agent(
             model_id=model_values["model_id"],
             model_key=model_values["model_key"],
             narrative_audit_schema=narrative_audit_schema,
-            append_task_packet_path=not sealed_packet_stdin,
+            append_task_packet_path=not (sealed_packet_stdin or inline_packet_prompt),
         )
+        if inline_packet_prompt:
+            argv = _bind_inline_task_packet(argv, packet_text)
     except ValueError as exc:
         return CliAgentNotAvailable(
             cli_agent=cli_agent_name,
@@ -4899,8 +5501,12 @@ def run_cli_agent(
                 model_id=model_values["model_id"],
                 model_key=model_values["model_key"],
                 narrative_audit_schema=narrative_audit_schema,
-                append_task_packet_path=not sealed_packet_stdin,
+                append_task_packet_path=not (
+                    sealed_packet_stdin or inline_packet_prompt
+                ),
             )
+            if inline_packet_prompt:
+                argv = _bind_inline_task_packet(argv, packet_text)
             if candidate_used:
                 argv[0] = candidate_used
             if agent_name == "Researcher":
@@ -4915,7 +5521,12 @@ def run_cli_agent(
         )
         if agent_name == "Supervisor" or str(
             role_profile.get("invocation_contract") or ""
-        ) in {"hermes_alter_high", "hermes_alter_artifact"}:
+        ) in {
+            "hermes_alter_high",
+            "hermes_alter_artifact",
+            "hermes_deepseek",
+            "hermes_deepseek_narrative_audit",
+        }:
             hermes_preflight = _hermes_supervisor_preflight(
                 role_profile,
                 plan.agentlab_root,
@@ -4936,6 +5547,7 @@ def run_cli_agent(
             model_values,
             packet_payload,
             resolved_invocation_contract,
+            process_env,
         )
         ultracode_activation_receipt_path = _write_ultracode_activation_receipt(
             run_dir,
@@ -5252,6 +5864,17 @@ def run_cli_agent(
                 cli_agent_name,
                 stdout_text,
                 stderr_text,
+                allow_sidecar=not any(
+                    preflight.get("applicable")
+                    for preflight in (
+                        hermes_preflight,
+                        agy_preflight,
+                        claude_preflight,
+                        qwen_artifact_preflight,
+                        grok_research_preflight,
+                    )
+                ),
+                stdout_envelope_only=bool(claude_preflight.get("applicable")),
             )
             timeout_failure_class = classify_cli_error(
                 None,
@@ -5580,6 +6203,17 @@ def run_cli_agent(
         cli_agent_name,
         proc.stdout or "",
         stderr_text or proc.stderr or "",
+        allow_sidecar=not any(
+            preflight.get("applicable")
+            for preflight in (
+                hermes_preflight,
+                agy_preflight,
+                claude_preflight,
+                qwen_artifact_preflight,
+                grok_research_preflight,
+            )
+        ),
+        stdout_envelope_only=bool(claude_preflight.get("applicable")),
     )
     hermes_usage = _load_hermes_usage_file(hermes_usage_path, run_dir)
     hermes_session_metadata = _export_hermes_session_metadata(
@@ -5610,22 +6244,49 @@ def run_cli_agent(
     hermes_required = hermes_preflight.get("required_shell_state") or {}
     hermes_alter_metadata_required = bool(
         hermes_preflight.get("applicable")
-        and hermes_preflight.get("workflow_shell_profile") == "agentlabalter"
+        and hermes_preflight.get("workflow_shell_profile")
+        in {"agentlabalter", "agentlabsupervisor"}
         and hermes_usage_path is None
     )
+    hermes_governed_usage_required = bool(
+        hermes_preflight.get("applicable")
+        and str(role_profile.get("invocation_contract") or "")
+        in {"hermes_deepseek", "hermes_deepseek_narrative_audit"}
+    )
+    hermes_required_metadata = hermes_usage if hermes_governed_usage_required else hermes_observed_metadata
     hermes_provider_model_mismatch = bool(
         (hermes_alter_metadata_required and not hermes_observed_metadata)
+        or (hermes_governed_usage_required and not hermes_usage)
         or (
-            (hermes_usage_path is not None or hermes_session_metadata)
-            and hermes_observed_metadata
+            (hermes_governed_usage_required or hermes_usage_path is not None or hermes_session_metadata)
+            and hermes_required_metadata
             and (
-                str(hermes_observed_metadata.get("model") or "")
+                str(hermes_required_metadata.get("model") or "")
                 != str(hermes_required.get("model.default") or "")
-                or str(hermes_observed_metadata.get("provider") or "")
+                or str(hermes_required_metadata.get("provider") or "")
                 != str(hermes_required.get("model.provider") or "")
                 or (
-                    hermes_usage
-                    and hermes_usage.get("completed") is not True
+                    hermes_governed_usage_required
+                    and hermes_required_metadata.get("completed") is not True
+                )
+                or (
+                    hermes_preflight.get("workflow_shell_profile")
+                    == "agentlabsupervisor"
+                    and (
+                        int(hermes_required_metadata.get("api_calls") or 0) < 1
+                        or str(
+                            (
+                                hermes_required_metadata.get("model_config")
+                                if isinstance(
+                                    hermes_required_metadata.get("model_config"),
+                                    dict,
+                                )
+                                else {}
+                            ).get("reasoning_effort")
+                            or ""
+                        )
+                        != str(hermes_required.get("agent.reasoning_effort") or "")
+                    )
                 )
             )
         )
@@ -5650,6 +6311,35 @@ def run_cli_agent(
         grok_research_preflight,
         usage_estimate,
     )
+    narrative_heavy_audit_body: str | None = None
+    narrative_heavy_audit_postflight_issue: str | None = None
+    if (
+        resolved_invocation_contract.get("structured_output")
+        == "narrative_heavy_audit"
+    ):
+        (
+            narrative_heavy_audit_body,
+            narrative_heavy_audit_postflight_issue,
+        ) = _validate_narrative_heavy_audit_output(
+            proc.stdout or "",
+            agent_name,
+            run_dir=run_dir,
+            task_id=plan.task_id,
+        )
+    agy_research_tool_audit = (
+        _agy_research_tool_audit(
+            proc.stdout or "",
+            resolved_invocation_contract,
+            run_dir,
+            expected_model_id=str(model_values.get("model_id") or ""),
+        )
+        if cli_agent_name == "agy"
+        and str(role_profile.get("invocation_contract") or "") == "agy_research"
+        else {"status": "not_applicable", "issues": []}
+    )
+    agy_research_tool_audit_failed = (
+        agy_research_tool_audit.get("status") == "blocked"
+    )
     artifact_materialization_failed = bool(
         qwen_artifact_preflight.get("applicable")
         and (
@@ -5670,8 +6360,10 @@ def run_cli_agent(
         and not qwen_provider_model_mismatch
         and not grok_provider_model_mismatch
         and not hermes_provider_model_mismatch
+        and not agy_research_tool_audit_failed
         and not artifact_materialization_failed
         and not writer_packet_refused
+        and narrative_heavy_audit_postflight_issue is None
         and artifact_input_postflight_issue is None
         and staged_input_postflight_issue is None
     )
@@ -5682,7 +6374,9 @@ def run_cli_agent(
             "validation_failed"
             if (
                 artifact_materialization_failed
+                or agy_research_tool_audit_failed
                 or writer_packet_refused
+                or narrative_heavy_audit_postflight_issue
                 or artifact_input_postflight_issue
                 or staged_input_postflight_issue
             )
@@ -5714,15 +6408,25 @@ def run_cli_agent(
     if hermes_provider_model_mismatch:
         receipt_failure_issues.append(
             "hermes_provider_metadata_missing"
-            if hermes_alter_metadata_required and not hermes_observed_metadata
+            if (
+                (hermes_alter_metadata_required and not hermes_observed_metadata)
+                or (hermes_governed_usage_required and not hermes_usage)
+            )
             else "hermes_provider_model_binding_mismatch"
         )
     if writer_packet_refused:
         receipt_failure_issues.append("writer_missing_sealed_packet")
+    if agy_research_tool_audit_failed:
+        receipt_failure_issues.extend(
+            str(issue)
+            for issue in agy_research_tool_audit.get("issues", [])
+        )
     if staged_input_postflight_issue:
         receipt_failure_issues.append(
             f"staged_input_postflight_failed:{staged_input_postflight_issue}"
         )
+    if narrative_heavy_audit_postflight_issue:
+        receipt_failure_issues.append(narrative_heavy_audit_postflight_issue)
     command_id = _append_cli_execution_record(
         run_dir,
         agent_name=agent_name,
@@ -5858,13 +6562,7 @@ def run_cli_agent(
         resolved_invocation_contract.get("structured_output")
         == "narrative_heavy_audit"
     ):
-        body = (
-            _narrative_heavy_audit_blocks_from_output(
-                proc.stdout or "",
-                agent_name,
-            )
-            or body
-        )
+        body = narrative_heavy_audit_body or body
     elif (
         resolved_invocation_contract.get("structured_output")
         == "narrative_literary_ab"
@@ -5916,7 +6614,9 @@ def run_cli_agent(
     else:
         result_status = "blocked_user_decision"
         result_error = (
-            "writer_missing_sealed_packet"
+            "agy_research_tool_audit_failed"
+            if agy_research_tool_audit_failed
+            else "writer_missing_sealed_packet"
             if writer_packet_refused
             else f"CLI agent {failure_class} (exit {proc.returncode})."
         )
@@ -5946,6 +6646,14 @@ def run_cli_agent(
             "qwen_provider_model_mismatch": qwen_provider_model_mismatch,
             "grok_provider_model_mismatch": grok_provider_model_mismatch,
             "hermes_provider_model_mismatch": hermes_provider_model_mismatch,
+            **(
+                {
+                    "agy_research_tool_audit": agy_research_tool_audit,
+                    "sources_receipt": agy_research_tool_audit["receipt_path"],
+                }
+                if agy_research_tool_audit.get("status") != "not_applicable"
+                else {}
+            ),
             **(
                 {"hermes_usage_file": str(hermes_usage_path)}
                 if hermes_usage_path
