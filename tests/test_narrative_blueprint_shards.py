@@ -8,7 +8,9 @@ from agent_runtime.narrative.blueprint_shards import (
     assemble_blueprint_shards,
     assemble_blueprint_volume_segments,
     build_blueprint_shard_plan,
+    build_blueprint_segment_context_projection,
     find_reusable_blueprint_shard_attempt,
+    find_reusable_blueprint_shard_attempts,
     run_blueprint_shard_workflow,
     split_blueprint_shard,
     validate_blueprint_shard_semantics,
@@ -712,6 +714,41 @@ def test_selective_revision_reuses_only_a_validated_baseline_shard(tmp_path) -> 
     )
 
 
+def test_selective_revision_reuses_a_segmented_validated_baseline(tmp_path) -> None:
+    volume = build_blueprint_shard_plan(total_chapters=40, volume_count=1)[0]
+    segments = split_blueprint_shard(volume, max_chapters=20)
+    attempt_ids: list[str] = []
+    attempts: dict[str, object] = {}
+    for segment in segments:
+        attempt_id = (
+            "attempt-writer-rev3-v01-"
+            f"c{segment.start_chapter:03d}-c{segment.end_chapter:03d}-r01"
+        )
+        attempt_ids.append(attempt_id)
+        attempt_dir = tmp_path / "attempt_logs" / attempt_id
+        attempt_dir.mkdir(parents=True)
+        (attempt_dir / "output.md").write_text(
+            _render_shard(segment.start_chapter, segment.end_chapter),
+            encoding="utf-8",
+        )
+        attempts[attempt_id] = {
+            "status": "succeeded",
+            "output_validation": {"status": "pass"},
+        }
+    attempts["attempt-writer-assembled-003"] = {
+        "status": "succeeded",
+        "output_validation": {"status": "pass"},
+        "outcome": {"composite_child_attempt_ids": attempt_ids},
+    }
+
+    assert find_reusable_blueprint_shard_attempts(
+        task_root=tmp_path,
+        attempts=attempts,
+        shard=volume,
+        baseline_revision=3,
+    ) == tuple(attempt_ids)
+
+
 def test_shard_semantic_contract_rejects_missing_and_forbidden_text() -> None:
     shard = build_blueprint_shard_plan(total_chapters=600, volume_count=15)[13]
     contract = {
@@ -763,7 +800,7 @@ def test_shard_semantic_contract_scopes_rules_to_exact_chapters() -> None:
     )
 
 
-def test_segment_semantics_ignore_chapter_rules_outside_the_segment() -> None:
+def test_semantic_contract_fails_closed_on_chapter_rules_outside_the_shard() -> None:
     segment = split_blueprint_shard(
         build_blueprint_shard_plan(total_chapters=40, volume_count=1)[0],
         max_chapters=20,
@@ -776,4 +813,42 @@ def test_segment_semantics_ignore_chapter_rules_outside_the_segment() -> None:
         }
     }
 
-    assert validate_blueprint_shard_semantics(segment, text, contract) == ()
+    assert validate_blueprint_shard_semantics(segment, text, contract) == (
+        "V01 chapter rule target missing: C040",
+    )
+
+
+def test_segment_context_projection_is_relevant_hash_bound_and_bounded() -> None:
+    segment = split_blueprint_shard(
+        build_blueprint_shard_plan(total_chapters=40, volume_count=1)[0],
+        max_chapters=20,
+    )[0]
+    sources = [
+        {
+            "artifact_type": "outline_tree",
+            "path": "artifacts/outline.md",
+            "sha256": "a" * 64,
+            "text": "global premise\n" + ("irrelevant\n" * 5000) + "C010 exact beat\n",
+        },
+        {
+            "artifact_type": "character_bible",
+            "path": "artifacts/characters.md",
+            "sha256": "b" * 64,
+            "text": "沈渡 character anchor\n" + ("other\n" * 5000),
+        },
+    ]
+
+    projection = build_blueprint_segment_context_projection(
+        task_id="task-blueprint",
+        revision=4,
+        segment=segment,
+        sources=sources,
+        max_bytes_per_source=1024,
+    )
+
+    assert projection["chapter_range"] == [1, 20]
+    assert projection["source_count"] == 2
+    assert projection["max_bytes_per_source"] == 1024
+    assert projection["sources"][0]["source_sha256"] == "a" * 64
+    assert "C010 exact beat" in projection["sources"][0]["excerpt"]
+    assert all(item["excerpt_size_bytes"] <= 1024 for item in projection["sources"])

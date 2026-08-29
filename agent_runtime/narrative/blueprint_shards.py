@@ -391,9 +391,6 @@ def validate_blueprint_shard_semantics(
         cards[f"C{int(match.group(1)):03d}"] = text[match.start() : end]
     for raw_chapter_id, raw_rule in chapter_rules.items():
         chapter_id = str(raw_chapter_id).strip()
-        chapter_match = re.fullmatch(r"C(\d{3})", chapter_id)
-        if chapter_match and int(chapter_match.group(1)) not in shard.chapters:
-            continue
         if chapter_id not in cards:
             issues.append(
                 f"{shard.volume_id} chapter rule target missing: {chapter_id}"
@@ -420,12 +417,16 @@ def validate_blueprint_shard_semantics(
 
 
 def _segment_semantic_contract(
-    segment: BlueprintShard, contract: Mapping[str, object]
+    segment: BlueprintShard,
+    contract: Mapping[str, object],
+    *,
+    include_volume_required: bool = False,
 ) -> dict[str, object]:
     """Return only rules that can be decided from one bounded generation segment."""
 
     scoped = dict(contract)
-    scoped.pop("required_phrases", None)
+    if not include_volume_required:
+        scoped.pop("required_phrases", None)
     chapter_rules = contract.get("chapter_rules") or {}
     if isinstance(chapter_rules, Mapping):
         scoped["chapter_rules"] = {
@@ -438,7 +439,94 @@ def _segment_semantic_contract(
     return scoped
 
 
-def find_reusable_blueprint_shard_attempt(
+def _utf8_prefix(text: str, max_bytes: int) -> str:
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    return encoded[:max_bytes].decode("utf-8", errors="ignore").rstrip()
+
+
+def build_blueprint_segment_context_projection(
+    *,
+    task_id: str,
+    revision: int,
+    segment: BlueprintShard,
+    sources: Sequence[Mapping[str, object]],
+    max_bytes_per_source: int = 8192,
+) -> dict[str, object]:
+    """Build a bounded, source-hash-bound context projection for one segment."""
+
+    if max_bytes_per_source < 512:
+        raise ValueError("segment context source budget must be at least 512 bytes")
+    chapter_tokens = {f"C{chapter:03d}" for chapter in segment.chapters}
+    volume_number = int(segment.volume_id[1:])
+    volume_tokens = {
+        segment.volume_id,
+        f"Vol {volume_number}",
+        f"Vol {volume_number:02d}",
+        f"volume {volume_number}",
+        f"卷{volume_number}",
+    }
+    projected_sources: list[dict[str, object]] = []
+    for source in sources:
+        artifact_type = str(source.get("artifact_type") or "").strip()
+        source_path = str(source.get("path") or "").strip()
+        source_sha256 = str(source.get("sha256") or "").strip()
+        source_text = source.get("text")
+        if (
+            not artifact_type
+            or not source_path
+            or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
+            or not isinstance(source_text, str)
+        ):
+            raise ValueError("segment context source is malformed")
+        lines = source_text.splitlines()
+        relevant_indices: set[int] = set()
+        tokens = chapter_tokens | volume_tokens
+        for index, line in enumerate(lines):
+            if any(token in line for token in tokens):
+                relevant_indices.update(
+                    range(max(0, index - 6), min(len(lines), index + 7))
+                )
+        relevant = "\n".join(lines[index] for index in sorted(relevant_indices))
+        global_anchor = "\n".join(lines[:64])
+        relevant_budget = (max_bytes_per_source * 2) // 3
+        relevant_excerpt = _utf8_prefix(relevant, relevant_budget)
+        prefix = "[segment-relevant]\n" + relevant_excerpt + "\n[global-anchor]\n"
+        remaining = max_bytes_per_source - len(prefix.encode("utf-8"))
+        if remaining < 0:
+            excerpt = _utf8_prefix(prefix, max_bytes_per_source)
+        else:
+            excerpt = prefix + _utf8_prefix(global_anchor, remaining)
+        excerpt = excerpt.rstrip() + "\n"
+        if len(excerpt.encode("utf-8")) > max_bytes_per_source:
+            excerpt = _utf8_prefix(excerpt, max_bytes_per_source)
+        projected_sources.append(
+            {
+                "artifact_type": artifact_type,
+                "source_path": source_path,
+                "source_sha256": source_sha256,
+                "source_size_bytes": len(source_text.encode("utf-8")),
+                "excerpt": excerpt,
+                "excerpt_sha256": hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
+                "excerpt_size_bytes": len(excerpt.encode("utf-8")),
+                "truncated": len(excerpt.encode("utf-8"))
+                < len(source_text.encode("utf-8")),
+            }
+        )
+    return {
+        "schema_version": "narrative-blueprint-segment-context/v1",
+        "task_id": task_id,
+        "revision": revision,
+        "volume_id": segment.volume_id,
+        "chapter_range": [segment.start_chapter, segment.end_chapter],
+        "max_bytes_per_source": max_bytes_per_source,
+        "source_count": len(projected_sources),
+        "sources": projected_sources,
+    }
+
+
+def find_reusable_blueprint_shard_attempts(
     *,
     task_root: Path,
     attempts: Mapping[str, object],
@@ -446,8 +534,8 @@ def find_reusable_blueprint_shard_attempt(
     baseline_revision: int,
     required_fields: Sequence[str] = _REQUIRED_CARD_FIELDS,
     semantic_contract: Mapping[str, object] | None = None,
-) -> str | None:
-    """Find a baseline shard that still passes current structure and semantics."""
+) -> tuple[str, ...] | None:
+    """Find baseline attempts that still assemble under current contracts."""
 
     baseline_attempt_id = f"attempt-writer-assembled-{baseline_revision:03d}"
     baseline_attempt = attempts.get(baseline_attempt_id)
@@ -468,6 +556,7 @@ def find_reusable_blueprint_shard_attempt(
         for raw_attempt_id in child_attempt_ids
         if f"-{shard.volume_id.lower()}-" in str(raw_attempt_id or "")
     ]
+    candidates: list[tuple[BlueprintShard, str, str]] = []
     for attempt_id in candidate_ids:
         attempt = attempts.get(attempt_id)
         if not isinstance(attempt, Mapping):
@@ -482,21 +571,70 @@ def find_reusable_blueprint_shard_attempt(
             or not output_text
         ):
             continue
+        observed = [int(match.group(1)) for match in _CHAPTER_HEADING.finditer(output_text)]
+        if not observed or any(chapter not in shard.chapters for chapter in observed):
+            continue
+        segment = BlueprintShard(
+            volume_id=shard.volume_id,
+            start_chapter=min(observed),
+            end_chapter=max(observed),
+        )
+        segment_contract = _segment_semantic_contract(
+            segment,
+            semantic_contract or {},
+            include_volume_required=segment.end_chapter == shard.end_chapter,
+        )
         try:
             candidate_text = extract_blueprint_shard_cards(
-                shard,
+                segment,
                 output_text,
                 required_fields=required_fields,
             )
         except ValueError:
             continue
         if not validate_blueprint_shard_semantics(
-            shard,
+            segment,
             candidate_text,
-            semantic_contract or {},
+            segment_contract,
         ):
-            return str(attempt_id)
-    return None
+            candidates.append((segment, str(attempt_id), candidate_text))
+    candidates.sort(key=lambda item: item[0].start_chapter)
+    try:
+        assemble_blueprint_volume_segments(
+            shard,
+            [item[0] for item in candidates],
+            {
+                (item[0].start_chapter, item[0].end_chapter): item[2]
+                for item in candidates
+            },
+            required_fields=required_fields,
+            semantic_contract=semantic_contract,
+        )
+    except ValueError:
+        return None
+    return tuple(item[1] for item in candidates)
+
+
+def find_reusable_blueprint_shard_attempt(
+    *,
+    task_root: Path,
+    attempts: Mapping[str, object],
+    shard: BlueprintShard,
+    baseline_revision: int,
+    required_fields: Sequence[str] = _REQUIRED_CARD_FIELDS,
+    semantic_contract: Mapping[str, object] | None = None,
+) -> str | None:
+    """Compatibility helper for callers that require one whole-volume attempt."""
+
+    reusable = find_reusable_blueprint_shard_attempts(
+        task_root=task_root,
+        attempts=attempts,
+        shard=shard,
+        baseline_revision=baseline_revision,
+        required_fields=required_fields,
+        semantic_contract=semantic_contract,
+    )
+    return reusable[0] if reusable is not None and len(reusable) == 1 else None
 
 
 def run_blueprint_shard_workflow(
@@ -632,6 +770,7 @@ def run_blueprint_shard_workflow(
         chapters_per_generation = chapters_per_volume
     if chapters_per_generation <= 0:
         raise ValueError("chapters per generation must be positive")
+    bounded_generation = chapters_per_generation < chapters_per_volume
     known_volume_ids = {item.volume_id for item in plan}
     requested_volume_ids = {str(item).upper() for item in volume_ids}
     unknown_volume_ids = sorted(requested_volume_ids - known_volume_ids)
@@ -692,6 +831,7 @@ def run_blueprint_shard_workflow(
         raise ValueError("writer context artifacts are missing: " + ", ".join(missing))
     manifest_entries: list[dict[str, object]] = []
     context_source_paths: list[Path] = []
+    context_projection_sources: list[dict[str, object]] = []
     for artifact_type in sorted(required_context):
         version_id, artifact = latest_by_type[artifact_type]
         path = (task_root / str(artifact.get("path") or "")).resolve(strict=True)
@@ -708,6 +848,14 @@ def run_blueprint_shard_workflow(
             }
         )
         context_source_paths.append(path)
+        context_projection_sources.append(
+            {
+                "artifact_type": artifact_type,
+                "path": path.relative_to(task_root).as_posix(),
+                "sha256": digest,
+                "text": path.read_text(encoding="utf-8"),
+            }
+        )
     context_manifest = {
         "schema_version": "narrative-blueprint-shard-context/v1",
         "task_id": task_id,
@@ -805,6 +953,15 @@ def run_blueprint_shard_workflow(
             or not output_path.is_file()
         ):
             return None
+        expected_output_sha256 = str(
+            (attempt.get("outcome") or {}).get("output_sha256") or ""
+        )
+        if (
+            expected_output_sha256
+            and hashlib.sha256(output_path.read_bytes()).hexdigest()
+            != expected_output_sha256
+        ):
+            return None
         try:
             candidate = extract_blueprint_shard_cards(
                 target,
@@ -835,7 +992,7 @@ def run_blueprint_shard_workflow(
         if assembly_only_baseline or (
             requested_volume_ids and volume_shard.volume_id not in requested_volume_ids
         ):
-            accepted_attempt = find_reusable_blueprint_shard_attempt(
+            reusable_attempts = find_reusable_blueprint_shard_attempts(
                 task_root=task_root,
                 attempts=(runtime.load_task(task_id).get("attempts") or {}),
                 shard=volume_shard,
@@ -843,19 +1000,55 @@ def run_blueprint_shard_workflow(
                 required_fields=required_fields,
                 semantic_contract=semantic_contract,
             )
-            if accepted_attempt is None:
+            if reusable_attempts is None:
                 raise ValueError(
                     "no reusable validated baseline output for "
                     f"{volume_shard.volume_id}"
                 )
-            volume_text = validated_attempt_output(
-                accepted_attempt, volume_shard, semantic_contract
-            )
-            if volume_text is None:
-                raise ValueError(
-                    f"reusable baseline output drifted for {volume_shard.volume_id}"
+            baseline_segments: list[BlueprintShard] = []
+            baseline_outputs: dict[tuple[int, int], str] = {}
+            for reusable_attempt in reusable_attempts:
+                output_path = (
+                    task_root / "attempt_logs" / reusable_attempt / "output.md"
                 )
-            accepted_volume_attempts.append(accepted_attempt)
+                observed = [
+                    int(match.group(1))
+                    for match in _CHAPTER_HEADING.finditer(
+                        output_path.read_text(encoding="utf-8")
+                    )
+                ]
+                segment = BlueprintShard(
+                    volume_id=volume_shard.volume_id,
+                    start_chapter=min(observed),
+                    end_chapter=max(observed),
+                )
+                segment_contract = _segment_semantic_contract(
+                    segment,
+                    semantic_contract,
+                    include_volume_required=(
+                        segment.end_chapter == volume_shard.end_chapter
+                    ),
+                )
+                candidate = validated_attempt_output(
+                    reusable_attempt, segment, segment_contract
+                )
+                if candidate is None:
+                    raise ValueError(
+                        "reusable baseline output drifted for "
+                        f"{volume_shard.volume_id}"
+                    )
+                baseline_segments.append(segment)
+                baseline_outputs[
+                    (segment.start_chapter, segment.end_chapter)
+                ] = candidate
+            volume_text = assemble_blueprint_volume_segments(
+                volume_shard,
+                baseline_segments,
+                baseline_outputs,
+                required_fields=required_fields,
+                semantic_contract=semantic_contract,
+            )
+            accepted_volume_attempts.extend(reusable_attempts)
         else:
             prefix = "" if revision == 1 else f"rev{revision}-"
             for retry in range(1, retries_per_volume + 1):
@@ -878,13 +1071,43 @@ def run_blueprint_shard_workflow(
                 segment_outputs: dict[tuple[int, int], str] = {}
                 for segment in segments:
                     segment_contract = _segment_semantic_contract(
-                        segment, semantic_contract
+                        segment,
+                        semantic_contract,
+                        include_volume_required=(
+                            segment.end_chapter == volume_shard.end_chapter
+                        ),
                     )
                     segment_token = volume_shard.volume_id.lower()
                     if len(segments) > 1:
                         segment_token += (
                             f"-c{segment.start_chapter:03d}-c{segment.end_chapter:03d}"
                         )
+                    segment_context_sha256 = context_manifest_sha256
+                    segment_context_source_paths = list(context_source_paths)
+                    if bounded_generation:
+                        segment_context_projection = (
+                            build_blueprint_segment_context_projection(
+                                task_id=task_id,
+                                revision=revision,
+                                segment=segment,
+                                sources=context_projection_sources,
+                            )
+                        )
+                        segment_context_path = (
+                            task_root
+                            / "inputs"
+                            / (
+                                f"writer-segment-context-v{revision:03d}-"
+                                f"{segment_token}.yml"
+                            )
+                        )
+                        atomic_write_yaml(
+                            segment_context_path, segment_context_projection
+                        )
+                        segment_context_sha256 = hashlib.sha256(
+                            segment_context_path.read_bytes()
+                        ).hexdigest()
+                        segment_context_source_paths = [segment_context_path]
                     accepted_attempt: str | None = None
                     candidate_text: str | None = None
                     for retry in range(1, retries_per_volume + 1):
@@ -923,6 +1146,7 @@ def run_blueprint_shard_workflow(
                                 "role": "user",
                                 "content": (
                                     f"context_manifest_sha256={context_manifest_sha256}\n"
+                                    f"segment_context_sha256={segment_context_sha256}\n"
                                     f"生成 {volume_shard.volume_id} 的连续章段，范围 "
                                     f"C{segment.start_chapter:03d}-C{segment.end_chapter:03d}。"
                                     "严格执行密封的写作指令与语义合同。\n"
@@ -933,7 +1157,10 @@ def run_blueprint_shard_workflow(
                                 ),
                             },
                         ]
-                        shard_source_paths = [*context_source_paths, instruction_path]
+                        shard_source_paths = [
+                            *segment_context_source_paths,
+                            instruction_path,
+                        ]
                         if guidance_path is not None:
                             shard_source_paths.append(guidance_path)
                         if semantic_contract_path is not None:
