@@ -11,6 +11,7 @@ import pytest
 from PIL import Image
 import yaml
 
+import agent_runtime.narrative.visual_detail_cards as visual_detail_cards
 import agent_runtime.narrative.visual_reference_runtime as visual_reference_runtime
 from agent_runtime.narrative.visual_detail_cards import (
     compile_visual_generation_batch,
@@ -421,6 +422,12 @@ def _prop_card() -> dict:
 
 
 def _spec(*cards: dict) -> dict:
+    selected_cards = list(cards) or [
+        _character_card(),
+        _map_card(),
+        _location_card(),
+        _prop_card(),
+    ]
     return {
         "schema_version": "narrative-visual-detail-spec/v2",
         "project": "ShanHeYouJia",
@@ -429,13 +436,10 @@ def _spec(*cards: dict) -> dict:
             "work_title": "山河有约",
             "female_modern_nail_art_allowed": True,
         },
-        "cards": list(cards)
-        or [
-            _character_card(),
-            _map_card(),
-            _location_card(),
-            _prop_card(),
+        "character_roster": [
+            card["card_id"] for card in selected_cards if card["kind"] == "character"
         ],
+        "cards": selected_cards,
         "source_refs": [],
     }
 
@@ -1604,6 +1608,70 @@ def test_rejects_all_male_nail_detail_fields_and_text() -> None:
         ValueError, match="male character must not contain nail details"
     ):
         compile_visual_detail_card_pack(_spec(card))
+
+
+def test_rejects_male_uncontracted_fields_that_can_smuggle_nail_detail() -> None:
+    card = _character_card()
+    card["variants"][0]["digit_grooming"] = "十枚指端角质硬片均修短磨平，边缘洁净"
+
+    with pytest.raises(ValueError, match="unsupported fields"):
+        compile_visual_detail_card_pack(_spec(card))
+
+
+def test_rejects_singular_english_nail_detail_in_allowed_male_field() -> None:
+    card = _character_card()
+    card["invariant"]["signature_details"] = "left brow scar and one broken nail"
+
+    with pytest.raises(
+        ValueError, match="male character must not contain nail details"
+    ):
+        compile_visual_detail_card_pack(_spec(card))
+
+
+def test_rejects_novel_visual_pack_without_exact_character_roster() -> None:
+    spec = _spec(_map_card(), _location_card(), _prop_card())
+
+    with pytest.raises(ValueError, match="character_roster must be non-empty"):
+        compile_visual_detail_card_pack(spec)
+
+
+def test_shanhe_modern_nail_art_policy_cannot_be_disabled() -> None:
+    spec = _spec(_female_character_card())
+    spec["creative_policy"]["female_modern_nail_art_allowed"] = False
+
+    with pytest.raises(ValueError, match="ShanHeYouJia requires modern nail art"):
+        compile_visual_detail_card_pack(spec)
+
+
+def test_v2_pack_validation_rejects_missing_creative_policy_after_rehash() -> None:
+    pack = compile_visual_detail_card_pack(_spec())
+    pack["creative_policy"] = {}
+    pack["pack_sha256"] = visual_detail_cards._pack_sha256(pack)
+
+    result = validate_visual_detail_card_pack(pack)
+
+    assert result["status"] == "blocked"
+    assert any("creative_policy" in issue for issue in result["issues"])
+
+
+def test_v1_pack_remains_read_only_validatable_for_task_recovery() -> None:
+    current = compile_visual_detail_card_pack(_spec())
+    legacy_card = visual_detail_cards._compile_legacy_card(_prop_card())
+    pack = {
+        "schema_version": "narrative-visual-detail-card-pack/v1",
+        "project": "HistoricalProject",
+        "task_id": "task-historical-visual",
+        "candidate_only": True,
+        "promotion_state": "awaiting_visual_generation_and_human_acceptance",
+        "source_spec_sha256": "historical-source-sha",
+        "source_refs": [],
+        "generation_contract": current["generation_contract"],
+        "review_contract": current["review_contract"],
+        "cards": [legacy_card],
+    }
+    pack["pack_sha256"] = visual_detail_cards._pack_sha256(pack)
+
+    assert validate_visual_detail_card_pack(pack)["status"] == "pass"
 
 
 def test_rejects_female_character_without_leg_and_foot_identity_locks() -> None:

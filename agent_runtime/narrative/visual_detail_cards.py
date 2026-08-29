@@ -30,6 +30,7 @@ from agent_runtime.task_runtime_v2 import (
 
 SPEC_SCHEMA = "narrative-visual-detail-spec/v2"
 PACK_SCHEMA = "narrative-visual-detail-card-pack/v2"
+LEGACY_PACK_SCHEMA = "narrative-visual-detail-card-pack/v1"
 AWAITING_ACCEPTANCE = "awaiting_visual_generation_and_human_acceptance"
 
 _KIND_CONTRACTS: dict[str, dict[str, list[str]]] = {
@@ -134,6 +135,40 @@ _KIND_CONTRACTS: dict[str, dict[str, list[str]]] = {
     },
 }
 
+_LEGACY_KIND_CONTRACTS = deepcopy(_KIND_CONTRACTS)
+_LEGACY_KIND_CONTRACTS["character"] = {
+    "required_invariant_fields": [
+        "facial_structure",
+        "facial_features",
+        "skin",
+        "eyes",
+        "hair",
+        "body",
+        "hands_and_nails",
+        "signature_details",
+        "negative_constraints",
+    ],
+    "required_variant_fields": [
+        "state",
+        "wardrobe",
+        "grooming",
+        "manicure",
+        "wear_state",
+    ],
+    "required_shots": [
+        "face-front-neutral",
+        "face-three-quarter",
+        "face-profile",
+        "full-body-front",
+        "full-body-back",
+        "full-body-side",
+        "hands-and-nails-detail",
+        "garment-construction-detail",
+        "state-expression",
+        "action-dynamic",
+    ],
+}
+
 _CHARACTER_DETAIL_FIELDS = {
     "facial_structure": ["face_shape", "forehead", "cheekbones", "jaw", "asymmetry"],
     "facial_features": ["brows", "nose", "lips", "ears", "distinguishing_marks"],
@@ -216,6 +251,7 @@ _SHOT_DIRECTIONS = {
     "full-body-back": "全身背面自然站姿，头脚完整，显示发型后部、衣物背片和下摆结构",
     "full-body-side": "全身严格侧面站姿，显示胸背厚度、骨盆、腿长和鞋履比例",
     "hands-detail": "双手微距细节，仅保留手型、惯用手、茧、伤痕与关节比例",
+    "hands-and-nails-detail": "双手与指甲微距细节，保留手型、惯用手、茧、伤痕和美甲状态",
     "makeup-face-detail": "女性妆面校准特写，分别核验底妆质感、眉妆、眼妆、腮红、唇妆与妆效，不得磨除身份痕迹",
     "hands-and-manicure-detail": "女性双手与手部美甲微距，完整显示甲长、甲型、底色、强调色、质感、图案、饰件及当下磨损",
     "legs-detail": "女性腿部正面、侧面与背面细节组图，稳定核验腿长比例、肌肉结构、肤色、膝部与固定标志",
@@ -419,6 +455,8 @@ def _require_fields(value: Mapping[str, Any], fields: list[str], locator: str) -
 def _reject_male_nail_details(card: Mapping[str, Any], card_id: str) -> None:
     serialized = _render(card).lower()
     present = [term for term in _MALE_NAIL_DETAIL_TERMS if term in serialized]
+    if re.search(r"\bnails?\b", serialized):
+        present.append("nail")
     if present:
         raise ValueError(
             f"cards.{card_id} male character must not contain nail details: "
@@ -434,6 +472,40 @@ def _require_detail_mappings(
     for field, required_fields in contracts.items():
         detail = _require_mapping(value.get(field), f"{locator}.{field}")
         _require_fields(detail, required_fields, f"{locator}.{field}")
+
+
+def _reject_unsupported_fields(
+    value: Mapping[str, Any],
+    *,
+    allowed_fields: set[str],
+    locator: str,
+) -> None:
+    unsupported = sorted(set(value) - allowed_fields)
+    if unsupported:
+        raise ValueError(
+            f"{locator} contains unsupported fields: {', '.join(unsupported)}"
+        )
+
+
+def _validated_creative_policy(
+    value: Any,
+    *,
+    project: str,
+    locator: str,
+) -> Mapping[str, Any]:
+    creative_policy = _require_mapping(value, locator)
+    _require_fields(
+        creative_policy,
+        ["work_title", "female_modern_nail_art_allowed"],
+        locator,
+    )
+    if not isinstance(creative_policy["female_modern_nail_art_allowed"], bool):
+        raise ValueError(f"{locator}.female_modern_nail_art_allowed must be boolean")
+    if (
+        project == "ShanHeYouJia" or str(creative_policy["work_title"]) == "山河有约"
+    ) and creative_policy["female_modern_nail_art_allowed"] is not True:
+        raise ValueError("ShanHeYouJia requires modern nail art to remain allowed")
+    return creative_policy
 
 
 def _card_contract(
@@ -484,6 +556,124 @@ def _identity_lock_prompt(
     )
 
 
+def _compile_legacy_card(card: Mapping[str, Any]) -> dict:
+    """Rebuild v1 cards for historical validation; never used for new compilation."""
+
+    _require_fields(
+        card, ["card_id", "kind", "display_name", "invariant", "variants"], "card"
+    )
+    card_id = str(card["card_id"])
+    kind = str(card["kind"])
+    if kind not in _LEGACY_KIND_CONTRACTS:
+        raise ValueError(f"cards.{card_id}.kind unsupported: {kind}")
+    contract = _LEGACY_KIND_CONTRACTS[kind]
+    invariant = _require_mapping(card["invariant"], f"cards.{card_id}.invariant")
+    _require_fields(
+        invariant,
+        contract["required_invariant_fields"],
+        f"cards.{card_id}.invariant",
+    )
+    variants = card["variants"]
+    if not isinstance(variants, list) or not variants:
+        raise ValueError(f"cards.{card_id}.variants must be a non-empty list")
+
+    facts = "；".join(
+        f"{field}：{_render(invariant[field])}"
+        for field in contract["required_invariant_fields"]
+    )
+    identity_prompt = (
+        f"【IDENTITY LOCK {card_id} / {card['display_name']}】{facts}。"
+        "所有图像必须把这些内容视为不可变事实；不得美化替换、现代化、左右翻转或随机增删。"
+    )
+    identity_digest = _sha256(identity_prompt)
+    reference_variant = _require_mapping(variants[0], f"cards.{card_id}.variants[0]")
+    _require_fields(
+        reference_variant,
+        ["variant_id", *contract["required_variant_fields"]],
+        f"cards.{card_id}.variants[0]",
+    )
+    reference_variant_text = "；".join(
+        f"{key}：{_render(reference_variant[key])}"
+        for key in contract["required_variant_fields"]
+    )
+    reference_views = "；".join(
+        f"{shot_id}={_SHOT_DIRECTIONS[shot_id]}"
+        for shot_id in contract["required_shots"]
+    )
+    reference_prompt = (
+        f"{identity_prompt}\n"
+        f"【REFERENCE VARIANT {reference_variant['variant_id']}】{reference_variant_text}。\n"
+        "【IDENTITY REFERENCE SHEET】在一张高分辨率、无文字遮挡的统一定妆设定板中，"
+        f"以等比例分格同时呈现：{reference_views}。"
+        "所有分格必须是同一身份、同一尺度、同一套锁定服饰与同一材质基准；使用中性背景和"
+        "稳定白平衡。此图通过独立验收后才可作为后续组图的图像条件。"
+    )
+    prompts: list[dict] = []
+    seen_variants: set[str] = set()
+    for variant_index, raw_variant in enumerate(variants):
+        variant = _require_mapping(
+            raw_variant, f"cards.{card_id}.variants[{variant_index}]"
+        )
+        _require_fields(
+            variant,
+            ["variant_id", *contract["required_variant_fields"]],
+            f"cards.{card_id}.variants[{variant_index}]",
+        )
+        variant_id = str(variant["variant_id"])
+        if variant_id in seen_variants:
+            raise ValueError(f"cards.{card_id} duplicate variant_id: {variant_id}")
+        seen_variants.add(variant_id)
+        ordered_variant_fields = [
+            *contract["required_variant_fields"],
+            *sorted(
+                key
+                for key in variant
+                if key not in {"variant_id", *contract["required_variant_fields"]}
+            ),
+        ]
+        variant_text = "；".join(
+            f"{key}：{_render(variant[key])}" for key in ordered_variant_fields
+        )
+        for shot_id in contract["required_shots"]:
+            prompt = (
+                f"{identity_prompt}\n"
+                f"【VARIANT {variant_id}】{variant_text}。\n"
+                f"【SHOT {shot_id}】{_SHOT_DIRECTIONS[shot_id]}。\n"
+                "制作高细节、可用于连续叙事的定妆/设定图；保持相同身份、时代工艺、尺度、"
+                "色彩基准和材质逻辑。首张获验收后，后续生成必须把已验收身份参考图作为图像条件。"
+            )
+            prompts.append(
+                {
+                    "prompt_id": f"{card_id}::{variant_id}::{shot_id}",
+                    "variant_id": variant_id,
+                    "shot_id": shot_id,
+                    "prompt": prompt,
+                    "prompt_sha256": _sha256(prompt),
+                    "reference_asset_ids": [f"{card_id}::identity-reference"],
+                }
+            )
+    return {
+        "card_id": card_id,
+        "kind": kind,
+        "display_name": str(card["display_name"]),
+        "candidate_only": True,
+        "invariant": deepcopy(dict(invariant)),
+        "variants": deepcopy(variants),
+        "required_shot_ids": list(contract["required_shots"]),
+        "identity_lock_prompt": identity_prompt,
+        "identity_digest": identity_digest,
+        "identity_reference_asset_id": f"{card_id}::identity-reference",
+        "identity_reference": {
+            "asset_id": f"{card_id}::identity-reference",
+            "variant_id": str(reference_variant["variant_id"]),
+            "prompt": reference_prompt,
+            "prompt_sha256": _sha256(reference_prompt),
+            "must_be_accepted_before_dependent_generation": True,
+        },
+        "prompt_set": prompts,
+    }
+
+
 def _compile_card(
     card: Mapping[str, Any],
     *,
@@ -514,6 +704,11 @@ def _compile_card(
             f"cards.{card_id}.invariant",
         )
         if gender == "male":
+            _reject_unsupported_fields(
+                invariant,
+                allowed_fields=set(contract["required_invariant_fields"]),
+                locator=f"cards.{card_id}.invariant",
+            )
             _reject_male_nail_details(card, card_id)
         else:
             _require_detail_mappings(
@@ -588,6 +783,15 @@ def _compile_card(
                     _FEMALE_VARIANT_DETAIL_FIELDS,
                     f"cards.{card_id}.variants[{variant_index}]",
                 )
+            else:
+                _reject_unsupported_fields(
+                    variant,
+                    allowed_fields={
+                        "variant_id",
+                        *contract["required_variant_fields"],
+                    },
+                    locator=f"cards.{card_id}.variants[{variant_index}]",
+                )
         variant_id = str(variant["variant_id"])
         if variant_id in seen_variants:
             raise ValueError(f"cards.{card_id} duplicate variant_id: {variant_id}")
@@ -655,7 +859,14 @@ def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
     document = _require_mapping(spec, "spec")
     _require_fields(
         document,
-        ["schema_version", "project", "task_id", "creative_policy", "cards"],
+        [
+            "schema_version",
+            "project",
+            "task_id",
+            "creative_policy",
+            "character_roster",
+            "cards",
+        ],
         "spec",
     )
     if document["schema_version"] != SPEC_SCHEMA:
@@ -663,18 +874,19 @@ def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
     cards = document["cards"]
     if not isinstance(cards, list) or not cards:
         raise ValueError("spec.cards must be a non-empty list")
-    creative_policy = _require_mapping(
-        document["creative_policy"], "spec.creative_policy"
+    creative_policy = _validated_creative_policy(
+        document["creative_policy"],
+        project=str(document["project"]),
+        locator="spec.creative_policy",
     )
-    _require_fields(
-        creative_policy,
-        ["work_title", "female_modern_nail_art_allowed"],
-        "spec.creative_policy",
-    )
-    if not isinstance(creative_policy["female_modern_nail_art_allowed"], bool):
-        raise ValueError(
-            "spec.creative_policy.female_modern_nail_art_allowed must be boolean"
-        )
+    character_roster = document["character_roster"]
+    if not isinstance(character_roster, list) or not character_roster:
+        raise ValueError("spec.character_roster must be non-empty")
+    normalized_roster = [str(card_id).strip() for card_id in character_roster]
+    if any(not card_id for card_id in normalized_roster):
+        raise ValueError("spec.character_roster entries must be non-empty")
+    if len(normalized_roster) != len(set(normalized_roster)):
+        raise ValueError("spec.character_roster entries must be unique")
     compiled_cards = [
         _compile_card(
             _require_mapping(card, "spec.cards[]"),
@@ -685,6 +897,13 @@ def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
     card_ids = [card["card_id"] for card in compiled_cards]
     if len(card_ids) != len(set(card_ids)):
         raise ValueError("spec.cards card_id values must be unique")
+    character_card_ids = [
+        card["card_id"] for card in compiled_cards if card["kind"] == "character"
+    ]
+    if normalized_roster != character_card_ids:
+        raise ValueError(
+            "spec.character_roster must exactly match character card ids in order"
+        )
     source_refs = document.get("source_refs", [])
     if not isinstance(source_refs, list):
         raise ValueError("spec.source_refs must be a list")
@@ -698,6 +917,7 @@ def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
         "source_spec_sha256": _sha256(_canonical_bytes(document)),
         "source_refs": deepcopy(source_refs),
         "creative_policy": deepcopy(dict(creative_policy)),
+        "character_roster": normalized_roster,
         "generation_contract": deepcopy(_GENERATION_CONTRACT),
         "review_contract": deepcopy(_REVIEW_CONTRACT),
         "cards": compiled_cards,
@@ -718,7 +938,9 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
     issues: list[str] = []
     if not isinstance(pack, Mapping):
         return {"status": "blocked", "issues": ["pack must be a mapping"]}
-    if pack.get("schema_version") != PACK_SCHEMA:
+    schema_version = pack.get("schema_version")
+    legacy_mode = schema_version == LEGACY_PACK_SCHEMA
+    if schema_version not in {PACK_SCHEMA, LEGACY_PACK_SCHEMA}:
         issues.append("unsupported pack schema")
     if pack.get("candidate_only") is not True:
         issues.append("pack must remain candidate_only")
@@ -730,10 +952,26 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
         issues.append("generation_contract must bind image generation to Codex handoff")
     if pack.get("review_contract") != _REVIEW_CONTRACT:
         issues.append("review_contract does not match the Codex/Agy/Hermes boundary")
+    creative_policy: Mapping[str, Any] = {}
+    if not legacy_mode:
+        try:
+            creative_policy = _validated_creative_policy(
+                pack.get("creative_policy"),
+                project=str(pack.get("project") or ""),
+                locator="pack.creative_policy",
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            issues.append(f"creative_policy is invalid: {exc}")
     cards = pack.get("cards")
     if not isinstance(cards, list) or not cards:
         issues.append("cards must be a non-empty list")
         cards = []
+    character_roster = pack.get("character_roster")
+    if legacy_mode:
+        character_roster = []
+    elif not isinstance(character_roster, list) or not character_roster:
+        issues.append("character_roster must be a non-empty list")
+        character_roster = []
     seen: set[str] = set()
     for card_index, card in enumerate(cards):
         if not isinstance(card, Mapping):
@@ -744,22 +982,23 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
             issues.append(f"duplicate card_id: {card_id}")
         seen.add(card_id)
         kind = str(card.get("kind") or "")
-        contract = _KIND_CONTRACTS.get(kind)
+        contracts = _LEGACY_KIND_CONTRACTS if legacy_mode else _KIND_CONTRACTS
+        contract = contracts.get(kind)
         if contract is None:
             issues.append(f"{card_id}: unsupported kind")
             continue
         try:
-            rebuilt = _compile_card(
-                {
-                    "card_id": card_id,
-                    "kind": kind,
-                    "display_name": card.get("display_name"),
-                    "invariant": card.get("invariant"),
-                    "variants": card.get("variants"),
-                },
-                creative_policy=_require_mapping(
-                    pack.get("creative_policy"), "pack.creative_policy"
-                ),
+            source_card = {
+                "card_id": card_id,
+                "kind": kind,
+                "display_name": card.get("display_name"),
+                "invariant": card.get("invariant"),
+                "variants": card.get("variants"),
+            }
+            rebuilt = (
+                _compile_legacy_card(source_card)
+                if legacy_mode
+                else _compile_card(source_card, creative_policy=creative_policy)
             )
         except (KeyError, TypeError, ValueError) as exc:
             issues.append(f"{card_id}: cannot rebuild card: {exc}")
@@ -772,7 +1011,7 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
         required_shots = rebuilt["required_shot_ids"]
         if card.get("required_shot_ids") != required_shots:
             issues.append(f"{card_id}: required_shot_ids mismatch")
-        if card.get("character_detail_contract") != rebuilt.get(
+        if not legacy_mode and card.get("character_detail_contract") != rebuilt.get(
             "character_detail_contract"
         ):
             issues.append(f"{card_id}: character_detail_contract mismatch")
@@ -816,6 +1055,14 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
             issues.append(f"{card_id}: prompt shot coverage mismatch")
         if prompts != rebuilt["prompt_set"]:
             issues.append(f"{card_id}: prompt_set does not match variants")
+    if not legacy_mode:
+        observed_character_ids = [
+            str(card.get("card_id"))
+            for card in cards
+            if isinstance(card, Mapping) and card.get("kind") == "character"
+        ]
+        if character_roster != observed_character_ids:
+            issues.append("character_roster does not exactly match character cards")
     if pack.get("pack_sha256") != _pack_sha256(pack):
         issues.append("pack_sha256 mismatch")
     return {

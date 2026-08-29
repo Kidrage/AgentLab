@@ -286,8 +286,81 @@ def _prepare_visual_canary_prerequisite(
                 "work_title": "Protocol Canary",
                 "female_modern_nail_art_allowed": False,
             },
+            "character_roster": ["character-canary-keeper"],
             "source_refs": [],
             "cards": [
+                {
+                    "card_id": "character-canary-keeper",
+                    "kind": "character",
+                    "display_name": "守塔人",
+                    "invariant": {
+                        "gender": "male",
+                        "facial_structure": {
+                            "face_shape": "窄长方脸",
+                            "forehead": "额头中等",
+                            "cheekbones": "颧骨平缓",
+                            "jaw": "下颌清楚",
+                            "asymmetry": "左颊略高",
+                        },
+                        "facial_features": {
+                            "brows": "平直浓眉",
+                            "nose": "鼻梁略弯",
+                            "lips": "薄唇",
+                            "ears": "耳廓贴近",
+                            "distinguishing_marks": "左眉尾浅疤",
+                        },
+                        "skin": "中性麦色，保留风霜纹理",
+                        "eyes": {
+                            "shape": "狭长眼",
+                            "iris_color": "深褐",
+                            "eyelids": "窄内双",
+                            "spacing": "一眼宽",
+                            "gaze": "平静警觉",
+                        },
+                        "hair_color": {
+                            "base": "墨黑",
+                            "undertone": "冷棕",
+                            "highlights": "发梢灰褐",
+                        },
+                        "hairstyle": {
+                            "length": "及肩",
+                            "texture": "粗直发",
+                            "parting": "自然中分",
+                            "structure": "低束",
+                        },
+                        "hair_accessories": {
+                            "primary": "旧木簪",
+                            "materials": "哑光木",
+                            "placement": "低束横穿",
+                            "secondary": "隐藏棉绳",
+                        },
+                        "body": "成年男性，中等身高，清瘦耐劳",
+                        "hands": "手指修长，掌心有提灯形成的旧茧",
+                        "signature_details": "左眉尾浅疤与旧木簪",
+                        "negative_constraints": "不得改变脸型、眉疤和身高比例",
+                    },
+                    "variants": [
+                        {
+                            "variant_id": "night-watch",
+                            "state": "夜间守塔，清醒克制",
+                            "wardrobe": "深灰交领衣、旧斗篷与软底靴",
+                            "grooming": "面部洁净，鬓角受海风略乱",
+                            "hairstyle": {
+                                "form": "低束",
+                                "front": "自然中分",
+                                "back": "发尾及肩",
+                                "texture_state": "受潮成束",
+                            },
+                            "hair_accessories": {
+                                "items": "旧木簪与棉绳",
+                                "materials": "木与棉",
+                                "placement": "低束横穿",
+                                "condition": "旧而完整",
+                            },
+                            "wear_state": "斗篷下摆有盐雾磨痕",
+                        }
+                    ],
+                },
                 {
                     "card_id": "prop-canary-lantern",
                     "kind": "prop",
@@ -310,7 +383,7 @@ def _prepare_visual_canary_prerequisite(
                             "wear_state": "旧而完整",
                         }
                     ],
-                }
+                },
             ],
         },
     )

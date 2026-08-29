@@ -14,8 +14,10 @@ source hashes before recording the pack as an immutable ArtifactVersion. A
 directory by itself is never accepted as a Task or as production evidence.
 The spec contains a `creative_policy` with the work title and an explicit
 `female_modern_nail_art_allowed` boolean, plus one or more cards with globally
-unique `card_id` values. Version 1 inputs and packs are historical evidence;
-new compilation and prose prerequisites use version 2.
+unique `card_id` values. Version 1 inputs and packs are historical evidence:
+their sealed packs retain a read-only rebuild validator so an already-ledgered
+Task remains auditable and recoverable, but the compiler never creates a new
+version 1 pack. New compilation uses version 2.
 Supported kinds are:
 
 - `character`: branches on an explicit `gender` value. Both branches lock
