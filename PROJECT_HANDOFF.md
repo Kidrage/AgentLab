@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-08-29T04:56:12.840518+00:00`
+- Generated at: `2026-08-29T05:21:22.892733+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-production`
-- HEAD: `ade0b96`
+- HEAD: `5762928`
 - Indexed paths: 2091
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,7 +89,7 @@
 ### Categories
 
 - code: 1097 files, 11808143 bytes
-- literature: 425 files, 2445859 bytes
+- literature: 425 files, 2445265 bytes
 - other: 15 files, 75183 bytes
 - structured_data: 554 files, 3280672 bytes
 
@@ -232,6 +232,8 @@
 
 ## Change History
 
+- `5762928 2026-08-29 Merge pull request #15 from Kidrage/codex/shanhe-production`
+- `6c153dd 2026-08-29 docs: refresh visual production handoff`
 - `ade0b96 2026-08-29 feat(narrative): govern visual continuity references`
 - `69830da 2026-08-29 feat(narrative): add visual continuity detail cards`
 - `48864d4 2026-08-29 chore(narrative): checkpoint ShanHe production start`
@@ -250,13 +252,10 @@
 - `ce391a7 2026-08-24 stabilize production protocol kernel`
 - `803ac0f 2026-08-24 feat(runtime): stabilize versioned production protocols`
 - `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
-- `91cb273 2026-08-01 feat(narrative): materialize strict professional chapter DAGs`
-- `9e41606 2026-08-01 fix(background): bind Crown jobs to governed model settings`
 
 ## Current Changes
 
-- `## codex/shanhe-production...origin/main [ahead 3]`
-- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- `## codex/shanhe-production...origin/main`
 
 ## Related Repositories
 
@@ -844,8 +843,10 @@ system preference remain required before Gate 2 scaling or Phase 5.
   remain fail-closed pending fresh task-scoped candidate-only authorization.
   Start evidence and the proposed authorization statement are mirrored under
   `agents/codex/shanhe-production-start/` on TrueNAS.
-- 2026-08-29 CST: The reusable novel visual-development gate is complete on
-  `codex/shanhe-production`, pending commit/CI/merge. Formal Runtime-v2
+- 2026-08-29 CST: The reusable novel visual-development gate was delivered by
+  PR #15 to `main` at merge commit `5762928a3ae824ed8dbf16cdc8c8775bd7d3ac74`.
+  Branch, PR and post-merge main CI passed; main run `33235471290` completed
+  successfully. Formal Runtime-v2
   protocols now enforce `narrative.blueprint.v1 -> narrative.visual.v1 ->
   narrative.visual.reference.v1 -> narrative.chapter.v1`. Character cards
   preserve high-granularity face/body/hands/nails/wardrobe/state invariants;
@@ -862,10 +863,13 @@ system preference remain required before Gate 2 scaling or Phase 5.
   model doctor passes with seven optional unselected API-key warnings;
   acceptance hygiene and the 29-current/10-historical evidence chain pass;
   the authoritative full suite passes 3,756 with 21 skipped and 11 expected
-  missing-fixture warnings in 743.20 seconds. No image, prose, canon promotion
-  or human acceptance has been performed; after reviewed merge, begin
-  《山河有约》 by materializing its visual pack and first identity-reference
-  batch, then stop at the human visual gate.
+  missing-fixture warnings in 743.20 seconds. The actual 《山河有约》 visual
+  spec also compiles read-only as 19 cards (11 character, 1 map, 3 location,
+  4 prop) and 239 sealed prompts. No image, prose, canon promotion or human
+  acceptance has been performed. `task-shanhe-blueprint-006` remains running
+  with no eligible `story_blueprint`, so visual materialization correctly waits
+  for the pending R26 candidate-only outbound authorization and automated
+  blueprint gates rather than reusing a superseded candidate.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule
