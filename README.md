@@ -3,7 +3,8 @@
 [English](docs/README.en-US.md) | [中文](docs/README.zh-CN.md) |
 [Capability reference](docs/CURRENT_VERSION_CAPABILITIES.en-US.md) |
 [能力手册](docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md) |
-[Project Agents + Canonical Truth](docs/PROJECT_AGENTS_AND_TRUTH.md)
+[Project Agents + Canonical Truth](docs/PROJECT_AGENTS_AND_TRUTH.md) |
+[69 ↔ 250 工作区同步](docs/CLOUD_250_WORKSPACE_SYNC.zh-CN.md)
 
 AgentLab is a local-first governed production runtime for code, longform text,
 articles, typed artifacts, and media workflows. It owns task planning, role
@@ -35,6 +36,7 @@ Configuration authorities / 配置权威：
 - `config/agent_model_profiles.yml`: per-role worker/model / 角色壳与模型
 - `config/worker_invocation_contracts.yml`: shell commands / 壳命令
 - `config/model_capacity.yml`: declared fallback / 已声明 fallback
+- `docs/MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md`: honest CLI probes, reset canaries, and governed model updates / 真实探针、恢复与模型更新治理
 - `config/task_runtime_v2.yml`: Task/Job/WorkItem/Attempt identity and evidence policy
 
 Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`, `interface_sensitive_task`, `research_sensitive_task`, `large_or_risky_task`) plus governed production-pack routes such as `narrative_light_chapter`, `narrative_batch_chapters`, `narrative_heavy_audit`, `article_light_draft`, and `media_generation_task`.
@@ -55,7 +57,7 @@ Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`,
   --title "Implement one CLI fix" --goal "Implement a small CLI fix with tests" \
   --idempotency-key request-0001
 
-# Legacy compatibility during Runtime v2 migration
+# Legacy compatibility during Task Runtime migration
 ./agentlab.sh init-task --project AgentLab --task-id task_0001 \
   --request-text "Implement a small CLI fix with tests"
 ./agentlab.sh prepare --project AgentLab --task-id task_0001 --write-plan
@@ -91,8 +93,8 @@ ledger 和 state proposal 维护；检索只能提供证据，不能替代事实
 
 New Tasks use one hash-chained `events.jsonl` authority and rebuildable Task,
 Job, WorkItem, Attempt, artifact, evidence, progress, and handoff projections.
-Legacy runs remain dual-read during migration, while all Runtime v2 writes stay
-under `runtime/tasks/`. See `docs/TASK_RUNTIME_V2.md`.
+Legacy runs remain dual-read during migration, while all Task Runtime writes stay
+under `runtime/tasks/`. See `docs/TASK_RUNTIME.md`.
 
 每个 run 都有可恢复计划、状态、生命周期、事件、决策和 receipts。后台或新会话从
 这些文件查询进度，不需要持续占用一个前台对话盯任务。

@@ -1,0 +1,15 @@
+[Unit]
+Description=AgentLab weekly capability radar
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/AgentLab
+ExecStart=%h/AgentLab/scripts/run_capability_radar.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.agentlab_runtime

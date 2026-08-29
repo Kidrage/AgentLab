@@ -1,0 +1,44 @@
+schema_version: narrative-author-team-composition/v1
+contract_id: professional-longform-author-team
+description: >
+  Project-neutral composition and activation policy for professional longform
+  roles. Role manifests are owned by config/agent_registry.yml and execution
+  tiers are owned by config/agent_model_profiles.yml.
+authorities:
+  role_manifests: config/agent_registry.yml#professional_profiles
+  model_profiles: config/agent_model_profiles.yml#professional_role_profiles
+roles:
+  - authorial_director
+  - canon_timeline_steward
+  - plot_causality_architect
+  - character_ensemble_director
+  - relationship_director
+  - world_archaeologist
+  - foreshadow_mystery_keeper
+  - arc_scene_planner
+  - research_style_curator
+  - writer
+  - senior_editor
+  - reader_simulation_panel
+  - state_projector
+base_chapter_roles:
+  - authorial_director
+  - canon_timeline_steward
+  - arc_scene_planner
+  - writer
+  - senior_editor
+  - state_projector
+full_team_risks:
+  - battle
+  - death
+  - relationship_turn
+  - major_reveal
+  - volume_finale
+risk_role_map:
+  causality: [plot_causality_architect]
+  character_decision: [character_ensemble_director]
+  relationship_progression: [relationship_director, reader_simulation_panel]
+  world_semantics: [world_archaeologist]
+  foreshadow_payoff: [foreshadow_mystery_keeper, reader_simulation_panel]
+  research_or_style: [research_style_curator]
+  reader_promise: [reader_simulation_panel]

@@ -40,15 +40,13 @@ def _resolve_all(data: dict):
 
     # Define check combinations
     checks = [
+        ("full_cli", "alter", "supervisor"),
         ("full_cli", "full", "supervisor"),
         ("full_cli", "performance", "supervisor"),
         ("full_cli", "low", "supervisor"),
         ("full_cli", "full", "coder"),
         ("full_cli", "performance", "coder"),
-        ("full_api", "full", "supervisor"),
-        ("hybrid_ide", "full", "coder"),
         ("full_cli", "low", "interface_mapper"),
-        ("full_api", "performance", "coder"),
     ]
 
     for mode, tier, role in checks:
@@ -129,6 +127,10 @@ def main() -> int:
             print("WARN: Config has neither 'modes' nor 'profiles'.")
     else:
         print(f"Modes found: {sorted(data['modes'].keys())}")
+        if set(data["modes"]) != {"full_cli"}:
+            errors.append(
+                "agent_model_profiles.yml must configure only the full_cli mode"
+            )
 
     # 3. Resolve all check combos
     results = _resolve_all(data)
@@ -159,24 +161,6 @@ def main() -> int:
             )
         else:
             print(f"\n✓ full_cli/full/supervisor → CLI ({sup_result.get('cli_agent')})")
-
-    # full_api/full/supervisor should NOT resolve as CLI
-    api_sup = next(
-        (r for r in results
-         if r["role"] == "supervisor" and r["mode"] == "full_api" and r["tier"] == "full"),
-        None,
-    )
-    if api_sup and api_sup["resolved"]:
-        errors.append("full_api/full/supervisor should NOT resolve as CLI")
-
-    # hybrid_ide/full/coder should be special
-    ide_coder = next(
-        (r for r in results
-         if r["role"] == "coder" and r["mode"] == "hybrid_ide" and r["tier"] == "full"),
-        None,
-    )
-    if ide_coder and ide_coder["resolved"]:
-        errors.append("hybrid_ide/full/coder should NOT resolve as CLI (it's special)")
 
     # Legacy profiles: if config has both modes AND profiles, that's fine
     # but only-modes + only-profiles is already handled above.

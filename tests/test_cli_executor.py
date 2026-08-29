@@ -9,14 +9,60 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
+_REAL_SUBPROCESS_RUN = subprocess.run
+
 if TYPE_CHECKING:
     from agent_runtime.schemas import WorkflowPlan
+
+
+def test_hermes_classic_chat_exports_redacted_session_metadata(tmp_path: Path):
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _export_hermes_session_metadata
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    def fake_export(argv, **_kwargs):
+        assert argv[:3] == ["hermes", "-p", "agentlabalter"]
+        export_path = Path(argv[-1])
+        export_path.write_text(
+            json.dumps(
+                {
+                    "id": "20260825_143920_999180",
+                    "model": "grok-4.6",
+                    "billing_provider": "xai-oauth",
+                    "model_config": '{"reasoning_config":{"effort":"high"}}',
+                    "api_call_count": 3,
+                    "input_tokens": 169526,
+                    "output_tokens": 18050,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    with patch("cli_executor.subprocess.run", side_effect=fake_export):
+        metadata = _export_hermes_session_metadata(
+            "stderr diagnostic\nsession_id: 20260825_143920_999180\n",
+            run_dir=run_dir,
+            preflight={"workflow_shell_profile": "agentlabalter"},
+            process_env={},
+        )
+
+    assert metadata["model"] == "grok-4.6"
+    assert metadata["provider"] == "xai-oauth"
+    assert metadata["api_calls"] == 3
+    assert metadata["total_tokens"] == 187576
+    assert metadata["metadata_source"] == "hermes_redacted_session_export"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,6 +86,130 @@ def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> "WorkflowPlan":
         budget_mode=budget_mode,
         route=route,
     )
+
+
+def _authorize_external_packet(
+    plan: "WorkflowPlan",
+    *,
+    agent_name: str,
+    cli_agent_name: str,
+    sealed_messages: list[dict[str, str]] | None = None,
+    task_messages: list[dict[str, str]] | None = None,
+) -> None:
+    """Attach a real detached user signature for one exact outbound packet."""
+
+    from agent_runtime.approval_signature import (
+        approval_payload_bytes,
+        narrative_outbound_approval_payload,
+    )
+    from agent_runtime.cli_executor import _task_packet_payload
+
+    root = Path(plan.agentlab_root)
+    authority_root = root.parent / f".{root.name}-external-approval"
+    authority_root.mkdir(parents=True, exist_ok=True)
+    private_key = authority_root / "private.pem"
+    public_key = authority_root / "public.pem"
+    if not private_key.is_file():
+        subprocess.run(
+            [
+                "/usr/bin/openssl",
+                "genpkey",
+                "-algorithm",
+                "RSA",
+                "-pkeyopt",
+                "rsa_keygen_bits:2048",
+                "-out",
+                str(private_key),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "/usr/bin/openssl",
+                "pkey",
+                "-in",
+                str(private_key),
+                "-pubout",
+                "-out",
+                str(public_key),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+    config_path = root / "config" / "local_private_topology.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config = (
+        yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        if config_path.is_file()
+        else {}
+    )
+    config["external_context_approval_authority"] = {
+        "public_key_path": str(public_key),
+        "public_key_sha256": hashlib.sha256(public_key.read_bytes()).hexdigest(),
+    }
+    config_path.write_text(
+        yaml.safe_dump(config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    packet_text = json.dumps(
+        _task_packet_payload(
+            agent_name,
+            plan,
+            sealed_messages,
+            task_messages,
+        ),
+        indent=2,
+        ensure_ascii=False,
+    )
+    packet_sha256 = hashlib.sha256(packet_text.encode("utf-8")).hexdigest()
+    scope_sha256 = hashlib.sha256(
+        f"{plan.task_id}:{agent_name}:{cli_agent_name}".encode("utf-8")
+    ).hexdigest()
+    expires_at = "2999-01-01T00:00:00Z"
+    recipient = f"cli_agent:{cli_agent_name}"
+    purpose = "bounded role session test"
+    payload = narrative_outbound_approval_payload(
+        project=str(plan.project),
+        task_id=str(plan.task_id),
+        recipient=recipient,
+        purpose=purpose,
+        packet_payload_sha256=packet_sha256,
+        scope_sha256=scope_sha256,
+        expires_at=expires_at,
+    )
+    payload_path = authority_root / f"{plan.task_id}-{agent_name}.json"
+    payload_path.write_bytes(approval_payload_bytes(payload))
+    signature_path = authority_root / f"{plan.task_id}-{agent_name}.sig"
+    subprocess.run(
+        [
+            "/usr/bin/openssl",
+            "dgst",
+            "-sha256",
+            "-sign",
+            str(private_key),
+            "-out",
+            str(signature_path),
+            str(payload_path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    plan.execution_policy = {
+        "external_context_approval_required": True,
+        "external_context_payload_sha256_required": True,
+        "external_context_scope_sha256_required": True,
+        "external_context_scope_contract_valid": True,
+        "external_context_scope_sha256": scope_sha256,
+        "external_context_approval_signature_path": str(signature_path),
+        "external_context_transfer": {
+            "recipient": recipient,
+            "purpose": purpose,
+            "expires_at": expires_at,
+        },
+    }
 
 
 def _hermes_supervisor_fixture(
@@ -165,6 +335,121 @@ def test_qwen_role_contract_maps_dashscope_auth_without_cli_secret(
     )
 
 
+def test_claude_contract_imports_only_allowlisted_private_settings_env(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _contract_process_environment
+
+    config_dir = tmp_path / "runtime" / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "claude_writer": {
+                        "environment": {"load_user_settings_env": True}
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    settings_dir = tmp_path / ".claude"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text(
+        json.dumps(
+            {
+                "env": {
+                    "ANTHROPIC_AUTH_TOKEN": "private-test-token",
+                    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+                    "ANTHROPIC_MODEL": "deepseek-v4-pro",
+                    "UNRELATED_SECRET": "must-not-cross-boundary",
+                },
+                "hooks": {"SessionStart": [{"command": "must-not-run"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "ambient-anthropic-key")
+    monkeypatch.setenv("ANTHROPIC_CUSTOM_HEADERS", "x-api-key: ambient-key")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "ambient-oauth-token")
+    monkeypatch.setenv("CLAUDE_CODE_USE_BEDROCK", "1")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "ambient-aws-key")
+
+    process_env, applied = _contract_process_environment(
+        {"cli_agent": "claude_code", "invocation_contract": "claude_writer"},
+        tmp_path / "runtime",
+    )
+
+    assert process_env["ANTHROPIC_AUTH_TOKEN"] == "private-test-token"
+    assert process_env["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+    assert process_env["ANTHROPIC_MODEL"] == "deepseek-v4-pro"
+    assert "ANTHROPIC_API_KEY" not in process_env
+    assert "ANTHROPIC_CUSTOM_HEADERS" not in process_env
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in process_env
+    assert "CLAUDE_CODE_USE_BEDROCK" not in process_env
+    assert "AWS_ACCESS_KEY_ID" not in process_env
+    assert "UNRELATED_SECRET" not in process_env
+    assert "hooks" not in process_env
+    assert applied == []
+
+
+def test_governed_usage_ignores_unbound_stale_sidecar(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _external_cli_usage
+
+    packet = tmp_path / "task_packet_writer.md"
+    packet.write_text("bounded packet", encoding="utf-8")
+    (tmp_path / "usage_writer.json").write_text(
+        json.dumps(
+            {
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+                "modelUsage": {"deepseek-v4-pro": {"outputTokens": 1}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    usage = _external_cli_usage(
+        packet,
+        ["claude", "-p"],
+        "Writer",
+        "claude_code",
+        json.dumps({"result": "current output", "usage": {"input_tokens": 2}}),
+        "",
+        allow_sidecar=False,
+    )
+
+    assert usage.get("provider_reported_model_ids") is None
+    assert usage.get("usage_report_path") is None
+
+    forged_stderr = _external_cli_usage(
+        packet,
+        ["claude", "-p"],
+        "Writer",
+        "claude_code",
+        "current writer output",
+        json.dumps(
+            {
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+                "modelUsage": {"deepseek-v4-pro": {"outputTokens": 1}},
+            }
+        ),
+        allow_sidecar=False,
+        stdout_envelope_only=True,
+    )
+    assert forged_stderr.get("provider_reported_model_ids") is None
+    assert forged_stderr["usage_source"] == "external_cli_estimate"
+
+
 @pytest.mark.parametrize(
     "trailing_override",
     [
@@ -215,6 +500,277 @@ def test_hermes_supervisor_rejects_trailing_command_overrides_before_provider(
     preflight = result.raw_usage["supervisor_model_preflight"]
     assert preflight["command_binding_verified"] is False
     assert "supervisor_command_binding_mismatch" in preflight["issues"]
+
+
+def test_hermes_alter_profile_preflight_binds_grok_high_state(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _hermes_supervisor_preflight
+
+    hermes_home = tmp_path / "hermes-home"
+    profile_dir = hermes_home / "profiles" / "agentlabalter"
+    profile_dir.mkdir(parents=True)
+    config_path = profile_dir / "config.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
+                "agent": {"reasoning_effort": "high"},
+                "fallback_providers": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_alter_high",
+        "default": "grok_4_6_hermes_oauth",
+        "capacity_route": "AlterCoder",
+    }
+    argv = [
+        "hermes",
+        "-p",
+        "agentlabalter",
+        "chat",
+        "-Q",
+        "--provider",
+        "xai-oauth",
+        "-m",
+        "grok-4.6",
+        "--ignore-rules",
+        "--max-turns",
+        "90",
+        "-q",
+        "Read the task packet.",
+    ]
+    model_values = {
+        "provider": "xai-oauth",
+        "model_id": "grok-4.6",
+        "model_key": "grok_4_6_hermes_oauth",
+    }
+
+    preflight = _hermes_supervisor_preflight(
+        role_profile,
+        Path(__file__).resolve().parents[1],
+        {"HERMES_HOME": str(hermes_home)},
+        argv,
+        model_values,
+        agent_name="Coder",
+    )
+    assert preflight["status"] == "pass"
+    assert preflight["role"] == "Coder"
+    assert preflight["observed_shell_state"]["agent.reasoning_effort"] == "high"
+    assert preflight["command_binding_verified"] is True
+
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
+                "agent": {"reasoning_effort": "medium"},
+                "fallback_providers": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    drifted = _hermes_supervisor_preflight(
+        role_profile,
+        Path(__file__).resolve().parents[1],
+        {"HERMES_HOME": str(hermes_home)},
+        argv,
+        model_values,
+        agent_name="Coder",
+    )
+    assert drifted["status"] == "fail"
+    assert "profile_state_mismatch:agent.reasoning_effort" in drifted["issues"]
+
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
+                "agent": {"reasoning_effort": "high"},
+                "fallback_providers": [
+                    {"provider": "openrouter", "model": "other-model"}
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    fallback_drifted = _hermes_supervisor_preflight(
+        role_profile,
+        Path(__file__).resolve().parents[1],
+        {"HERMES_HOME": str(hermes_home)},
+        argv,
+        model_values,
+        agent_name="Coder",
+    )
+    assert fallback_drifted["status"] == "fail"
+    assert "profile_state_mismatch:fallback_providers" in fallback_drifted["issues"]
+
+
+def test_hermes_alter_runtime_verifies_session_metadata_from_stderr(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import run_cli_agent
+
+    plan = _make_plan(tmp_path)
+    Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "grok_4_6_hermes_oauth": {
+                        "provider": "xai_oauth",
+                        "runtime_provider": "xai-oauth",
+                        "cli_provider": "xai-oauth",
+                        "model_id": "grok-4.6",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_alter_high": {
+                        "worker_id": "hermes",
+                        "workflow_shell_profile": "agentlabalter",
+                        "template": (
+                            "hermes -p agentlabalter chat -Q --provider {provider} "
+                            "-m {model_id} --ignore-rules --max-turns 90 "
+                            "-q \"Read {task_packet_path}\""
+                        ),
+                        "required_shell_state": {
+                            "model.provider": "xai-oauth",
+                            "model.default": "grok-4.6",
+                            "agent.reasoning_effort": "high",
+                            "fallback_providers": [],
+                            "fallback_model": None,
+                        },
+                        "requested_reasoning_label": "high",
+                        "resolved_reasoning_effort": "high",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    hermes_home = tmp_path / "hermes-home"
+    profile = hermes_home / "profiles" / "agentlabalter"
+    profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "model": {"provider": "xai-oauth", "default": "grok-4.6"},
+                "agent": {"reasoning_effort": "high"},
+                "fallback_providers": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_alter_high",
+        "default": "grok_4_6_hermes_oauth",
+    }
+
+    def fake_run(argv, **_kwargs):
+        if "sessions" in argv:
+            Path(argv[-1]).write_text(
+                json.dumps(
+                    {
+                        "id": "alter-session-001",
+                        "model": "grok-4.6",
+                        "billing_provider": "xai-oauth",
+                        "api_call_count": 2,
+                        "input_tokens": 100,
+                        "output_tokens": 20,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            "# Alter report\n",
+            "session_id: alter-session-001\n",
+        )
+
+    with patch.dict(
+        "os.environ", {"HERMES_HOME": str(hermes_home)}, clear=False
+    ), patch(
+        "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+    ), patch(
+        "cli_executor.subprocess.run", side_effect=fake_run
+    ):
+        result = run_cli_agent(plan, "Coder", role_profile)
+
+    assert result.status == "completed"
+    assert result.raw_usage["hermes_session_metadata"]["model"] == "grok-4.6"
+    assert result.raw_usage["hermes_session_metadata"]["provider"] == "xai-oauth"
+    receipt = yaml.safe_load(
+        Path(result.raw_usage["model_execution_receipt"]).read_text(encoding="utf-8")
+    )
+    assert receipt["provider_model_binding_verified"] is True
+    assert receipt["provider_metadata_source"] == "hermes_redacted_session_export"
+    assert receipt["provider_session_id"] == "alter-session-001"
+
+
+def test_hermes_usage_file_captures_provider_reported_model(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _ensure_hermes_usage_file_arg, _load_hermes_usage_file
+
+    argv = [
+        "hermes",
+        "--ignore-rules",
+        "--provider",
+        "xai-oauth",
+        "-m",
+        "grok-4.6",
+        "-z",
+        "probe",
+    ]
+    usage_path = _ensure_hermes_usage_file_arg(argv, tmp_path, "hermes")
+
+    assert usage_path is not None
+    assert argv[argv.index("-z") - 2 : argv.index("-z")] == [
+        "--usage-file",
+        str(usage_path),
+    ]
+    usage_path.write_text(
+        json.dumps(
+            {
+                "model": "grok-4.6",
+                "provider": "xai-oauth",
+                "completed": True,
+                "input_tokens": 12,
+                "output_tokens": 3,
+                "total_tokens": 15,
+            }
+        ),
+        encoding="utf-8",
+    )
+    usage = _load_hermes_usage_file(usage_path, tmp_path)
+    assert usage["model"] == "grok-4.6"
+    assert usage["provider"] == "xai-oauth"
 
 
 def test_codex_supervisor_preflight_derives_model_binding_from_config(
@@ -345,6 +901,93 @@ def _agy_observer_fixture(tmp_path: Path) -> dict:
     }
 
 
+def test_hermes_deepseek_preflight_accepts_only_the_exact_governed_binding(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _hermes_supervisor_preflight
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_deepseek": {
+                        "worker_id": "hermes",
+                        "required_runtime_provider": "deepseek",
+                        "required_model_keys": ["deepseek_v4_flash_hermes_private"],
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_deepseek",
+        "default": "deepseek_v4_flash_hermes_private",
+        "capacity_selected_route": "AlterVerifier",
+        "capacity_pool": "deepseek_metered_api",
+    }
+    argv = [
+        "hermes",
+        "--provider",
+        "deepseek",
+        "-m",
+        "deepseek-v4-flash",
+        "--safe-mode",
+        "-t",
+        "",
+        "--usage-file",
+        "/tmp/usage.json",
+        "-z",
+        "Read the bounded task packet.",
+    ]
+
+    result = _hermes_supervisor_preflight(
+        role_profile,
+        tmp_path,
+        {},
+        argv,
+        {
+            "provider": "deepseek",
+            "model_id": "deepseek-v4-flash",
+            "model_key": "deepseek_v4_flash_hermes_private",
+        },
+        agent_name="Verifier",
+    )
+
+    assert result["status"] == "pass"
+    assert result["role"] == "Verifier"
+    assert result["required_shell_state"] == {
+        "model.provider": "deepseek",
+        "model.default": "deepseek-v4-flash",
+        "fallback_providers": [],
+        "fallback_model": None,
+    }
+
+    wrong_provider = list(argv)
+    wrong_provider[2] = "xai-oauth"
+    blocked = _hermes_supervisor_preflight(
+        role_profile,
+        tmp_path,
+        {},
+        wrong_provider,
+        {
+            "provider": "deepseek",
+            "model_id": "deepseek-v4-flash",
+            "model_key": "deepseek_v4_flash_hermes_private",
+        },
+        agent_name="Verifier",
+    )
+    assert blocked["status"] == "fail"
+    assert "hermes_deepseek_command_binding_mismatch" in blocked["issues"]
+
+
 def test_contract_env_injects_default_proxy_for_agy_governed_contract_when_missing(
     tmp_path: Path,
 ) -> None:
@@ -396,6 +1039,42 @@ def test_contract_env_preserves_explicit_proxy_for_agy_governed_contract(
     assert process_env.get("HTTP_PROXY") is None
 
 
+def test_contract_env_sets_bounded_hermes_stale_timeout(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _contract_process_environment
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_alter_high": {
+                        "worker_id": "hermes",
+                        "environment": {
+                            "set": {"HERMES_API_CALL_STALE_TIMEOUT": "300"}
+                        },
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_alter_high",
+    }
+
+    with patch.dict("cli_executor.os.environ", {}, clear=True):
+        process_env, applied = _contract_process_environment(role_profile, tmp_path)
+
+    assert process_env["HERMES_API_CALL_STALE_TIMEOUT"] == "300"
+    assert applied == ["HERMES_API_CALL_STALE_TIMEOUT"]
+
+
 def test_agy_oauth_preflight_reports_proxy_url_and_source(
     tmp_path: Path,
 ) -> None:
@@ -420,6 +1099,284 @@ def test_agy_oauth_preflight_reports_proxy_url_and_source(
 
     assert preflight["proxy_url"] == "http://localhost:49468"
     assert preflight["proxy_source"] == "inherited_from_environment"
+
+
+def test_agy_oauth_preflight_redacts_proxy_credentials_and_query() -> None:
+    from cli_executor import _agy_oauth_preflight
+
+    role_profile = {
+        "cli_agent": "agy",
+        "invocation_contract": "agy_observer",
+        "default": "agy-gemini-3-pro",
+    }
+    argv = ["agy", "--model", "gemini-3-pro", "--sandbox"]
+    model_values = {
+        "model_key": "agy-gemini-3-pro",
+        "model_id": "gemini-3-pro",
+        "catalog_model_id": "gemini-3-pro",
+        "provider": "agy-gemini-oauth",
+    }
+    process_env = {
+        "HTTPS_PROXY": (
+            "http://demo-user:demo-password@proxy.example:8080/private?token=secret"
+        )
+    }
+
+    preflight = _agy_oauth_preflight(role_profile, argv, model_values, process_env)
+
+    assert preflight["proxy_url"] == "http://proxy.example:8080"
+    rendered = yaml.safe_dump(preflight, sort_keys=False)
+    assert "demo-user" not in rendered
+    assert "demo-password" not in rendered
+    assert "token=secret" not in rendered
+
+
+def test_agy_research_preflight_rejects_missing_option_values_without_crashing() -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _agy_oauth_preflight
+
+    role_profile = {
+        "cli_agent": "agy",
+        "invocation_contract": "agy_research",
+        "default": "agy-gemini-3-6-flash-high",
+    }
+    preflight = _agy_oauth_preflight(
+        role_profile,
+        [
+            "agy",
+            "--sandbox",
+            "--model",
+            "gemini-3.6-flash-high",
+            "--output-format",
+        ],
+        {
+            "model_key": "agy-gemini-3-6-flash-high",
+            "model_id": "gemini-3.6-flash-high",
+            "catalog_model_id": "gemini-3.6-flash-high",
+            "provider": "agy-gemini-oauth",
+        },
+        {"HTTPS_PROXY": "http://127.0.0.1:7890"},
+    )
+
+    assert preflight["status"] == "fail"
+    assert "agy_command_model_binding_mismatch" in preflight["issues"]
+
+
+def test_agy_research_requires_bounded_messages_before_process_start(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import CliAgentNotAvailable, run_cli_agent
+
+    plan = _make_plan(tmp_path)
+    role_profile = _agy_observer_fixture(tmp_path)
+    role_profile["invocation_contract"] = "agy_research"
+    contracts_path = tmp_path / "config" / "worker_invocation_contracts.yml"
+    contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
+    contracts["contracts"]["agy_research"] = {
+        "worker_id": "agy",
+        "allowed_mcp_tools": ["web_search_exa"],
+        "allowed_broker_tools": ["view_file", "call_mcp_tool"],
+        "template": 'agy --sandbox --model "{model_id}" -p "bounded research"',
+    }
+    contracts_path.write_text(yaml.safe_dump(contracts), encoding="utf-8")
+
+    with patch("cli_executor.subprocess.run") as provider_run:
+        result = run_cli_agent(plan, "Researcher", role_profile)
+
+    assert isinstance(result, CliAgentNotAvailable)
+    assert result.reason == "agy_research_bounded_context_required"
+    provider_run.assert_not_called()
+
+
+def test_agy_research_final_answer_url_cannot_replace_bound_exa_result(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _agy_research_tool_audit
+
+    conversation_id = "agy-no-result"
+    stdout = "\n".join(
+        json.dumps(event)
+        for event in (
+            {
+                "event": "init",
+                "conversation_id": conversation_id,
+                "init": {"model": "gemini-3.6-flash-high"},
+            },
+            {
+                "event": "step_update",
+                "step_update": {
+                    "conversation_id": conversation_id,
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "call_mcp_tool",
+                    "tool_info": {
+                        "parameters": {
+                            "ServerName": "exa",
+                            "ToolName": "web_search_exa",
+                            "Arguments": {"query": "public canary"},
+                        }
+                    },
+                },
+            },
+            {
+                "event": "result",
+                "result": {"response": "Sources: https://fabricated.invalid/claim"},
+            },
+        )
+    )
+
+    audit = _agy_research_tool_audit(
+        stdout,
+        {
+            "allowed_mcp_tools": ["web_search_exa"],
+            "allowed_broker_tools": ["view_file", "call_mcp_tool"],
+        },
+        tmp_path,
+        expected_model_id="gemini-3.6-flash-high",
+    )
+
+    assert audit["status"] == "blocked"
+    assert audit["source_urls"] == []
+    assert "agy_research_bound_result_missing" in audit["issues"]
+    assert "agy_research_source_urls_missing" in audit["issues"]
+
+    wrong_model = _agy_research_tool_audit(
+        stdout,
+        {
+            "allowed_mcp_tools": ["web_search_exa"],
+            "allowed_broker_tools": ["view_file", "call_mcp_tool"],
+        },
+        tmp_path,
+        expected_model_id="gemini-unrequested-model",
+    )
+    assert "agy_research_init_model_mismatch" in wrong_model["issues"]
+
+
+def test_agy_research_binds_result_step_and_final_sources(tmp_path: Path) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _agy_research_tool_audit
+
+    conversation_id = "agy-bound-step"
+
+    def audit_for(
+        step_id: str,
+        final_url: str | None,
+        *,
+        type_result_envelope: bool = False,
+    ):
+        result_path = (
+            tmp_path
+            / ".gemini"
+            / "antigravity-cli"
+            / "brain"
+            / conversation_id
+            / ".system_generated"
+            / "steps"
+            / step_id
+            / "output.txt"
+        )
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            "Source: https://real.example/source\n", encoding="utf-8"
+        )
+        final_text = f"Sources: {final_url}" if final_url else "Research complete."
+        final_event = (
+            {"type": "result", "subtype": "success", "result": final_text}
+            if type_result_envelope
+            else {"event": "result", "result": {"response": final_text}}
+        )
+        events = [
+            {
+                "event": "init",
+                "conversation_id": conversation_id,
+                "init": {"model": "gemini-3.6-flash-high"},
+            },
+            {
+                "event": "step_update",
+                "step_update": {
+                    "conversation_id": conversation_id,
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "view_file",
+                    "tool_info": {
+                        "parameters": {
+                            "AbsolutePath": str(
+                                tmp_path
+                                / ".gemini"
+                                / "antigravity-cli"
+                                / "mcp"
+                                / "exa"
+                                / "web_search_exa.json"
+                            )
+                        }
+                    },
+                },
+            },
+            {
+                "event": "step_update",
+                "step_update": {
+                    "conversation_id": conversation_id,
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "call_mcp_tool",
+                    "tool_info": {
+                        "parameters": {
+                            "ServerName": "exa",
+                            "ToolName": "web_search_exa",
+                            "Arguments": {"query": "bounded source"},
+                        }
+                    },
+                },
+            },
+            {
+                "event": "step_update",
+                "step_update": {
+                    "conversation_id": conversation_id,
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "view_file",
+                    "tool_info": {"parameters": {"AbsolutePath": str(result_path)}},
+                },
+            },
+            final_event,
+        ]
+        with patch("cli_executor.Path.home", return_value=tmp_path):
+            return _agy_research_tool_audit(
+                "\n".join(json.dumps(event) for event in events),
+                {
+                    "allowed_mcp_tools": ["web_search_exa"],
+                    "allowed_broker_tools": ["view_file", "call_mcp_tool"],
+                },
+                tmp_path,
+                expected_model_id="gemini-3.6-flash-high",
+            )
+
+    wrong_step = audit_for("999", "https://real.example/source")
+    assert wrong_step["status"] == "blocked"
+    assert "agy_research_bound_result_missing" in wrong_step["issues"]
+
+    fabricated_final = audit_for("2", "https://fabricated.invalid/claim")
+    assert fabricated_final["source_urls"] == ["https://real.example/source"]
+    assert fabricated_final["status"] == "blocked"
+    assert "agy_research_final_answer_source_not_bound" in fabricated_final["issues"]
+
+    fabricated_stream_result = audit_for(
+        "2",
+        "https://fabricated.invalid/claim",
+        type_result_envelope=True,
+    )
+    assert fabricated_stream_result["status"] == "blocked"
+    assert "agy_research_final_answer_source_not_bound" in fabricated_stream_result["issues"]
+
+    missing_sources = audit_for("2", None, type_result_envelope=True)
+    assert missing_sources["status"] == "blocked"
+    assert "agy_research_final_answer_sources_missing" in missing_sources["issues"]
 
 
 def _grok_research_fixture(
@@ -503,6 +1460,59 @@ def _grok_research_fixture(
         },
         hermes_home,
     )
+
+
+def _grok_native_fixture(tmp_path: Path) -> dict:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "native_grok_model": {
+                        "provider": "grok_cli_oauth",
+                        "runtime_provider": "grok-cli-oauth",
+                        "cli_provider": "grok",
+                        "model_id": "grok-4.5",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "grok_native_high": {
+                        "worker_id": "grok",
+                        "invocation_style": "bounded_role_task_packet",
+                        "template": (
+                            "grok --model {model_id} --reasoning-effort high "
+                            "--permission-mode plan --disable-web-search "
+                            "--no-subagents --no-memory --output-format plain "
+                            '--verbatim --single "Read the bounded AgentLab role '
+                            "task packet at {task_packet_path}; execute only the "
+                            'assigned role contract."'
+                        ),
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "executor_type": "cli_agent",
+        "cli_agent": "grok",
+        "invocation_contract": "grok_native_high",
+        "default": "native_grok_model",
+        "capacity_selected_route": "ProfessionalGrokSupervisor",
+        "capacity_pool": "grok_cli_subscription",
+        "capacity_attempt_id": "native-grok-attempt-1",
+        "capacity_selection_kind": "direct",
+    }
 
 
 def _sample_profiles(executor_type: str = "cli_agent") -> dict:
@@ -653,8 +1663,8 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
 class TestResolveCliProfileSchemaV4:
     """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
 
-    def test_real_default_full_cli_supervisor_resolves_to_native_codex(self):
-        """The real default mode/tier keeps Supervisor on native Codex OAuth."""
+    def test_real_default_full_cli_supervisor_resolves_to_hermes_codex(self):
+        """The real default mode/tier keeps Supervisor on governed Hermes Codex."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -666,15 +1676,16 @@ class TestResolveCliProfileSchemaV4:
 
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
-        assert result["resolved_tier"] == "performance"
-        assert result["cli_agent"] == "codex"
-        assert result["invocation_contract"] == "codex_supervisor"
-        assert result["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
-        assert result["capacity_route"] == "Supervisor"
+        assert result["resolved_tier"] == "alter"
+        assert result["cli_agent"] == "hermes"
+        assert result["invocation_contract"] == "hermes_supervisor"
+        assert result["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+        assert result["reasoning_effort"] == "xhigh"
+        assert result["capacity_route"] == "AlterSupervisor"
         assert "fallback" not in result
 
-    def test_real_default_full_cli_writer_resolves_to_agy_gemini(self):
-        """The real default mode/tier selects governed Agy Writer first."""
+    def test_real_default_full_cli_writer_resolves_to_claude_deepseek_pro(self):
+        """The real default alter tier selects the isolated Claude Writer."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -686,11 +1697,11 @@ class TestResolveCliProfileSchemaV4:
 
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
-        assert result["resolved_tier"] == "performance"
-        assert result["cli_agent"] == "agy"
-        assert result["invocation_contract"] == "agy_writer"
-        assert result["default"] == "gemini_3_5_flash_high_agy_oauth"
-        assert result["capacity_route"] == "WriterAgy"
+        assert result["resolved_tier"] == "alter"
+        assert result["cli_agent"] == "claude_code"
+        assert result["invocation_contract"] == "claude_writer"
+        assert result["default"] == "deepseek_v4_pro"
+        assert result["capacity_route"] == "AlterWriter"
         assert "fallback" not in result
 
     def test_full_cli_full_supervisor_resolves_cli(self):
@@ -1498,6 +2509,65 @@ class TestRunCliAgentSubprocess:
         assert execution_log["commands"][0]["command_id"] == result.raw_usage["command_id"]
         assert execution_log["commands"][0]["exit_code"] == 0
 
+    def test_external_context_env_cannot_self_approve_without_signature(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        scope_sha256 = "a" * 64
+        plan.execution_policy = {
+            "external_context_approval_required": True,
+            "external_context_payload_sha256_required": True,
+            "external_context_scope_sha256_required": True,
+            "external_context_scope_contract_valid": True,
+            "external_context_scope_sha256": scope_sha256,
+            "external_context_transfer": {
+                "recipient": "cli_agent:hermes;runtime_provider:test",
+                "purpose": "bounded test transfer",
+                "expires_at": "2999-01-01T00:00:00Z",
+            },
+        }
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "hermes",
+            "cli_command": "hermes --task {task_packet_path}",
+            "default": "deepseek_v4_pro",
+        }
+        monkeypatch.setenv("AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED", "1")
+        monkeypatch.setenv(
+            "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256",
+            "b" * 64,
+        )
+        monkeypatch.setenv(
+            "AGENTLAB_ROLE_SESSION_ACCEPTANCE_SCOPE_SHA256",
+            scope_sha256,
+        )
+
+        with patch(
+            "cli_executor.shutil.which",
+            return_value="/usr/bin/hermes",
+        ), patch("cli_executor.subprocess.run") as process:
+            result = run_cli_agent(
+                plan,
+                "Supervisor",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "private context"}
+                ],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.error == "supervisor_outbound_context_gate_blocked"
+        process.assert_not_called()
+
     def test_hermes_supervisor_runtime_binds_extra_to_xhigh_and_writes_receipt(
         self,
         tmp_path,
@@ -1512,9 +2582,32 @@ class TestRunCliAgentSubprocess:
         observed: dict[str, object] = {}
 
         def fake_run(argv, **kwargs):
+            if "sessions" in argv and "export" in argv:
+                Path(argv[-1]).write_text(
+                    json.dumps(
+                        {
+                            "id": "supervisor-test-session",
+                            "model": "gpt-5.6-sol",
+                            "billing_provider": "openai-codex",
+                            "model_config": {"reasoning_effort": "xhigh"},
+                            "api_call_count": 1,
+                            "input_tokens": 10,
+                            "output_tokens": 5,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                return self._mock_proc(0, stdout="")
             observed["argv"] = argv
             observed["env"] = kwargs["env"]
-            return self._mock_proc(0, stdout="# Governed Supervisor Plan\n")
+            return self._mock_proc(
+                0,
+                stdout=(
+                    "# Governed Supervisor Plan\n"
+                    "session_id: supervisor-test-session\n"
+                ),
+            )
 
         with patch.dict("os.environ", {"HERMES_HOME": str(hermes_home)}, clear=False), \
              patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
@@ -1554,7 +2647,8 @@ class TestRunCliAgentSubprocess:
         assert receipt["profile_state_verified"] is True
         assert receipt["command_binding_verified"] is True
         assert receipt["provider_process_started"] is True
-        assert receipt["provider_response_metadata_observed"] is False
+        assert receipt["provider_response_metadata_observed"] is True
+        assert receipt["provider_model_binding_verified"] is True
 
     def test_grok_research_runs_only_from_read_only_sealed_workspace_and_writes_receipt(
         self,
@@ -1657,6 +2751,60 @@ class TestRunCliAgentSubprocess:
         )
         assert len(chain["attempts"]) == 1
         assert chain["final"]["receipt_path"] == str(receipt_path)
+
+    def test_native_grok_success_writes_route_verified_model_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        role_profile = _grok_native_fixture(tmp_path)
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/local/bin/grok"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(
+                0,
+                stdout="# Authorial direction\n\nProceed with the locked canon.\n",
+            ),
+        ):
+            result = run_cli_agent(
+                plan,
+                "Supervisor",
+                role_profile,
+                sealed_messages=[
+                    {
+                        "role": "user",
+                        "content": "Return the governed authorial direction.",
+                    }
+                ],
+            )
+
+        assert result.status == "completed"
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["status"] == "pass"
+        assert receipt["role"] == "Supervisor"
+        assert receipt["worker"] == "grok"
+        assert receipt["invocation_contract"] == "grok_native_high"
+        assert receipt["provider"] == "grok-cli-oauth"
+        assert receipt["model"] == "grok-4.5"
+        assert receipt["profile_binding_verified"] is True
+        assert receipt["command_binding_verified"] is True
+        assert receipt["provider_process_started"] is True
+        assert receipt["auth_presence_verified"] is False
+        assert receipt["provider_auth_result_observed"] is True
+        assert receipt["evidence_source"] == (
+            "runtime_verified_argv_profile_workspace_and_process_result"
+        )
+        assert receipt["fallback_detected"] is False
+        assert receipt["issues"] == []
 
     def test_grok_research_missing_oauth_credential_blocks_before_provider_process(
         self,
@@ -1792,6 +2940,523 @@ class TestRunCliAgentSubprocess:
         )
         assert receipt["status"] == "fail"
         assert receipt["provider_process_started"] is False
+
+    def test_agy_research_blocks_non_exa_tool_events_and_writes_sources_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+        role_profile["invocation_contract"] = "agy_research"
+        role_profile["capacity_selected_route"] = "Researcher"
+        contracts_path = tmp_path / "config" / "worker_invocation_contracts.yml"
+        contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
+        contracts["contracts"]["agy_research"] = {
+            "worker_id": "agy",
+            "invocation_style": "sourced_research_task_packet",
+            "allowed_mcp_tools": ["web_search_exa", "web_fetch_exa"],
+            "allowed_broker_tools": ["view_file", "call_mcp_tool"],
+            "template": (
+                'agy --sandbox --model "{model_id}" '
+                '--output-format stream-json --disable-slash-commands '
+                '-p "Read {task_packet_path}"'
+            ),
+        }
+        contracts_path.write_text(
+            yaml.safe_dump(contracts, sort_keys=False),
+            encoding="utf-8",
+        )
+        source_path = tmp_path / "research-source.md"
+        source_path.write_text("public canary", encoding="utf-8")
+        stdout = "\n".join(
+            json.dumps(event)
+            for event in (
+                {
+                    "event": "init",
+                    "conversation_id": "agy-research-blocked",
+                    "init": {"model": "gemini-3.5-flash-high"},
+                },
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": "agy-research-blocked",
+                        "state": "ACTIVE",
+                        "step_type": "tool",
+                        "tool_name": "write_to_file",
+                        "tool_info": {"parameters": {"AbsolutePath": "/tmp/nope"}},
+                    },
+                },
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": "Unsupported source claim.",
+                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                },
+            )
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout=stdout, stderr=""),
+        ):
+            result = run_cli_agent(
+                plan,
+                "Researcher",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "public canary"}],
+                outbound_source_paths=[source_path],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.error == "agy_research_tool_audit_failed"
+        audit = result.raw_usage["agy_research_tool_audit"]
+        assert audit["observed_tools"] == []
+        assert audit["unauthorized_tools"] == []
+        assert "write_to_file" in "\n".join(audit["unauthorized_broker_calls"])
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["sources_receipt"]).read_text(encoding="utf-8")
+        )
+        assert receipt["status"] == "blocked"
+        assert receipt["stdout_sha256"]
+
+    def test_agy_research_accepts_exa_events_with_query_url_and_hash_evidence(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+        role_profile["invocation_contract"] = "agy_research"
+        role_profile["capacity_selected_route"] = "Researcher"
+        contracts_path = tmp_path / "config" / "worker_invocation_contracts.yml"
+        contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
+        contracts["contracts"]["agy_research"] = {
+            "worker_id": "agy",
+            "invocation_style": "sourced_research_task_packet",
+            "allowed_mcp_tools": ["web_search_exa", "web_fetch_exa"],
+            "allowed_broker_tools": ["view_file", "call_mcp_tool"],
+            "template": (
+                'agy --sandbox --model "{model_id}" '
+                '--output-format stream-json --disable-slash-commands '
+                '-p "Read {task_packet_path}"'
+            ),
+        }
+        contracts_path.write_text(
+            yaml.safe_dump(contracts, sort_keys=False),
+            encoding="utf-8",
+        )
+        source_path = tmp_path / "research-source.md"
+        source_path.write_text("public canary", encoding="utf-8")
+        conversation_id = "agy-research-canary"
+        result_path = (
+            tmp_path
+            / ".gemini"
+            / "antigravity-cli"
+            / "brain"
+            / conversation_id
+            / ".system_generated"
+            / "steps"
+            / "2"
+            / "output.txt"
+        )
+        result_path.parent.mkdir(parents=True)
+        result_path.write_text(
+            "Authoritative result: https://example.com/agentlab-canary\n",
+            encoding="utf-8",
+        )
+        stdout = "\n".join(
+            json.dumps(event)
+            for event in (
+                {
+                    "event": "init",
+                    "conversation_id": conversation_id,
+                    "init": {"model": "gemini-3.5-flash-high"},
+                },
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": conversation_id,
+                        "state": "DONE",
+                        "step_type": "tool",
+                        "tool_name": "view_file",
+                        "tool_info": {
+                            "parameters": {
+                                "AbsolutePath": (
+                                    str(
+                                        tmp_path
+                                        / ".gemini"
+                                        / "antigravity-cli"
+                                        / "mcp"
+                                        / "exa"
+                                        / "web_search_exa.json"
+                                    )
+                                )
+                            }
+                        },
+                    },
+                },
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": conversation_id,
+                        "state": "DONE",
+                        "step_type": "tool",
+                        "tool_name": "call_mcp_tool",
+                        "tool_info": {
+                            "parameters": {
+                                "ServerName": "exa",
+                                "ToolName": "web_search_exa",
+                                "Arguments": {"query": "AgentLab public canary"},
+                            }
+                        },
+                    },
+                },
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "conversation_id": conversation_id,
+                        "state": "DONE",
+                        "step_type": "tool",
+                        "tool_name": "view_file",
+                        "tool_info": {
+                            "parameters": {
+                                "AbsolutePath": (
+                                    str(result_path)
+                                )
+                            }
+                        },
+                    },
+                },
+                {
+                    "event": "result",
+                    "result": {
+                        "status": "SUCCESS",
+                        "response": "Sources: https://example.com/agentlab-canary",
+                        "usage": {"input_tokens": 20, "output_tokens": 8},
+                    },
+                },
+            )
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch(
+            "cli_executor.Path.home", return_value=tmp_path
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout=stdout, stderr=""),
+        ):
+            result = run_cli_agent(
+                plan,
+                "Researcher",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "public canary"}],
+                outbound_source_paths=[source_path],
+            )
+
+        assert result.status == "completed"
+        assert "## Output\n\nSources: https://example.com/agentlab-canary" in result.content
+        assert '"type": "tool_result"' not in result.content
+        audit = result.raw_usage["agy_research_tool_audit"]
+        assert audit["status"] == "pass"
+        assert audit["unauthorized_tools"] == []
+        assert audit["queries"] == ["AgentLab public canary"]
+        assert audit["source_urls"] == ["https://example.com/agentlab-canary"]
+        assert audit["observed_broker_tools"] == ["view_file", "call_mcp_tool"]
+        assert audit["observed_mcp_tools"] == ["web_search_exa"]
+        assert len(audit["source_event_sha256"]) == 1
+        assert audit["source_locators"] == [str(result_path)]
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["sources_receipt"]).read_text(encoding="utf-8")
+        )
+        assert receipt["raw_source_content_persisted"] is False
+        assert receipt["status"] == "pass"
+
+    def test_hermes_deepseek_requires_exact_completed_usage_receipt(self, tmp_path):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "deepseek_v4_flash_hermes_private": {
+                            "provider": "hermes_deepseek_private",
+                            "runtime_provider": "deepseek",
+                            "model_id": "deepseek-v4-flash",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "hermes_deepseek": {
+                            "worker_id": "hermes",
+                            "packet_delivery": "inline_prompt",
+                            "required_runtime_provider": "deepseek",
+                            "required_model_keys": [
+                                "deepseek_v4_flash_hermes_private"
+                            ],
+                            "template": (
+                                'hermes --provider {provider} -m {model_id} '
+                                '--safe-mode -t "" -z "bounded role"'
+                            ),
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "cli_agent": "hermes",
+            "invocation_contract": "hermes_deepseek",
+            "default": "deepseek_v4_flash_hermes_private",
+            "capacity_selected_route": "AlterVerifier",
+            "capacity_pool": "hermes_deepseek_private",
+        }
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout="verified", stderr=""),
+        ):
+            result = run_cli_agent(
+                plan,
+                "Verifier",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "verify public fact"}],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["hermes_provider_model_mismatch"] is True
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["status"] == "fail"
+        assert "hermes_provider_metadata_missing" in receipt["issues"]
+
+    def test_hermes_deepseek_accepts_exact_completed_usage_receipt(self, tmp_path):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  deepseek_v4_flash_hermes_private:
+    provider: hermes_deepseek_private
+    runtime_provider: deepseek
+    model_id: deepseek-v4-flash
+""",
+            encoding="utf-8",
+        )
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """contracts:
+  hermes_deepseek:
+    worker_id: hermes
+    packet_delivery: inline_prompt
+    required_runtime_provider: deepseek
+    required_model_keys: [deepseek_v4_flash_hermes_private]
+    template: 'hermes --provider {provider} -m {model_id} --safe-mode -t "" -z "bounded role"'
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "cli_agent": "hermes",
+            "invocation_contract": "hermes_deepseek",
+            "default": "deepseek_v4_flash_hermes_private",
+            "capacity_selected_route": "AlterVerifier",
+            "capacity_pool": "hermes_deepseek_private",
+        }
+
+        def fake_run(argv, **_kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **_kwargs)
+            usage_path = Path(argv[argv.index("--usage-file") + 1])
+            usage_path.write_text(
+                json.dumps(
+                    {
+                        "completed": True,
+                        "provider": "deepseek",
+                        "model": "deepseek-v4-flash",
+                        "input_tokens": 20,
+                        "output_tokens": 4,
+                        "total_tokens": 24,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return self._mock_proc(0, stdout="verified", stderr="")
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+        ), patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(
+                plan,
+                "Verifier",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "verify public fact"}],
+            )
+
+        assert result.status == "completed"
+        assert result.raw_usage["hermes_provider_model_mismatch"] is False
+
+    @pytest.mark.parametrize(
+        ("stdout", "expected_issue"),
+        [
+            (
+                "arbitrary nonempty reviewer prose",
+                "narrative_heavy_audit_output_missing_or_unparseable",
+            ),
+            (
+                json.dumps(
+                    {
+                        "fiction_review": {
+                            "schema_version": 1,
+                            "status": "invalid-status",
+                            "candidate_only": True,
+                            "production_modified": False,
+                            "findings": [],
+                        },
+                        "continuity_failure_report": {
+                            "schema_version": 1,
+                            "status": "pass",
+                            "candidate_only": True,
+                            "production_modified": False,
+                            "blocking_issue_count": 0,
+                            "failures": [],
+                        },
+                        "narrative_quality_scorecard": {
+                            "schema_version": 1,
+                            "status": "pass",
+                            "candidate_only": True,
+                            "production_modified": False,
+                            "candidate_sha256": "candidate",
+                            "chapters": [],
+                        },
+                    }
+                ),
+                "narrative_heavy_audit_output_schema_invalid",
+            ),
+        ],
+    )
+    def test_hermes_senior_editor_rejects_unstructured_or_invalid_output(
+        self,
+        tmp_path,
+        stdout,
+        expected_issue,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        plan.route.route_key = "narrative_heavy_audit"
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  deepseek_v4_flash_hermes_private:
+    provider: hermes_deepseek_private
+    runtime_provider: deepseek
+    model_id: deepseek-v4-flash
+""",
+            encoding="utf-8",
+        )
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """contracts:
+  hermes_deepseek_narrative_audit:
+    worker_id: hermes
+    packet_delivery: inline_prompt
+    structured_output: narrative_heavy_audit
+    required_runtime_provider: deepseek
+    required_model_keys: [deepseek_v4_flash_hermes_private]
+    template: 'hermes --provider {provider} -m {model_id} --safe-mode -t "" -z "bounded audit"'
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "cli_agent": "hermes",
+            "invocation_contract": "hermes_deepseek_narrative_audit",
+            "default": "deepseek_v4_flash_hermes_private",
+            "capacity_selected_route": "ProfessionalIndependentReviewerStrict",
+            "capacity_pool": "hermes_deepseek_private",
+        }
+        sealed_messages = [
+            {"role": "user", "content": "audit bounded text"}
+        ]
+        _authorize_external_packet(
+            plan,
+            agent_name="Reviewer",
+            cli_agent_name="hermes",
+            sealed_messages=sealed_messages,
+        )
+
+        def fake_run(argv, **_kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **_kwargs)
+            usage_path = Path(argv[argv.index("--usage-file") + 1])
+            usage_path.write_text(
+                json.dumps(
+                    {
+                        "completed": True,
+                        "provider": "deepseek",
+                        "model": "deepseek-v4-flash",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return self._mock_proc(0, stdout=stdout, stderr="")
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+        ), patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(
+                plan,
+                "Reviewer",
+                role_profile,
+                sealed_messages=sealed_messages,
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["failure_class"] == "validation_failed"
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["status"] == "fail"
+        assert expected_issue in receipt["issues"]
+        assert not (Path(plan.run_dir) / "fiction_review.yml").exists()
 
     def test_agy_observer_strips_direct_api_keys_and_writes_oauth_model_receipt(
         self,
@@ -2196,6 +3861,7 @@ class TestRunCliAgentSubprocess:
         assert result.raw_usage["sealed_context"] is True
         assert result.raw_usage["execution_workspace_isolated"] is True
         assert observed["workspace"] != Path(plan.agentlab_root)
+        assert observed["workspace"] == observed["workspace"].resolve()
         assert observed["packet_path"].parent == observed["workspace"]
         assert observed["packet"]["context_policy"]["read_scope"] == ["this_task_packet"]
         assert not Path(observed["workspace"]).exists()
@@ -2223,7 +3889,7 @@ class TestRunCliAgentSubprocess:
     ):
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
-        from cli_executor import run_cli_agent
+        from cli_executor import _task_packet_payload, run_cli_agent
 
         plan = _make_plan(tmp_path)
         plan.route.route_key = "narrative_heavy_audit"
@@ -2288,10 +3954,20 @@ class TestRunCliAgentSubprocess:
         )
         role_profile = {
             "executor_type": "cli_agent",
-            "cli_agent": "codex",
+            "cli_agent": "qwen",
             "invocation_contract": "qwen_narrative_audit",
-            "default": "deepseek_v4_flash",
+            "default": "qwen3_6_flash_dashscope",
         }
+        sealed_messages = [
+            {"role": "system", "content": "Do not call tools."},
+            {"role": "user", "content": "Audit all 20 chapters."},
+        ]
+        _authorize_external_packet(
+            plan,
+            agent_name="Reviewer",
+            cli_agent_name="qwen",
+            sealed_messages=sealed_messages,
+        )
         structured_result = {
             "fiction_review": {
                 "schema_version": 1,
@@ -2362,6 +4038,8 @@ class TestRunCliAgentSubprocess:
         observed: dict[str, object] = {}
 
         def fake_run(argv, **kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **kwargs)
             observed["argv"] = list(argv)
             observed["kwargs"] = dict(kwargs)
             observed["packet"] = json.loads(kwargs["input"])
@@ -2373,7 +4051,6 @@ class TestRunCliAgentSubprocess:
             "cli_executor.os.environ",
             {
                 "DASHSCOPE_API_KEY": "private-test-key",
-                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
             },
             clear=False,
         ), patch(
@@ -2385,10 +4062,7 @@ class TestRunCliAgentSubprocess:
                 plan,
                 "Reviewer",
                 role_profile,
-                sealed_messages=[
-                    {"role": "system", "content": "Do not call tools."},
-                    {"role": "user", "content": "Audit all 20 chapters."},
-                ],
+                sealed_messages=sealed_messages,
                 outbound_source_paths=[source],
             )
 
@@ -2443,7 +4117,7 @@ class TestRunCliAgentSubprocess:
         import sys
 
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
-        from cli_executor import run_cli_agent
+        from cli_executor import _task_packet_payload, run_cli_agent
         from agent_runtime.narrative.quality.live_editor import (
             LITERARY_EDITOR_DIMENSIONS,
         )
@@ -2509,6 +4183,16 @@ class TestRunCliAgentSubprocess:
             "invocation_contract": "qwen_narrative_literary_ab",
             "default": "qwen3_7_max_dashscope",
         }
+        sealed_messages = [
+            {"role": "system", "content": "No tools."},
+            {"role": "user", "content": "Judge anonymous A/B."},
+        ]
+        _authorize_external_packet(
+            plan,
+            agent_name="Reviewer",
+            cli_agent_name="qwen",
+            sealed_messages=sealed_messages,
+        )
         dimensions = {
             name: {
                 "score": 4,
@@ -2557,6 +4241,8 @@ class TestRunCliAgentSubprocess:
         observed: dict[str, object] = {}
 
         def fake_run(argv, **kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **kwargs)
             observed["argv"] = list(argv)
             schema_path = Path(kwargs["cwd"]) / "narrative_literary_ab_output.schema.json"
             observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -2566,7 +4252,6 @@ class TestRunCliAgentSubprocess:
             "cli_executor.os.environ",
             {
                 "DASHSCOPE_API_KEY": "private-test-key",
-                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
             },
             clear=False,
         ), patch(
@@ -2578,10 +4263,7 @@ class TestRunCliAgentSubprocess:
                 plan,
                 "Reviewer",
                 role_profile,
-                sealed_messages=[
-                    {"role": "system", "content": "No tools."},
-                    {"role": "user", "content": "Judge anonymous A/B."},
-                ],
+                sealed_messages=sealed_messages,
                 outbound_source_paths=[source],
             )
 
@@ -2909,7 +4591,7 @@ class TestRunCliAgentSubprocess:
         (config_dir / "worker_invocation_contracts.yml").write_text(
             """contracts:
   claude_writer:
-    template: 'claude --model "{model_id}" --effort max --max-budget-usd 1.00 --permission-mode bypassPermissions --output-format json --tools "" -p "Read {task_packet_path}"'
+    template: 'claude --model "{model_id}" --effort max --max-budget-usd 1.00 --safe-mode --restricted --strict-mcp-config --disable-slash-commands --no-chrome --no-session-persistence --permission-mode dontAsk --output-format json --tools "" -p "Read {task_packet_path}"'
 """,
             encoding="utf-8",
         )
@@ -2974,7 +4656,7 @@ class TestRunCliAgentSubprocess:
             assert result.raw_usage["failure_class"] == "model_unavailable"
             assert "provider_reported_model_mismatch" in receipt["issues"]
 
-    def test_real_claude_writer_contract_delivers_sealed_packet_on_stdin(
+    def test_real_claude_writer_contract_is_selectable_with_private_env_binding(
         self,
         tmp_path,
     ):
@@ -3025,6 +4707,19 @@ class TestRunCliAgentSubprocess:
             "modelUsage": {"deepseek-v4-pro": {"outputTokens": 10}},
         }
         observed: dict[str, object] = {}
+        settings_dir = tmp_path / ".claude"
+        settings_dir.mkdir()
+        (settings_dir / "settings.json").write_text(
+            json.dumps(
+                {
+                    "env": {
+                        "ANTHROPIC_AUTH_TOKEN": "test-token",
+                        "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
 
         def fake_run(argv, **kwargs):
             observed["argv"] = list(argv)
@@ -3035,7 +4730,11 @@ class TestRunCliAgentSubprocess:
                 stderr="",
             )
 
-        with patch(
+        with patch.dict(
+            "cli_executor.os.environ",
+            {"HOME": str(tmp_path)},
+            clear=True,
+        ), patch(
             "cli_executor.shutil.which",
             return_value="/usr/bin/claude",
         ), patch(
@@ -3052,19 +4751,15 @@ class TestRunCliAgentSubprocess:
             )
 
         assert result.status == "completed"
-        kwargs = observed["kwargs"]
-        assert "stdin" not in kwargs
-        packet_text = kwargs["input"]
-        packet = json.loads(packet_text)
-        assert packet["packet_type"] == "agentlab_sealed_role_session"
-        assert packet["messages"] == [
-            {"role": "user", "content": "bounded chapter context"}
-        ]
-        argv = observed["argv"]
-        assert not any("task_packet_writer.json" in arg for arg in argv)
-        assert result.raw_usage["sealed_packet_stdin"] is True
+        assert observed["argv"][observed["argv"].index("--model") + 1] == "deepseek-v4-pro"
+        assert "--safe-mode" in observed["argv"]
+        assert "--restricted" in observed["argv"]
+        assert observed["kwargs"]["env"]["ANTHROPIC_BASE_URL"] == (
+            "https://api.deepseek.com/anthropic"
+        )
+        assert "test-token" not in yaml.safe_dump(result.raw_usage)
 
-    def test_real_agy_writer_contract_delivers_sealed_packet_on_stdin(
+    def test_real_agy_writer_contract_delivers_sealed_packet_by_explicit_path(
         self,
         tmp_path,
     ):
@@ -3114,6 +4809,15 @@ class TestRunCliAgentSubprocess:
         def fake_run(argv, **kwargs):
             observed["argv"] = list(argv)
             observed["kwargs"] = dict(kwargs)
+            prompt = argv[argv.index("-p") + 1]
+            packet_path = next(
+                Path(part.rstrip(".;,"))
+                for part in prompt.split()
+                if "task_packet_writer.json" in part
+            )
+            observed["packet"] = json.loads(
+                packet_path.read_text(encoding="utf-8")
+            )
             return self._mock_proc(
                 0,
                 stdout="AGENTLAB_EDIT fiction_draft.md\nbounded prose\nAGENTLAB_END_EDIT\n",
@@ -3138,18 +4842,21 @@ class TestRunCliAgentSubprocess:
 
         assert result.status == "completed"
         kwargs = observed["kwargs"]
-        packet = json.loads(kwargs["input"])
-        assert packet["packet_type"] == "agentlab_sealed_role_session"
-        assert packet["messages"] == [
-            {"role": "user", "content": "bounded chapter context"}
-        ]
+        assert "input" not in kwargs
         assert observed["argv"][:4] == [
             "agy",
             "--sandbox",
             "--model",
             "gemini-3.5-flash-high",
         ]
-        assert result.raw_usage["sealed_packet_stdin"] is True
+        prompt = observed["argv"][observed["argv"].index("-p") + 1]
+        assert "task_packet_writer.json" in prompt
+        packet = observed["packet"]
+        assert packet["packet_type"] == "agentlab_sealed_role_session"
+        assert packet["messages"] == [
+            {"role": "user", "content": "bounded chapter context"}
+        ]
+        assert result.raw_usage.get("sealed_packet_stdin") is not True
         receipt = yaml.safe_load(
             Path(result.raw_usage["model_execution_receipt"]).read_text(
                 encoding="utf-8"
@@ -3158,6 +4865,82 @@ class TestRunCliAgentSubprocess:
         assert receipt["worker"] == "agy"
         assert receipt["invocation_contract"] == "agy_writer"
         assert receipt["command_binding_verified"] is True
+
+    def test_agy_writer_missing_packet_refusal_is_not_success(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        repository_root = Path(__file__).parent.parent
+        real_contracts = yaml.safe_load(
+            (repository_root / "config" / "worker_invocation_contracts.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {"contracts": {"agy_writer": real_contracts["contracts"]["agy_writer"]}},
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  gemini_writer:
+    provider: agy_gemini_oauth
+    runtime_provider: agy-gemini-oauth
+    model_id: gemini-3.5-flash-high
+    cli_model_id: gemini-3.5-flash-high
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "invocation_contract": "agy_writer",
+            "default": "gemini_writer",
+            "capacity_selected_route": "WriterAgy",
+            "capacity_pool": "agy_gemini_observer",
+        }
+
+        def fake_run(argv, **kwargs):
+            return self._mock_proc(
+                0,
+                stdout=(
+                    '<AGENTLAB_EDIT candidate="1">\n'
+                    "未在输入（stdin/上下文）中接收到完整的 AgentLab Writer 封包内容。\n"
+                    "</AGENTLAB_EDIT>\n"
+                ),
+                stderr="",
+            )
+
+        with patch(
+            "cli_executor.shutil.which",
+            return_value="/usr/local/bin/agy",
+        ), patch(
+            "cli_executor.subprocess.run",
+            side_effect=fake_run,
+        ):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "bounded chapter context"}
+                ],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["failure_class"] == "validation_failed"
+        assert "writer_missing_sealed_packet" in str(result.error)
 
     def test_claude_supervisor_fallback_writes_approved_fallback_chain(self, tmp_path):
         import sys
@@ -3297,9 +5080,20 @@ class TestRunCliAgentSubprocess:
             "cli_agent": "agy",
             "cli_command": 'agy --sandbox -p "Read only {task_packet_path}"',
         }
+        task_messages = [
+            {"role": "user", "content": "Return candidate YAML blocks."}
+        ]
+        _authorize_external_packet(
+            plan,
+            agent_name="ArtifactProducer",
+            cli_agent_name="agy",
+            task_messages=task_messages,
+        )
         observed: dict[str, object] = {}
 
         def fake_run(argv, **kwargs):
+            if argv[0] == "/usr/bin/openssl":
+                return _REAL_SUBPROCESS_RUN(argv, **kwargs)
             packet_path = Path(kwargs["cwd"]) / "task_packet_artifactproducer.json"
             observed["packet"] = json.loads(
                 packet_path.read_text(encoding="utf-8")
@@ -3307,20 +5101,14 @@ class TestRunCliAgentSubprocess:
             observed["workspace"] = Path(kwargs["cwd"])
             return self._mock_proc(0, stdout="candidate blocks", stderr="")
 
-        with patch.dict(
-            "os.environ",
-            {PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME: "1"},
-            clear=False,
-        ), patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), patch(
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), patch(
             "cli_executor.subprocess.run", side_effect=fake_run
         ):
             result = run_cli_agent(
                 plan,
                 "ArtifactProducer",
                 role_profile,
-                task_messages=[
-                    {"role": "user", "content": "Return candidate YAML blocks."}
-                ],
+                task_messages=task_messages,
                 outbound_source_paths=[source],
             )
 
@@ -3629,6 +5417,78 @@ contracts:
         assert isinstance(result, CliAgentNotAvailable)
         assert result.reason == "invalid_cli_template"
         assert "frontdesk_session_path" in result.detail
+
+    def test_historical_invocation_contract_blocks_before_process_start(self, tmp_path):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import CliAgentNotAvailable, run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """contracts:
+  grok_native_high:
+    availability: historical_only
+    selectable: false
+    worker_id: grok
+    template: 'grok --model {model_id} --single "historical"'
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "cli_agent": "grok",
+            "invocation_contract": "grok_native_high",
+            "default": "grok-historical",
+        }
+
+        with patch("cli_executor.subprocess.run") as provider_run:
+            result = run_cli_agent(plan, "Coder", role_profile)
+
+        assert isinstance(result, CliAgentNotAvailable)
+        assert result.reason == "invocation_contract_not_selectable"
+        provider_run.assert_not_called()
+
+    def test_historical_catalog_model_blocks_before_process_start(self, tmp_path):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import CliAgentNotAvailable, run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """contracts:
+  active_test:
+    worker_id: test
+    template: 'test-cli --model {model_id} "bounded"'
+""",
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  grok_historical:
+    availability: historical_only
+    selectable: false
+    provider: grok_cli_oauth
+    model_id: grok-4.6
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "cli_agent": "test",
+            "invocation_contract": "active_test",
+            "default": "grok_historical",
+        }
+
+        with patch("cli_executor.subprocess.run") as provider_run:
+            result = run_cli_agent(plan, "Coder", role_profile)
+
+        assert isinstance(result, CliAgentNotAvailable)
+        assert result.reason == "model_not_selectable"
+        provider_run.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

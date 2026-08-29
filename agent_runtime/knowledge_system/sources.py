@@ -269,6 +269,7 @@ class SourceCollector:
             )
         artifact_index = project_root / "project_artifact_index.yml"
         sole_blueprint_active = False
+        blueprint_schema = ""
         if artifact_index.is_file() and not artifact_index.is_symlink():
             sources[artifact_index] = (
                 AuthorityLevel.CANONICAL,
@@ -287,6 +288,11 @@ class SourceCollector:
             sole_blueprint_active = (
                 blueprint_authority
             ) in selected_roots
+            if sole_blueprint_active:
+                blueprint_schema = _blueprint_authority_schema(
+                    blueprint_authority,
+                    project_root,
+                )
             for selected_root in selected_roots:
                 selected_paths = (
                     (selected_root,)
@@ -299,7 +305,10 @@ class SourceCollector:
                         KnowledgeLifecycle.ACTIVE,
                         "formal_release",
                     )
-        if sole_blueprint_active:
+        if (
+            sole_blueprint_active
+            and blueprint_schema == "crown-blueprint-authority/v1"
+        ):
             for relative in (
                 "project_brain/blueprint_validation_receipt.yml",
                 "project_brain/project_fact_snapshot.yml",
@@ -324,6 +333,11 @@ class SourceCollector:
             not _has_symlink_component(runtime_selected, project_root)
             and runtime_selected.is_file()
             and not runtime_selected.is_symlink()
+            and _runtime_selected_manifest_is_ledger_bound(
+                self.root,
+                project,
+                runtime_selected,
+            )
         ):
             sources[runtime_selected] = (
                 AuthorityLevel.CANONICAL,
@@ -593,13 +607,19 @@ def _current_artifact_roots(project_root: Path, artifact_index: Path) -> tuple[P
         relative = Path(raw_path)
         if not raw_path or relative.is_absolute() or ".." in relative.parts:
             continue
-        if not relative.parts or relative.parts[0] != "production":
+        if not relative.parts:
+            continue
+        if relative.parts[0] == "production":
+            allowed_root = project_root / "production"
+        elif relative.as_posix() == "project_brain/project_fact_snapshot.yml":
+            allowed_root = project_root / "project_brain"
+        else:
             continue
         raw_selected = project_root / relative
         if _has_symlink_component(raw_selected, project_root):
             continue
         try:
-            selected = assert_path_allowed(raw_selected, project_root / "production")
+            selected = assert_path_allowed(raw_selected, allowed_root)
         except ValueError:
             continue
         if selected.is_symlink() or not (selected.is_file() or selected.is_dir()):
@@ -633,33 +653,96 @@ def _verified_blueprint_components(
         authority = yaml.safe_load(authority_path.read_text(encoding="utf-8")) or {}
     except (OSError, UnicodeError, yaml.YAMLError):
         return ()
-    if (
-        not isinstance(authority, dict)
-        or authority.get("schema_version") != "crown-blueprint-authority/v1"
-        or authority.get("project") != project_root.name
-        or authority.get("status") != "active"
-        or authority.get("sole_writer_entrypoint") is not True
-        or authority.get("conflict_action")
-        != "fail_closed_before_context_compilation"
-    ):
+    if not isinstance(authority, dict) or authority.get("project") != project_root.name:
         return ()
-    raw_components = authority.get("components")
-    if not isinstance(raw_components, list):
-        return ()
-    expected_component_paths = {
-        "production/series_scale_decision.yml",
-        "production/chapter_length_policy.yml",
-        "production/canonical",
-        "production/chapter_cards",
-    }
-    declared_component_paths = {
-        str(item.get("path") or "")
-        for item in raw_components
-        if isinstance(item, dict)
-    }
-    if declared_component_paths != expected_component_paths:
+    schema_version = authority.get("schema_version")
+    if schema_version == "crown-blueprint-authority/v1":
+        if (
+            authority.get("status") != "active"
+            or authority.get("sole_writer_entrypoint") is not True
+            or authority.get("conflict_action")
+            != "fail_closed_before_context_compilation"
+        ):
+            return ()
+        raw_components = authority.get("components")
+        if not isinstance(raw_components, list):
+            return ()
+        expected_component_paths = {
+            "production/series_scale_decision.yml",
+            "production/chapter_length_policy.yml",
+            "production/canonical",
+            "production/chapter_cards",
+        }
+        declared_component_paths = {
+            str(item.get("path") or "")
+            for item in raw_components
+            if isinstance(item, dict)
+        }
+        if declared_component_paths != expected_component_paths:
+            return ()
+    elif schema_version == "narrative-blueprint-authority/v1":
+        if (
+            authority.get("authority_kind") != "project_specific"
+            or authority.get("status")
+            not in {
+                "registered_pending_generic_validation",
+                "validated_sealed",
+            }
+            or (authority.get("authority_rules") or {}).get(
+                "direct_production_edit_forbidden"
+            )
+            is not True
+            or (authority.get("authority_rules") or {}).get(
+                "one_current_version_per_artifact_id"
+            )
+            is not True
+            or (authority.get("production_gate") or {}).get("runtime_standard")
+            != "task-runtime-v2"
+        ):
+            return ()
+        raw_source_artifacts = authority.get("source_artifacts")
+        if not isinstance(raw_source_artifacts, dict) or not raw_source_artifacts:
+            return ()
+        raw_components = []
+        source_artifact_ids: set[str] = set()
+        for item in raw_source_artifacts.values():
+            declared_artifact_id = (
+                str(item.get("artifact_id") or "").strip()
+                if isinstance(item, dict)
+                else ""
+            )
+            if (
+                not isinstance(item, dict)
+                or not declared_artifact_id
+                or declared_artifact_id in source_artifact_ids
+                or not str(item.get("version") or "").strip()
+            ):
+                return ()
+            source_artifact_ids.add(declared_artifact_id)
+            raw_components.append(item)
+        story_contract = authority.get("story_contract")
+        if not isinstance(story_contract, dict):
+            return ()
+        target = story_contract.get("target_total_chapters")
+        accepted = story_contract.get("accepted_chapters")
+        next_chapter = story_contract.get("next_production_chapter")
+        if (
+            isinstance(target, bool)
+            or not isinstance(target, int)
+            or target < 1
+            or isinstance(accepted, bool)
+            or not isinstance(accepted, int)
+            or accepted < 0
+            or accepted > target
+            or isinstance(next_chapter, bool)
+            or not isinstance(next_chapter, int)
+            or next_chapter != accepted + 1
+        ):
+            return ()
+    else:
         return ()
     components: list[Path] = []
+    seen_paths: set[str] = set()
     for item in raw_components:
         if not isinstance(item, dict):
             return ()
@@ -671,8 +754,10 @@ def _verified_blueprint_components(
             or not relative.parts
             or relative.parts[0] != "production"
             or ".." in relative.parts
+            or relative.as_posix() in seen_paths
         ):
             return ()
+        seen_paths.add(relative.as_posix())
         raw_component = project_root / relative
         if _has_symlink_component(raw_component, project_root):
             return ()
@@ -698,6 +783,41 @@ def _verified_blueprint_components(
             return ()
         components.append(component)
     return tuple(components)
+
+
+def _blueprint_authority_schema(authority_path: Path, project_root: Path) -> str:
+    """Return a selected blueprint schema without trusting unverified side files."""
+
+    try:
+        authority = yaml.safe_load(authority_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return ""
+    if not isinstance(authority, dict) or authority.get("project") != project_root.name:
+        return ""
+    return str(authority.get("schema_version") or "")
+
+
+def _runtime_selected_manifest_is_ledger_bound(
+    agentlab_root: Path,
+    project: str,
+    manifest_path: Path,
+) -> bool:
+    """Accept a Runtime projection only when it exactly matches valid ledgers."""
+
+    try:
+        from agent_runtime.task_runtime_v2.runtime import (
+            TaskRuntime,
+            TaskRuntimeError,
+        )
+
+        observed = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+        expected = TaskRuntime(
+            agentlab_root,
+            project=project,
+        ).expected_selected_artifact_manifest()
+    except (OSError, UnicodeError, yaml.YAMLError, TaskRuntimeError, ValueError):
+        return False
+    return isinstance(observed, dict) and observed == expected
 
 
 def _has_symlink_component(path: Path, root: Path) -> bool:

@@ -246,6 +246,7 @@ def test_factory_can_atomically_register_its_trusted_team(tmp_path: Path) -> Non
     assert len(
         registry.truth.resource_history("agents.manifest.architecture")
     ) == 1
+    registry.truth.audit()
 
 
 def test_factory_adds_prompt_requested_narrative_specialists() -> None:
@@ -260,6 +261,8 @@ def test_factory_adds_prompt_requested_narrative_specialists() -> None:
     assert by_id["mystery_keeper"].write_scope == ("mystery.*",)
     assert by_id["style_guardian"].write_scope == ("style.*",)
     assert by_id["writer"].runtime_role == "Writer"
+    assert by_id["supervisor"].runtime_role == "Supervisor"
+    assert by_id["blueprint_producer"].runtime_role == "ArtifactProducer"
     assert by_id["checker"].runtime_role == "Verifier"
     assert by_id["reviewer"].runtime_role == "Reviewer"
     assert "prompt-requested specialists" in proposal.rationale

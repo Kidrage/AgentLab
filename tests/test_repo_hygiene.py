@@ -53,6 +53,26 @@ def test_repo_hygiene_policy_accepts_registered_local_cli_runtime_dirs(tmp_path:
     assert not report.findings
 
 
+def test_repo_hygiene_accepts_worktree_gitfile_and_tracked_delivery_entries(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.project_ops.repo_hygiene import scan_repository_root
+
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "repository_hygiene.yml").write_text(
+        (ROOT / "config" / "repository_hygiene.yml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (tmp_path / ".git").write_text("gitdir: /tmp/example.git/worktrees/test\n")
+    (tmp_path / "deploy").mkdir()
+    (tmp_path / "run_crown_ep1.sh").write_text("#!/bin/sh\n")
+
+    report = scan_repository_root(tmp_path)
+
+    assert report.hard_violation_count == 0
+    assert not report.findings
+
+
 def test_tracked_text_files_do_not_have_extreme_lines() -> None:
     offenders: list[str] = []
     for relpath in _tracked_files():

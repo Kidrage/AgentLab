@@ -51,7 +51,7 @@ def test_config_get_contract() -> None:
     result = _run("config-get", "--key", "routing_policy.default_budget")
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert "routing_policy.default_budget" in result.stdout
-    assert "balanced" in result.stdout
+    assert "alter" in result.stdout
     assert "Layer:" in result.stdout
     assert "Overridden:" in result.stdout
     assert "Is Secret:" in result.stdout

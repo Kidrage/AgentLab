@@ -41,6 +41,26 @@ artifact_types:
     output_formats: [directory]
     required_capabilities: [produce_mixed_artifacts, write_artifact_file, validate_artifact_contract]
 providers:
+  hermes_grok:
+    availability: historical_only
+    selectable: false
+    worker: hermes
+    provider_type: cli
+    invocation_contract: hermes_alter_artifact
+    capacity_routes:
+      alter: AlterArtifactProducer
+    priority: 80
+    fallback: false
+    handles: [text, spreadsheet, presentation, image, video]
+    output_formats: [markdown, txt, docx, yaml, xlsx, csv, pptx, pdf, png, jpg, webp, mp4, mov]
+    capabilities:
+      - write_text_artifact
+      - create_spreadsheet
+      - create_presentation
+      - generate_image
+      - generate_video
+      - write_artifact_file
+      - validate_artifact_contract
   qwen_cli:
     worker: qwen
     provider_type: cli
@@ -64,10 +84,11 @@ providers:
     provider_type: cli
     invocation_contract: codex
     capacity_routes:
+      alter: AlterArtifactProducer
       full: ArtifactProducerCodex
       performance: ArtifactProducerCodex
       low: ArtifactProducerCodex
-    priority: 90
+    priority: 110
     fallback: false
     handles: [text]
     output_formats: [markdown, txt, docx, yaml]
@@ -76,6 +97,8 @@ providers:
       - write_artifact_file
       - validate_artifact_contract
   grok_media:
+    availability: historical_only
+    selectable: false
     worker: grok
     provider_type: cli
     invocation_contract: grok_media
@@ -92,18 +115,20 @@ providers:
       - generate_video
       - write_artifact_file
       - validate_artifact_contract
-  qwen_37max_api:
-    worker: qwen
-    provider_type: api
-    runtime_activation: explicit_full_api_only
-    allowed_runtime_providers: [qwen3, qwen, qwen-flash]
-    priority: 10
-    fallback: true
-    handles: [text]
-    output_formats: [markdown, txt, yaml]
+  local_media_pending:
+    availability: pending_local_model
+    selectable: false
+    worker: local_media
+    provider_type: placeholder
+    priority: 120
+    fallback: false
+    handles: [image, video]
+    output_formats: [png, jpg, webp, mp4, mov]
     capabilities:
-      - write_text_artifact
+      - generate_image
+      - generate_video
       - write_artifact_file
+      - validate_artifact_contract
 failure_contract:
   capability_mismatch:
     required_fields: [missing_capability, recommended_provider, recommended_role]

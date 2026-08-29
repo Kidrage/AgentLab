@@ -16,7 +16,27 @@ defaults:
   refresh_handoff_after_material_change: true
 
 backends:
+  local_media_pending:
+    display_name: Local Media Model Placeholder
+    capabilities:
+      - local_image_generation_pending
+      - local_video_generation_pending
+    modalities: [image, video, image_to_video, reference_video, mixed]
+    quality_tier: pending
+    cost_tier: local
+    quota_policy: not_applicable
+    auth_state: ready
+    adapter_state: pending
+    adapter_kind: local_model_placeholder
+    adapter_note: No renderer is active. Requests fail closed until a local model adapter is configured and verified.
+    execution_mode: placeholder_only
+    approval_required: false
+    final_artifact_allowed: false
+    placeholder_reason: local_media_backend_pending
+
   hermes_grok_oauth:
+    availability: historical_only
+    selectable: false
     display_name: Hermes + Grok OAuth CLI
     capabilities:
       - orchestration
@@ -55,7 +75,7 @@ backends:
       shell_state_is_not_project_memory: true
       shell_background_work_requires_status_receipt: true
     command_contract:
-      session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <prompt>
+      session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.6 -z <prompt>
     registered_generation_models:
       image: [grok-imagine-image-quality]
       video: [grok-imagine-video-1.5]
@@ -72,6 +92,8 @@ backends:
     fallback_rank: 10
 
   grok_direct:
+    availability: historical_only
+    selectable: false
     display_name: Grok Direct API Fallback
     capabilities:
       - direct_prompt_to_image
@@ -169,6 +191,8 @@ backends:
 
   hermes_ark_seedance_skill:
     display_name: Hermes + Ark Seedance Skills (Explicit Task Override)
+    availability: unavailable_current_host
+    selectable: false
     capabilities:
       - video_generate
       - text_to_video
@@ -178,9 +202,9 @@ backends:
     quality_tier: premium
     cost_tier: subscription_or_quota
     quota_policy: explicit_user_authorized_task_override
-    auth_state: ready
+    auth_state: unavailable
     auth_probe: hermes --help
-    adapter_state: ready
+    adapter_state: historical_contract_only
     adapter_kind: local_hermes_ark_skill
     adapter_note: Hermes is the bounded worker shell. Its preloaded Ark skills discover current resources, validate supported parameters, choose the available generation model, wait for completion, and report the actual model and local artifact.
     worker_id: hermes_ark
@@ -232,6 +256,8 @@ backends:
 
   claude_seedance_agent_plan_skill:
     display_name: Claude + Ark Seedance Skill (Fallback Only)
+    availability: unavailable_current_host
+    selectable: false
     capabilities:
       - video_generate
       - text_to_video
@@ -241,9 +267,9 @@ backends:
     quality_tier: premium
     cost_tier: subscription_or_quota
     quota_policy: explicit_user_authorized_task_override
-    auth_state: ready
+    auth_state: unavailable
     auth_probe: claude --help
-    adapter_state: ready
+    adapter_state: historical_contract_only
     adapter_kind: local_claude_skill
     adapter_note: Fallback-only bounded Claude shell. The repository Seedance Skill owns its Agent Plan call and visual-model selection; this route is not selected while Hermes + Ark is healthy.
     worker_id: claude_ark
@@ -306,38 +332,22 @@ backends:
 
 policies:
   high_quality_single_or_short:
-    description: High-quality single image or short video.
-    backend_chain:
-      - hermes_grok_oauth
-      - grok_direct
-      - bailian_cli
-      - ark_cli
+    description: Local media generation placeholder until a verified local renderer is configured.
+    backend_chain: [local_media_pending]
 
   fast_simple:
-    description: Simple prompt to image or video direct output.
-    backend_chain:
-      - hermes_grok_oauth
-      - grok_direct
-      - bailian_cli
+    description: Local media generation placeholder until a verified local renderer is configured.
+    backend_chain: [local_media_pending]
 
   draft_batch:
-    description: Batch media candidates; Agy may prepare briefs but is not a renderer.
-    backend_chain:
-      - hermes_grok_oauth
-      - grok_direct
-      - bailian_cli
+    description: Batch media placeholder; Agy may prepare briefs but is not a renderer.
+    backend_chain: [local_media_pending]
     preproduction_observer: agy_media
 
   commercial_final:
-    description: Commercial or final delivery quality target.
-    backend_chain:
-      - hermes_grok_oauth
-      - bailian_cli
-      - ark_cli
+    description: Local media generation placeholder until a verified local renderer is configured.
+    backend_chain: [local_media_pending]
 
   commercial_final_after_ark_activation:
-    description: Future route when Ark activation is complete.
-    backend_chain:
-      - ark_cli
-      - hermes_grok_oauth
-      - bailian_cli
+    description: Historical policy name retained; active routing remains local-only.
+    backend_chain: [local_media_pending]

@@ -1,0 +1,208 @@
+schema_version: narrative-blueprint-request/v1
+project: ShanHeYouJia
+title: 山河有约
+genres:
+  - 中国古代武侠
+  - 江湖漂泊
+  - 商战
+  - 政争
+  - 宇宙玄幻
+target_total_chapters: 600
+target_han_characters: 2800000
+target_chapter_characters:
+  soft_min: 4200
+  target: 4700
+  soft_max: 5400
+risk_flags:
+  - major_reveal
+
+creative_seed:
+  premise: >-
+    沈渡十九岁时只有一条破篷船、一身替人扛包练出的筋骨和一笔父辈留下的无主旧账。
+    他从江南平沙埠逃命起步，在盐路、镖局、马市、海贸、国库和边关之间漂泊，以识价、守约、
+    结盟和承担代价的本领积攒第一枚铜钱、第一条商路、第一批生死兄弟与第一块可以安身的土地。
+    他逐渐发现，钱是承诺的影子，政是分配代价的刀，武是所有契约失效后的最后担保。
+  central_question: >-
+    一个曾经一无所有的人，能否在得到财富、权力、兄弟、爱情、江山乃至成仙资格以后，仍然记得
+    无家可归者为什么害怕一纸由强者书写的契约？
+  ending: >-
+    沈渡走到宇宙规则的尽头，发现“仙”不是种族、人格或善恶阵营，而是一方宇宙对唯一最高解释权的称呼：
+    无相无色、不可名状，一界只能容一尊。天外的无尽真仙不是终极恶人，而是另一套永恒扩张的最高规则。
+    沈渡拒绝成为旧规则的继承人，以自己一生签下又偿还的万千契约为道，成为本宇宙唯一真仙；
+    他与无尽真仙的对立不会终结，只使这一方宇宙第一次获得不被吞并的资格。
+  tone:
+    - 长风破篷、古渡残灯、驿路霜雪的漂泊感
+    - 市井交易必须落到货物、运力、信用、风险和现金流
+    - 政道必须落到税、粮、军、吏、法、名分和组织能力
+    - 武功必须有身体代价、训练来源和战术边界
+    - 升格越高，越要保留凡人生活的触感和旧债回声
+  narrative_promise:
+    - 男主从一无所有到建立商号、联盟、政权与宇宙秩序，台阶清楚且不可跳级
+    - 兄弟不是工具人，每人都有自己的产业、立场、背叛可能与最终归宿
+    - 六位核心女性都拥有独立目标、资源、判断和退出权，感情由共同决策与共同代价推进
+    - 后宫结局是多方长期谈判形成的家庭与政治共同体，不以占有或奖赏女性为叙事逻辑
+    - 每卷同时推进江湖、商道、政道、关系和仙之谜，不能只换地图刷敌人
+
+metaphysics_contract:
+  immortal_definition: 一方宇宙规则下至高无上的唯一解释权，不是有固定形体的生物
+  properties:
+    - 无相无色
+    - 不可名状
+    - 不分善恶
+    - 仙之间因唯一性而永恒对立
+    - 一方宇宙只能有一尊仙
+  final_antagonist:
+    name: 无尽真仙
+    nature: 天外另一方宇宙的最高规则，表现为把一切差异折算为同一种无穷延展
+    dramatic_rule: 只能通过代理规则、因果缺口和世界被同质化的后果显影，不得人格化为普通大魔王
+  protagonist_path: 价不是价格，而是每个选择不可被抹掉的代价；沈渡最终以万契有偿之道成仙
+
+content_boundary:
+  all_romance_participants_adults: true
+  contextual_consent: true
+  exit_right: true
+  explicitness: non_graphic
+  intimacy_contract:
+    - 可以写强烈暧昧、欲望、嫉妒、亲密和婚姻政治，但不写露骨性行为过程
+    - 债务、救命、上下级、囚禁、医疗、醉酒和法术影响下的沉默都不构成同意
+    - 每位伴侣必须至少一次在重大问题上拒绝沈渡，并保有真正离开的资源
+
+protagonist:
+  name: 沈渡
+  start_age: 19
+  origin: 江南平沙埠脚夫兼摆渡人，无田、无籍靠、无门派
+  starting_assets:
+    - 破篷船半条所有权
+    - 铜钱十七文
+    - 一张无法兑现的父债旧契
+    - 能记住平码、潮时和人情往来的好记性
+  starting_flaws:
+    - 把不欠人情误当成自由
+    - 遇到失去风险时先算账后信人
+    - 对建立家业有强烈渴望，也害怕家业反过来成为枷锁
+  progression_axes:
+    martial: 脚夫短打→水路听劲→商旅护身术→军阵借势→国运武学→规则交锋
+    commerce: 识货→撮合→承运→信用→清算→制定市场边界
+    politics: 被征税者→地方中人→联盟议事者→制度设计者→一方共主→宇宙规则承担者
+    intimacy: 拒绝亏欠→学会互惠→接受依赖→承担多方关系的诚实与治理→共同家园
+
+core_relationships:
+  - name: 苏晚棠
+    age_at_entry: 22
+    domain: 漕运、账房、商号治理
+    independent_goal: 从宗族控制中赎回母亲留下的船队，建立女性可继承的合伙商号
+    friction: 她相信账目胜过誓言，沈渡早期偏爱临场义气
+    exit_resource: 独立船队、账房网络和海外信用
+  - name: 柳含章
+    age_at_entry: 24
+    domain: 法、吏治、文书与地方政治
+    independent_goal: 证明良法必须让最弱者也有申诉成本可承受的入口
+    friction: 她要求把沈渡的私人恩义写进可追责制度
+    exit_resource: 士林声望、地方吏员网络和自有书院
+  - name: 宁素问
+    age_at_entry: 21
+    domain: 医、毒、灾疫与人体代价
+    independent_goal: 建立不受门派垄断的行旅医盟
+    friction: 她拒绝用少数人的身体为大局试药
+    exit_resource: 医盟、药路和独立声望
+  - name: 贺兰照雪
+    age_at_entry: 23
+    domain: 北地马政、边军与部族盟约
+    independent_goal: 让游牧诸部不再只能在归顺与灭族之间选择
+    friction: 她首先忠于北地共同体，不接受成为中原胜利的装饰
+    exit_resource: 部族议会、马场和边军拥戴
+  - name: 赵清晏
+    age_at_entry: 25
+    domain: 皇族名分、财政与外交
+    independent_goal: 结束以皇室血统掩盖财政掠夺的旧朝循环
+    friction: 她比沈渡更懂权力，也更愿意使用冷酷手段
+    exit_resource: 宗室法统、密档和外交关系
+  - name: 闻人星弦
+    age_at_entry: 27
+    domain: 天文、阵法、海图与仙之规则
+    independent_goal: 证明天象不是神谕，而是可以被众生共同理解的世界结构
+    friction: 她认为亲密会污染观察，后期又警惕沈渡把爱变成宇宙法则
+    exit_resource: 观星台、学派和跨界航图
+
+brotherhood:
+  - name: 陆观潮
+    domain: 水路、情报、灰色江湖
+    core_conflict: 忠于沈渡，但不愿江湖被朝廷和商号彻底编号
+  - name: 韩百炼
+    domain: 锻造、工坊、军械工业
+    core_conflict: 相信规模生产能止战，也最容易被战争订单吞噬
+  - name: 谢明夷
+    domain: 谋略、税制、文官系统
+    core_conflict: 从理想主义滑向必要之恶，必须被兄弟和制度共同约束
+  - name: 乌延烈
+    domain: 北地骑军、部族外交
+    core_conflict: 与沈渡是生死兄弟，也是两个政治共同体之间永远可能重开的边界
+
+fifteen_volume_contract:
+  chapters_per_volume: 40
+  volumes:
+    - {volume: 1, title: 破篷孤舟, chapters: [1, 40], commerce: 码头平码与第一笔合伙, politics: 里甲漕弊, martial: 水路听劲, irreversible_end: 沈渡夺得一条合法但负债的商路}
+    - {volume: 2, title: 一秤江湖, chapters: [41, 80], commerce: 行会定价权, politics: 县衙与豪族共治, martial: 短打成体系, irreversible_end: 沈渡以公开账簿击穿地方垄断}
+    - {volume: 3, title: 盐路血契, chapters: [81, 120], commerce: 盐引与走私风险, politics: 官商勾连, martial: 山路伏击, irreversible_end: 商号第一次以守约主动承担巨亏}
+    - {volume: 4, title: 北马南钱, chapters: [121, 160], commerce: 马市与跨境结算, politics: 部族盟约, martial: 骑战借势, irreversible_end: 沈渡与贺兰照雪签下不归任何王朝的互市契}
+    - {volume: 5, title: 海上无主, chapters: [161, 200], commerce: 海贸保险与股份, politics: 港口自治, martial: 船战风势, irreversible_end: 众人建立第一个可退出的合伙议会}
+    - {volume: 6, title: 京华入局, chapters: [201, 240], commerce: 票号与信用挤兑, politics: 皇权党争, martial: 城市暗战, irreversible_end: 沈渡从商人变成无法置身事外的政治担保人}
+    - {volume: 7, title: 国库如渊, chapters: [241, 280], commerce: 国债粮价军饷, politics: 财政主权, martial: 护库与夺印, irreversible_end: 旧朝信用破产且天下账本公开}
+    - {volume: 8, title: 九门风雨, chapters: [281, 320], commerce: 战时配给, politics: 都城革命与法统, martial: 九门攻守, irreversible_end: 赵清晏放弃旧皇位并迫使沈渡提出新秩序}
+    - {volume: 9, title: 山河定价, chapters: [321, 360], commerce: 土地税与战后重建, politics: 地方自治边界, martial: 军政合流风险, irreversible_end: 沈渡赢得江山却接受权力可被罢免}
+    - {volume: 10, title: 天下共契, chapters: [361, 400], commerce: 跨域清算公器, politics: 联邦式盟约, martial: 以法驭军失败测试, irreversible_end: 众人建立不依赖沈渡个人威望的共同体}
+    - {volume: 11, title: 天门无路, chapters: [401, 440], commerce: 修行资源垄断, politics: 门派神权, martial: 国运武学反噬, irreversible_end: 沈渡拒绝旧天门授予的仙位}
+    - {volume: 12, title: 星海商旅, chapters: [441, 480], commerce: 世界间交换与不可通约价值, politics: 文明外交, martial: 星海航阵, irreversible_end: 发现无尽真仙正在把诸界同质化}
+    - {volume: 13, title: 万法为税, chapters: [481, 520], commerce: 规则使用的代价, politics: 宇宙秩序合法性, martial: 法则攻防, irreversible_end: 沈渡承认任何规则都必须向承受者解释成本}
+    - {volume: 14, title: 一界争仙, chapters: [521, 560], commerce: 众生承诺清算, politics: 一界唯一解释权之争, martial: 因果战争, irreversible_end: 旧仙规则崩解且沈渡失去全部既有权柄}
+    - {volume: 15, title: 无尽之外, chapters: [561, 600], commerce: 万契有偿, politics: 宇宙自决, martial: 与不可名状规则对峙, irreversible_end: 沈渡成仙并开启与无尽真仙的永恒边界}
+
+first_ten_chapter_locks:
+  - {chapter: 1, title: 江潮吞舟, turn: 沈渡为救陌生账房舍弃仅有货船，获得一册泡水暗账}
+  - {chapter: 2, title: 一钱买命, turn: 他用最后一文钱买下死囚运尸权，实际救出掌握漕弊证据的陆观潮}
+  - {chapter: 3, title: 无主之账, turn: 暗账显示父债不是欠款而是被人抹去的合伙份额}
+  - {chapter: 4, title: 船底藏尸, turn: 船底尸身属于仍在县衙当值的粮吏，真假身份案启动}
+  - {chapter: 5, title: 两家一价, turn: 沈渡让敌对脚行公开同价，第一次用透明规则换取弱者结盟}
+  - {chapter: 6, title: 镖旗不护穷人, turn: 镖局拒保穷脚夫后，沈渡以分担损失组织临时互保}
+  - {chapter: 7, title: 苏家女掌柜, turn: 苏晚棠提出救船队的合伙条件，并保留随时撤资权}
+  - {chapter: 8, title: 真假两纸契, turn: 两份都是真的旧契证明父辈曾主动设计双重信用局}
+  - {chapter: 9, title: 借关杀局, turn: 沈渡借税关查账逼幕后人先杀自己的内应}
+  - {chapter: 10, title: 平沙埠火, turn: 仓火烧掉证据却照出地下银窖，沈渡选择先救工人再夺银}
+
+chapter_card_contract:
+  required_for_all_600:
+    - chapter_id
+    - title
+    - volume
+    - pov
+    - opening_state
+    - self_initiated_move
+    - opponent_move
+    - irreversible_turn
+    - material_cost
+    - knowledge_delta
+    - relationship_delta
+    - commerce_or_politics_mechanism
+    - promise_actions
+    - closing_hook
+    - forbidden_early_payoffs
+  anti_filler:
+    - 每章至少改变财产、位置、知识、关系、承诺、制度或身体状态之一
+    - 连续三章不得只靠误会延宕
+    - 同一种绑架、拍卖、打脸、救美或擂台结构不得换名复用
+    - 卷末胜利必须制造下一卷更高层级且不同性质的责任
+
+acceptance_targets:
+  blueprint:
+    chapter_card_coverage: 1.0
+    causal_predecessor_coverage: 1.0
+    unresolved_hard_continuity_conflicts: 0
+    every_core_character_has_independent_goal_and_exit: true
+    every_volume_changes_commerce_politics_martial_relationship_and_metaphysics: true
+  first_ten_prose:
+    target_total_han_characters: 47000
+    hard_continuity_errors: 0
+    unsupported_fact_inventions: 0
+    repeated_scene_skeleton_rate_max: 0.1
+    planted_fact_recall_min: 0.95
+    evidence_traceability: 1.0

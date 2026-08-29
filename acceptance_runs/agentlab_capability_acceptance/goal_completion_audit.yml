@@ -3,9 +3,9 @@ report_type: agentlab_goal_completion_audit
 root: .
 status: fail
 status_counts:
-  pass: 5
+  fail: 3
+  pass: 3
   candidate: 2
-  fail: 1
 source_reports:
   capability_acceptance: acceptance_runs/agentlab_capability_acceptance/current.yml
   production_chain_audit: acceptance_runs/agentlab_capability_acceptance/production_chain_audit.yml
@@ -51,40 +51,32 @@ acceptance_scope:
 goal_items:
 - id: preserve_code_factory
   title: Keep AgentLab strong as a code factory
-  status: pass
+  status: fail
   capability_ids:
   - code_factory_orchestration
   - live_code_candidate_materialization
-  conclusion: Code routes still use the code factory chain, and the live AgentLab
-    Web UI task has production promotion plus local smoke evidence.
-  evidence:
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/workflow_plan.yml
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/lifecycle.yml
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/artifact_manifest.yml
-  - projects/AgentLab/production/artifacts/web_ui/index.html
-  - projects/AgentLab/production/artifacts/web_ui/styles.css
-  - projects/AgentLab/production/artifacts/web_ui/app.js
-  - projects/AgentLab/production/artifacts/web_ui/status.sample.json
-  - projects/AgentLab/project_artifact_index.yml
+  conclusion: Code routes still use the code factory chain; the legacy live UI probe
+    is retired and supplies no current candidate evidence.
+  evidence: []
   evidence_health:
     status: pass
-    checked: 8
+    checked: 0
     missing: []
+  remaining_gap: Run a new Runtime v2 code/UI task and collect current immutable acceptance
+    evidence.
 - id: split_non_code_from_code_shell
   title: Route non-code work through production packs instead of code-task shell
-  status: pass
+  status: fail
   capability_ids:
   - non_code_code_shell_split
   - production_chain_visibility
   conclusion: Representative narrative, article, media, and unknown non-code chains
     are visible and do not inherit active code-shell contracts.
   evidence:
-  - projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/workflow_plan.yml
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/workflow_plan.yml
   - acceptance_runs/agentlab_capability_acceptance/production_chain_audit.yml
   evidence_health:
     status: pass
-    checked: 3
+    checked: 1
     missing: []
 - id: define_agent_roles_and_chain_bindings
   title: Keep agent responsibilities, worker bindings, and production-chain roles
@@ -162,29 +154,19 @@ goal_items:
   - trusted_live_runner_collect
   conclusion: 'Local chapter governance, light-path delivery receipts, batch ledgers,
     scale simulation, and the AGY Writer route with governed Claude Code + DeepSeek
-    V4 Pro fallback exist. current non-private AGY Writer contract probe is clean;
-    the active session-health issue is not the Writer gate, so returned prose artifacts
-    are still pending until the trusted Writer command is rerun. A historical Codex
-    external-worker attempt was rejected by host policy; it is outside the current
-    Hermes/direct AgentLab execution paths and is not an AgentLab route, local CLI,
-    API key, or role-worker binding blocker. '
+    V4 Pro fallback exist. current non-private AGY Writer session health is not clean,
+    so returned prose artifacts are still pending until the trusted Writer command
+    is rerun. A historical Codex external-worker attempt was rejected by host policy;
+    it is outside the current Hermes/direct AgentLab execution paths and is not an
+    AgentLab route, local CLI, API key, or role-worker binding blocker. '
   evidence:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/fiction_draft.md
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/state_transition_proposal.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/narrative_delivery_receipt.yml
   - acceptance_runs/agentlab_capability_acceptance/crown_live_candidate_audit.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/live_generation_error.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/provider_incidents.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/USER_DECISION_REQUIRED.md
   - config/agent_model_profiles.yml
   - config/agent_role_bindings.yml
   - config/model_catalog.yml
   - config/worker_invocation_contracts.yml
   - config/model_capacity.yml
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_v3_agy_style_parity/crown-v3-agy-parity-ch001-20260723-r8/longform_eval_report.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_v3_agy_style_parity/crown-v3-agy-parity-ch001-20260723-r8/continuity_failure_report.yml
   - acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/manifest_v2_final2_20260719/series_scale_simulation.yml
   - acceptance_runs/agentlab_capability_acceptance/crown_scale_governance_audit.yml
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
@@ -195,7 +177,7 @@ goal_items:
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
   evidence_health:
     status: pass
-    checked: 24
+    checked: 15
     missing: []
   remaining_gap: Needs a trusted terminal/runtime to return refreshed Writer role-session
     acceptance artifacts before promotion beyond candidate.
@@ -237,16 +219,6 @@ goal_items:
     in this runtime, so media candidate artifacts still need a rerun from a healthy
     local Grok CLI session.
   evidence:
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/workflow_plan.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifact_manifest.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/prompt_pack.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/asset_registry.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/shot_list.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/generation_ledger.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml
   - acceptance_runs/agentlab_capability_acceptance/media_series_scaffold_audit.yml
   - agent_runtime/media_backend_adapter.py
   - config/media_generation_backends.yml
@@ -264,7 +236,7 @@ goal_items:
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
   evidence_health:
     status: pass
-    checked: 25
+    checked: 15
     missing: []
   details:
     acceptance_mode: readiness_only
@@ -272,7 +244,7 @@ goal_items:
     readiness:
       status: fail
       checks:
-        media_series_scaffold: true
+        media_series_scaffold: false
         backend_registered: true
         artifact_producer_worker_binding: true
         invocation_contract: true
@@ -319,12 +291,16 @@ goal_items:
     missing: []
   details:
     acceptance_report_hygiene_status: pass
-    writer_request_route_current: false
+    writer_request_route_current: true
 external_blockers: []
 session_health_summary:
-  status: fail
-  issue_count: 1
+  status: route_ready_session_blocked
+  issue_count: 2
   issues:
+  - id: current_agy_writer_session_health
+    status: blocked
+    reason: session_health_report_missing_or_invalid
+    next_action: rerun_agy_writer_contract_probe_from_the_trusted_agentlab_runtime
   - id: current_grok_session_health
     status: blocked
     reason: grok_cli_auth_session_unhealthy
@@ -355,8 +331,8 @@ active_acceptance_blockers:
     required_files_exist: false
   not_current_blockers:
   - id: writer_claude_session_health
-    active: false
-    status: not_blocking
+    active: true
+    status: blocking
   - id: agentlab_internal_route_or_role_binding
     active: false
     status: not_blocking
@@ -369,7 +345,7 @@ active_acceptance_blockers:
   selected_item_gate_summary:
     writer_selected_in_scope: true
     media_selected_in_scope: false
-    writer_selected_can_run: true
+    writer_selected_can_run: false
     media_selected_can_run: false
 frontdesk_runtime_boundary:
   status: blocked_host_policy
@@ -410,12 +386,6 @@ role_session_execution_boundary:
   frontdesk_executes_role_session_acceptance_commands: false
   full_run_requires_trusted_status_pass: true
 capability_candidate_issues:
-- id: crown_chapter_batch_governance
-  summary: active run directory missing; historical archived evidence retained for
-    audit only
-  issues:
-  - active run directory missing
-  - only historical archived evidence available
 - id: crown_formal_live_narrative_eval
   summary: 'formal live one-chapter eval is routed through the internal Writer role-session:
     Agy Gemini OAuth with Claude shell + DeepSeek V4 Pro capacity fallback; route
@@ -431,10 +401,10 @@ capability_candidate_issues:
   - run-local chapter candidate is not formal trusted-runner live acceptance or production
     promotion
 - id: internal_live_readiness
-  summary: internal live readiness status=fail; ready_items=2; session_health_issues=1;
-    policy_rejections=0
+  summary: internal live readiness status=route_ready_session_blocked; ready_items=2;
+    session_health_issues=2; policy_rejections=0
   issues:
-  - 'current session health blocked: current_grok_session_health'
+  - 'current session health blocked: current_agy_writer_session_health, current_grok_session_health'
 - id: grok_xai_media_backend
   summary: Local Grok CLI preflight is ready and historical Grok smoke is retained
     as evidence; current non-private session smoke status=blocked reason=grok_cli_auth_session_unhealthy
@@ -467,6 +437,7 @@ capability_candidate_issues:
   summary: current provider smoke passed for deepseek; prior usage ledgers present
   issues:
   - projects/AgentLab/runs/task_live_code_ui_app_json_binding_20260707/cost_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/cost_ledger.yml
 - id: trusted_live_runner_collect
   summary: trusted runner collect status=pending_returned_artifacts; refreshed_reports=7;
     operator_handoff=needs_attention; secret_values_rendered=False; request_current=True;
@@ -479,6 +450,18 @@ capability_candidate_issues:
   acceptance_blocker_reasons:
   - claude_writer_session_health_blocked_before_private_writer_smoke
   - missing_candidate_artifacts
+- id: trusted_live_runner_operator_handoff
+  summary: operator handoff status=needs_attention; steps=9; candidate_items=2; session_health_issues=2;
+    selected_ready=none; selected_blocked=run_crown_internal_writer_eval,run_crown_internal_media_smoke;
+    approval_gate=True; frontdesk_private_exec=False
+  issues:
+  - non-private session health is not clean; role-session acceptance smoke remains
+    gated
+- id: trusted_live_runner_preflight
+  summary: trusted runner preflight status=pass; checks_passed=9; provider_calls=False;
+    request_current=False; writer_command_current=True
+  issues:
+  - trusted live runner preflight belongs to an older request
 - id: trusted_live_runner_status
   summary: trusted runner status=pending; missing_items=2; stale_items=0; artifact_qc_failures=0;
     request_current=True; acceptance_blockers=missing_required_files
@@ -497,23 +480,23 @@ pending_internal_live_smokes:
   next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
   agentlab_command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite
     crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
-    trusted_live_20260718_pruned_writer --writer-worker claude_code
+    trusted_live_20260724_131908_writer --writer-worker agy
   required_files:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
   missing:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
   required_files_exist: false
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
@@ -536,17 +519,17 @@ deferred_internal_live_smokes:
   evidence_interpretation: The trusted runner has not returned all required candidate
     artifacts.
   next_action: run_trusted_live_command_and_collect_required_artifacts
-  agentlab_command: ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
-    --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media
-    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_trusted_live_20260718_pruned_media
+  agentlab_command: ./agentlab.sh media-backend-execute --contract acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_trusted_live_20260724_131908_media
   required_files:
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
   missing:
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
   required_files_exist: false
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
@@ -563,13 +546,13 @@ conclusion: Local governance, routing, deterministic production-pack behavior, a
   deterministic-scaffold scope; provider-backed four-role acceptance is deferred.
   Crown prose still requires returned Writer artifacts. Media is evaluated only for
   route and execution readiness, with black-box output acceptance deferred to a visual
-  workflow. Current route readiness is fail with 1 session-health issue(s); A historical
-  Codex external-worker attempt was rejected by host policy; it is outside the current
-  Hermes/direct AgentLab execution paths and is not an AgentLab route, local CLI,
-  API key, or role-worker binding blocker. the trusted runner request and no-provider
-  local preflight remain the required next boundary before private role-session acceptance
-  artifacts can be accepted. The narrowed objective is still partial until refreshed
-  internal Writer artifacts pass their verification/QC gates.
+  workflow. Current route readiness is route_ready_session_blocked with 2 session-health
+  issue(s); A historical Codex external-worker attempt was rejected by host policy;
+  it is outside the current Hermes/direct AgentLab execution paths and is not an AgentLab
+  route, local CLI, API key, or role-worker binding blocker. the trusted runner request
+  and no-provider local preflight remain the required next boundary before private
+  role-session acceptance artifacts can be accepted. The narrowed objective is still
+  partial until refreshed internal Writer artifacts pass their verification/QC gates.
 notes:
 - This audit reads existing reports only and never calls external providers.
 - partial means the in-scope Writer returned-artifact verification/QC contract is

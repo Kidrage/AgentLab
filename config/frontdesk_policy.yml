@@ -7,15 +7,12 @@ summary: >
   not execution workers.
 frontdesk_class: frontdesk_chat_assistant
 default_frontdesk:
-  agent_id: hermes
-  invocation_contract: hermes
-  provider: deepseek
-  model_key: deepseek_v4_pro
-  model_id: deepseek-v4-pro
+  agent_id: openclaw
+  invocation_contract: openclaw
 execution_paths:
   routed_task_intake:
     frontdesk_required: true
-    frontdesk_agent: hermes
+    frontdesk_agent: openclaw
   direct_closed_loop:
     frontdesk_required: false
     entrypoints: [run-pipeline, role-session, narrative-eval]
@@ -91,6 +88,73 @@ long_project_rules:
 state_grounding:
   must_cite_artifacts: true
   hallucinated_state_is_failure: true
+turn_contract:
+  phases: [INTAKE, CLARIFY, ROUTE, MONITOR, REPORT]
+  one_phase_per_turn: true
+  preserve_user_request_verbatim_before_routing: true
+  deterministic_intent_compiler_required: true
+  tracked_file_evidence_required_for_repository_claims: true
+  grounded_report_required_for_completion_claims: true
+  no_evidence_value: UNKNOWN
+  response_fields: [phase, intent_or_decision, evidence, next_agentlab_action, unknowns, boundary_check]
+intent_compiler_v2:
+  schema_version: frontdesk-intent-policy/v1
+  route_execution_authority: config/routing_rules.yml
+  project_signal_threshold: 2
+  ambiguous_short_request_words: 6
+  single_capability_pattern: '\b(?:use|with)\s+(?:one\s+)?(?:skill|mcp)\b'
+  negated_action_patterns:
+    - '(?:不|不要|无需|禁止)\s*(?:修改|更改|写入|删除|创建|构建|实现|部署|发布|上传|推送)'
+    - '\b(?:without|do not|don''t|no)\s+(?:changing|change|editing|edit|writing|write|deleting|delete|creating|create|implementing|implement|deploying|deploy|publishing|publish|uploading|upload|pushing|push)(?:\s+(?:or|and)\s+(?:changing|change|editing|edit|writing|write|deleting|delete|creating|create|implementing|implement|deploying|deploy|publishing|publish|uploading|upload|pushing|push))*\b'
+  vocabularies:
+    status: [status, check, inspect, show, list, help, 状态, 检查, 查看, 列出]
+    mutation: [fix, implement, change, edit, write, build, create, update, delete, remove, 修复, 实现, 修改, 构建, 创建, 删除]
+    external: [deploy, publish, send, upload, push, post, 部署, 发布, 发送, 上传, 推送]
+    destructive: [delete, remove, destroy, drop, 删除, 销毁]
+    audit: [audit, review, verify, governance, 审计, 复核, 治理]
+    project: [long-term, multi-stage, continuously, ongoing maintenance, program, 长期, 跨阶段, 持续, 长期维护]
+    bounded: [one file, single, bounded, focused, 一个文件, 单个, 限定]
+    credential: [credential, secret, token, 密钥, 凭据]
+  tiers:
+    F0:
+      intent: deterministic_check
+      task_scope: read_only_check
+      confidence: 0.94
+      capabilities: [read_only_repo_search]
+      evidence: rule:deterministic_status_check
+    F1:
+      intent: verified_capability_request
+      task_scope: single_capability
+      confidence: 0.86
+      capabilities: [verified_skill_or_mcp]
+      evidence: rule:explicit_single_capability
+    F2:
+      intent: scoped_change
+      task_scope: bounded_task
+      confidence: 0.76
+      bounded_confidence: 0.84
+      capabilities: [file_edit, test_execution, deterministic_verification]
+      evidence: rule:bounded_single_executor_change
+    F3:
+      intent: ambiguous_request
+      audit_intent: governed_multi_role_request
+      task_scope: multi_role_closure
+      confidence: 0.58
+      audit_confidence: 0.82
+      capabilities: [planning, scoped_execution, independent_review]
+      evidence: rule:uncertain_defaults_to_f3
+      audit_evidence: rule:planning_execution_review
+    F4:
+      intent: project_program
+      task_scope: project_program
+      confidence: 0.90
+      capabilities: [project_agents, program_governance, durable_state, independent_audit]
+      evidence: rule:explicit_long_running_program
+  approval_requirements:
+    project_contract: project_contract_required_for_f4
+    external_effect: explicit_external_effect_approval
+    destructive_action: explicit_destructive_action_approval
+    credential_scope: credential_scope_approval
 frontdesk_agents:
   hermes:
     display_name: Hermes CLI Frontdesk
@@ -102,10 +166,13 @@ frontdesk_agents:
   agy:
     display_name: Antigravity CLI Frontdesk
     command: agy
-    launch_hint: agy --sandbox --model gemini-3.5-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
+    launch_hint: agy --sandbox --model gemini-3.6-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
   openclaw:
     display_name: OpenClaw Frontdesk
     command: openclaw
+    provider: deepseek
+    model_key: deepseek_v4_flash
+    model_id: deepseek-v4-flash
     launch_hint: openclaw agent --message "$(./agentlab.sh frontdesk-session --agent openclaw)"
   qwen:
     display_name: Qwen Frontdesk

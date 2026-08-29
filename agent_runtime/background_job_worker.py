@@ -15,6 +15,8 @@ import yaml
 
 from agent_runtime.atomic_io import atomic_write_yaml, safe_read_yaml
 from agent_runtime.background_job_controller import (
+    _resolve_background_budget,
+    _validate_writer_capacity_binding,
     job_dir,
     load_job_state,
     process_receipt_path,
@@ -194,6 +196,14 @@ def _generate_batch(request: dict[str, Any]) -> dict[str, Any]:
                 "reason": "unsupported_narrative_generation_adapter",
             },
         }
+    if config["allow_writer_cli_fallback"] is not False:
+        raise ValueError("Crown background delivery forbids writer CLI fallback")
+    writer_route, writer_model = _validate_writer_capacity_binding(
+        root,
+        route_id=config["writer_capacity_route"],
+        worker=str(config["writer_worker"]),
+        model_key=config["writer_model_key"],
+    )
     batch = request["batch"]
     report = run_narrative_eval(
         root,
@@ -205,17 +215,15 @@ def _generate_batch(request: dict[str, Any]) -> dict[str, Any]:
         writer_worker=str(config["writer_worker"]),
         resume_valid=True,
         stop_on_block=True,
-        allow_writer_cli_fallback=bool(
-            config.get("allow_writer_cli_fallback", False)
-        ),
+        allow_writer_cli_fallback=bool(config["allow_writer_cli_fallback"]),
         chapter_state_plan=str(config["chapter_state_plan"]),
         writer_budget_mode=str(config["writer_budget"]),
         require_knowledge_contract=bool(config.get("knowledge_contract_required")),
         writer_batch_authorization_required=bool(
             config.get("writer_batch_authorization_required")
         ),
-        writer_capacity_route=str(config.get("writer_capacity_route") or "Writer"),
-        writer_model_key=str(config.get("writer_model_key") or "deepseek_v4_pro"),
+        writer_capacity_route=writer_route,
+        writer_model_key=writer_model,
     )
     l2 = (report.get("layers") or {}).get("L2_real_chapter_sample") or {}
     result = {
@@ -612,26 +620,13 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
                 "deterministic_precheck": precheck,
             },
         }
-    execution_plan = request.get("narrative_execution_plan")
-    chapter_plans = (
-        execution_plan.get("chapters")
-        if isinstance(execution_plan, dict)
-        else None
-    )
     from agent_runtime.narrative.audit.runtime import run_single_judge_pipeline
 
     pipeline = run_single_judge_pipeline(
         root,
         project=request["project"],
         task_id=task_id,
-        budget_mode=(
-            "max-quality"
-            if any(
-                isinstance(item, dict) and int(item.get("judge_count") or 1) > 1
-                for item in (chapter_plans or [])
-            )
-            else "balanced"
-        ),
+        budget_mode=_resolve_background_budget(root, config.get("audit_budget")),
     )
     run_dir = root / "projects" / request["project"] / "runs" / task_id
     if not pipeline.get("success"):

@@ -110,10 +110,38 @@ def build_media_series_scaffold_audit(
     root = root.resolve()
     project_root = root / "projects" / PROJECT
     run_dir = resolve_run_dir(root, PROJECT, task_id)
+    if not run_dir.is_dir():
+        return {
+            "schema_version": 1,
+            "report_type": "agentlab_media_series_scaffold_audit",
+            "root": str(root),
+            "project": PROJECT,
+            "task_id": task_id,
+            "run_dir": str(run_dir),
+            "status": "retired",
+            "checks": [
+                {
+                    "id": "legacy_scaffold_retired",
+                    "status": "pass",
+                    "summary": (
+                        "The legacy media scaffold is not an active project task; "
+                        "its removed runtime cannot be used as current production evidence."
+                    ),
+                }
+            ],
+            "evidence": [],
+            "summary": {
+                "live_generation": False,
+                "active_candidate_available": False,
+            },
+            "issues": [],
+            "notes": [
+                "Create a new ArtifactProducer task to establish fresh media candidate evidence.",
+            ],
+        }
     workflow = _read_yaml(run_dir / "workflow_plan.yml")
     manifest = _read_yaml(run_dir / "artifact_manifest.yml")
     receipt = _read_yaml(run_dir / "narrative_media_delivery_receipt.yml")
-    contract = _read_yaml(run_dir / "media_generation_contract.yml")
     current_preflight = root / "acceptance_runs" / "agentlab_capability_acceptance" / "grok_media_preflight_current.yml"
     backend_preflight = run_dir / "artifacts" / "media_backend" / "media_backend_preflight.yml"
     live_smoke_preflight = run_dir / "artifacts" / "media_backend_live_smoke_20260707" / "media_backend_preflight.yml"

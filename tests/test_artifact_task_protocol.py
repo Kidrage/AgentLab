@@ -70,7 +70,7 @@ def test_text_artifact_contract_preserves_explicit_yaml_format():
 
     assert packet["output"]["format"] == "yaml"
     assert packet["routing"]["status"] == "routed"
-    assert packet["routing"]["selected"]["provider_id"] == "qwen_cli"
+    assert packet["routing"]["selected"]["provider_id"] == "codex_cli"
 
 
 def test_yaml_artifact_can_prefer_native_codex_cli():
@@ -89,7 +89,7 @@ def test_yaml_artifact_can_prefer_native_codex_cli():
     assert packet["routing"]["selected"] == {
         "provider_id": "codex_cli",
         "worker": "codex",
-        "priority": 90,
+        "priority": 110,
         "fallback": False,
         "reason": "codex_cli handles text with required capabilities",
     }
@@ -183,12 +183,13 @@ def test_artifact_task_accepts_repo_relative_path_for_its_own_run(
     assert validate_artifact_task_outputs(run_dir) == []
 
 
-def test_media_artifact_routes_to_grok_producer():
+def test_media_artifact_reports_local_backend_pending_without_provider_route():
     route = route_artifact_provider(ROOT, "image")
 
-    assert route["status"] == "routed"
-    assert route["selected"]["provider_id"] == "grok_media"
-    assert route["selected"]["worker"] == "grok"
+    assert route["status"] == "local_media_backend_pending"
+    assert route["selected"] is None
+    assert route["candidates"] == []
+    assert route["pending_provider"] == "local_media_pending"
 
 
 def test_audio_artifact_fails_closed_without_a_capable_provider():
@@ -252,7 +253,7 @@ def test_mixed_code_and_artifact_request_routes_to_both():
 
 
 def test_artifact_producer_role_session_includes_contract_status():
-    packet = build_role_session(ROOT, "ArtifactProducer", "grok", project="AgentLab", task_id="task_missing")
+    packet = build_role_session(ROOT, "ArtifactProducer", "codex", project="AgentLab", task_id="task_missing")
 
     assert packet["binding"]["allowed"] is True
     assert packet["artifact_task"]["status"] == "missing"

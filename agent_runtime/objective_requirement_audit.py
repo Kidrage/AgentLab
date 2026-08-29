@@ -640,16 +640,26 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
             (
                 "The AgentLab Web UI app was generated as a live run-local code task and promoted to project production with DOM/fetch, operator interaction, run-local API write, headless browser, screenshot, responsive viewport, and archive-governance evidence."
                 if _capability_status(capabilities, "live_code_candidate_materialization") == "pass"
-                else "A live run-local AgentLab Web UI candidate exists with DOM/fetch, operator interaction, run-local API write, headless browser, screenshot, and responsive viewport evidence."
+                else (
+                    "A live run-local AgentLab Web UI candidate exists with DOM/fetch, operator interaction, run-local API write, headless browser, screenshot, and responsive viewport evidence."
+                    if _capability_status(capabilities, "live_code_candidate_materialization")
+                    == "candidate"
+                    else "The legacy AgentLab Web UI probe is retired and supplies no current live candidate evidence."
+                )
             ),
             [
                 *_capability_evidence(capabilities, "live_code_candidate_materialization", "code_factory_orchestration"),
-                str(ui_api_report_path),
-                str(ui_action_ledger_path),
+                *([str(ui_api_report_path)] if ui_api_report_path.is_file() else []),
+                *([str(ui_action_ledger_path)] if ui_action_ledger_path.is_file() else []),
             ],
             None
             if _capability_status(capabilities, "live_code_candidate_materialization") == "pass"
-            else "Needs explicit promotion before production acceptance.",
+            else (
+                "Needs explicit promotion before production acceptance."
+                if _capability_status(capabilities, "live_code_candidate_materialization")
+                == "candidate"
+                else "Run a new Runtime v2 code/UI task and collect current immutable acceptance evidence."
+            ),
         ),
         _requirement(
             "test_crown_longform_1500_chapter_governance_and_live_generation",

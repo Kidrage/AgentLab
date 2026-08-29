@@ -16,6 +16,8 @@ BUDGET_ALIASES = {
     "max_quality": "max_quality",
     "maxquality": "max_quality",
     "frugal": "frugal",
+    "alter": "alter",
+    "altered": "alter",
 }
 
 

@@ -353,7 +353,12 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
             (
                 "Code routes still use the code factory chain, and the live AgentLab Web UI task has production promotion plus local smoke evidence."
                 if _capability_status(capabilities, "live_code_candidate_materialization") == "pass"
-                else "Code routes still use the code factory chain, and a live code/UI candidate has local smoke evidence."
+                else (
+                    "Code routes still use the code factory chain, and a live code/UI candidate has local smoke evidence."
+                    if _capability_status(capabilities, "live_code_candidate_materialization")
+                    == "candidate"
+                    else "Code routes still use the code factory chain; the legacy live UI probe is retired and supplies no current candidate evidence."
+                )
             ),
             [
                 *capabilities.get("code_factory_orchestration", {}).get("evidence", []),
@@ -361,7 +366,12 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
             ],
             None
             if _capability_status(capabilities, "live_code_candidate_materialization") == "pass"
-            else "The live UI app remains candidate-only until explicit promotion and live backing API write workflows.",
+            else (
+                "The live UI app remains candidate-only until explicit promotion and live backing API write workflows."
+                if _capability_status(capabilities, "live_code_candidate_materialization")
+                == "candidate"
+                else "Run a new Runtime v2 code/UI task and collect current immutable acceptance evidence."
+            ),
         ),
         _item(
             "split_non_code_from_code_shell",

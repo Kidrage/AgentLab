@@ -965,7 +965,7 @@ def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Pa
         mode="live",
         chapters=[1],
         timestamp="20260705T040000Z",
-        writer_worker="claude_code",
+        writer_worker="agy",
     )
 
     assert result["status"] == "fail"
@@ -1272,7 +1272,7 @@ def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(
         mode="live",
         chapters=[1],
         timestamp=timestamp,
-        writer_worker="claude_code",
+        writer_worker="agy",
         stop_on_block=True,
     )
 

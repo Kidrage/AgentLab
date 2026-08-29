@@ -1,16 +1,16 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-07-24T07:16:44Z'
+generated_at: '2026-08-28T11:51:02Z'
 repository:
   root: .
-  head: db0c13b
+  head: 792d806
   worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
   report_type: agentlab_capability_acceptance
-  sha256: d14b86c320f1cd5644e620bc9f5e120766211241851b0e273e1ef6efce12f55f
-  overall_status: fail
+  sha256: 1b015864f20cfaeec8e7e6b1d09bd5342e46373c7fa39f6f2d81874403bf7734
+  overall_status: candidate
 current_evidence:
 - path: acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml
   class: active
@@ -27,51 +27,16 @@ current_evidence:
   capability_ids:
   - crown_heavy_audit_scale
   sha256: 5ec7c3650fe6fc2866480c8bfc81674ed51f75d5d2869368830bb80e4e18845c
-- path: acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml
-  class: active
-  capability_ids:
-  - internal_live_readiness
-  sha256: 1a1cd92438b3fa856131f7d02ffc4fabc912e47ad1660ea0cc1fa2d04e013756
 - path: acceptance_runs/agentlab_capability_acceptance/frontdesk_boundary_audit.yml
   class: active
   capability_ids:
   - frontdesk_role_worker_boundary
-  sha256: 906be08e3af7f1d16bb65cf2c92998fd0b9b1a816f41a3375e8489551cce0f8e
+  sha256: fbd6acf2a398e4e15803ee9608a5280d0ae06418973ada96de2c5794481cc6e0
 - path: acceptance_runs/agentlab_capability_acceptance/frontdesk_live_handoff.yml
   class: active
   capability_ids:
   - frontdesk_role_worker_boundary
-  sha256: efebfbf7e4cc1a470f5d06e256a6afaa474da70b70c9f3fa2af2e923560548c2
-- path: acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml
-  class: active
-  capability_ids:
-  - grok_xai_media_backend
-  sha256: 1ba4d9dffc586a8ad780d0efba57d753fd192317fe482498d686d1a78b157b3c
-- path: acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
-  class: active
-  capability_ids:
-  - grok_xai_media_backend
-  sha256: 863e24b689eb1830e7b3a05cc78c8f8b44fb8ced1450f23741e024428a53edb6
-- path: acceptance_runs/agentlab_capability_acceptance/grok_oauth_cli_smoke.yml
-  class: active
-  capability_ids:
-  - grok_xai_media_backend
-  sha256: c558f5f33e8d8d1a329a5f40ccaaa67e5a4c12d8858916aaf04743b9f80fc70d
-- path: acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
-  class: active
-  capability_ids:
-  - internal_live_readiness
-  sha256: 8390fe0a89f15a8a132fd4f968ab9459285ccee3790f57c5ba55ab2a3f170074
-- path: acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
-  class: active
-  capability_ids:
-  - internal_live_unblock_plan
-  sha256: 464d95e29ea116cb61671248f9515e679cdfa512d36d6d8fc73662ba03c6fc7d
-- path: acceptance_runs/agentlab_capability_acceptance/media_series_scaffold_audit.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: 0a7a94f3b9de7b5589320b1f326726819c0f7f4b28f33c9ada84d5a494173bb3
+  sha256: ce509f165656570532aa22682d03d370d80a87a2c6f4bf295737662ffa6db4c0
 - path: acceptance_runs/agentlab_capability_acceptance/production_chain_audit.yml
   class: active
   capability_ids:
@@ -97,48 +62,6 @@ current_evidence:
   capability_ids:
   - provider_reachability
   sha256: 71203df27986d8e0679739b84107b44802f4ce91d00a3286fe0f4b90e7fe202c
-- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
-  class: active
-  capability_ids:
-  - trusted_live_runner_collect
-  sha256: be3d37c3907441a1f200ddc86bdc90e08a4600d21688e6faa95e5954069cfb0f
-- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml
-  class: active
-  capability_ids:
-  - trusted_live_runner_operator_handoff
-  sha256: a35f757a4a17439be28578205336f913750a4f0bca3b6456b3f9113812784375
-- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_preflight.yml
-  class: active
-  capability_ids:
-  - trusted_live_runner_preflight
-  sha256: c27c988d49e0a6d7413b3e9d382dd560af4da80ddd1b7e427b8f58927a5e04d4
-- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
-  class: active
-  capability_ids:
-  - trusted_live_runner_request
-  sha256: 411a44b21cdd9b8daa33d1c0ca49b2ea23fda1c2325e4f0495971dede63012db
-- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
-  class: active
-  capability_ids:
-  - trusted_live_runner_request
-  sha256: 3c3eff9141651aa5975e879cbc80dd9d820ff7731492e6369ed3b800a4927acf
-- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
-  class: active
-  capability_ids:
-  - crown_formal_live_narrative_eval
-  - grok_xai_media_backend
-  - trusted_live_runner_status
-  sha256: 4fc0c89593c12331cd6b5d682c2eba2950cb9aa1fd3bf67e9c9536cb6acb2085
-- path: acceptance_runs/narrative_eval/Crown_of_Ash/crown_v3_agy_style_parity/crown-v3-agy-parity-ch001-20260723-r8/continuity_failure_report.yml
-  class: active
-  capability_ids:
-  - crown_heavy_audit_scale
-  sha256: 28c97529b55d2894dbfca4bf33a352fe3f6dd85690fe0ac0766cab1ff275f07c
-- path: acceptance_runs/narrative_eval/Crown_of_Ash/crown_v3_agy_style_parity/crown-v3-agy-parity-ch001-20260723-r8/longform_eval_report.yml
-  class: active
-  capability_ids:
-  - crown_heavy_audit_scale
-  sha256: 791cc1b9309af9757a6657b1d3b80de6bbffec254ab083f0a4e0b5ec4f3cc634
 - path: acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/manifest_v2_final2_20260719/series_scale_simulation.yml
   class: active
   capability_ids:
@@ -148,17 +71,17 @@ current_evidence:
   class: active
   capability_ids:
   - grok_xai_media_backend
-  sha256: d8ea8308b1be3b684d65fa155a51529916aca7389b33179bd5d2ea512c7bca07
+  sha256: 6496c21ed689afa8fc8f945694a8e10b091df31fd0806e7783e923a17236c163
 - path: agent_runtime/model_resolver.py
   class: active
   capability_ids:
   - core_package_import_stability
-  sha256: 1f8988d8a48f77ab930f7e980020ec371c7088313f75eaf2b961206db7a71f05
+  sha256: 058991dd9827af8f5a72c822db41a909d3ed2ec65f39d1fdc54e7415b1032bdf
 - path: agent_runtime/production_pack_registry.py
   class: active
   capability_ids:
   - production_pack_synthesis
-  sha256: 4ae1894284d6eacd78dc6d40bfe57b7e102bd604a0418aec8e0e1c56f92f9407
+  sha256: db588747327cf051118812cae613176b979a6b5ebae56f6241c8aa5382ea6990
 - path: agent_runtime/production_packs.py
   class: active
   capability_ids:
@@ -183,206 +106,54 @@ current_evidence:
   class: active
   capability_ids:
   - core_package_import_stability
-  sha256: 319665bd78de68ca8e12742968976f6e3829e819b5e065a93b94ce322d257338
+  sha256: 85a72b053c3a92edc52b5409101f29700aad002fb69aec220b7db200ea97bc1f
 - path: config/agent_model_profiles.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
-  sha256: 68e4fb99a29411863e0eb30c4829c2a2b85f2fec9f525cac68ba2915a3caa28f
+  sha256: a5f876eba8695b41f00078bd40af3d05f98fdf2e68a9d2df3834bd86fb7877da
 - path: config/agent_role_bindings.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 5cffafbf67418a3ba91477cddee6fabbe44937ce203a6011dfffb5222ec3949b
+  sha256: 00c15bdd836e90e5cbaee3a64f8207ba58f01edf2cad9d900606456442dea141
 - path: config/cli_workflow_shells.yml
   class: active
   capability_ids:
   - cli_native_command_surface_governance
   - cli_workflow_shell_absorption
-  sha256: cb3b5d2afa39c53f6b6a594c1afe3b5d1c884f755bf96feb6a0b2037eec6dc11
+  sha256: 336e041d1b28605f9d7828eea1f1945e7eaea613b3b60d02a739047487edf70f
 - path: config/media_generation_backends.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - grok_xai_media_backend
-  sha256: 9c154234e98b4610987b10c8fde1496e1bf85ec27fbd53310b9cc37482195dc3
+  sha256: d9bb604e79f8ee5898c7bda499a780a52009a8be63b43e0d597efcf4cb7bed2d
 - path: config/model_capacity.yml
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: 3cf53d7f3fbc70b1d905ee2544558a95b2d17260a0913038950a0f9f1deb2eef
+  sha256: cfb05a0fd5fe68412c6b7444a715dfa987533dbf5284b2e41f0e38078f7a4f41
 - path: config/model_catalog.yml
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: 936d0c59fe0b90e64ade9a8bb26a81d24663e283b14af389349afff8c597bc1f
+  sha256: 1246b62b7b9cd53a08ae6ca1a8b7b4b5c5df124ff952c1ca9ad9a288515003c6
 - path: config/production_packs.yml
   class: active
   capability_ids:
   - production_pack_synthesis
-  sha256: daddddd870559c0f5f3f57af829a6d4f89c8d5d8dba3b7584e7b339f8244ef6b
+  sha256: a25376893171c25583f736abef0f32925a3e56d65a9bf1891bab043142e8f2ca
 - path: config/worker_invocation_contracts.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 16f9b42a8e9d6b5f837296f1132af34dae2d76e608f3586a4e4a2e86e323e83b
-- path: projects/AgentLab/production/artifacts/web_ui/app.js
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: b71a0a3a6eb3a552f425f72e29cdfcf95bce53f028f2928126d8ad07fbd1a550
-- path: projects/AgentLab/production/artifacts/web_ui/index.html
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: 5dd84b706c4892d77c60c0d37fed869e75e6340041c3c4af36540bad82b6fc30
-- path: projects/AgentLab/production/artifacts/web_ui/status.sample.json
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: bc8be614452c592fe863658d776a6bb8db6f8aed5f58ffd4d48b1936b976da0c
-- path: projects/AgentLab/production/artifacts/web_ui/styles.css
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: 5d2ec4941d094465a296cd6b83af0b059246fb9f1d15d33599e2faba1d06a3eb
-- path: projects/AgentLab/project_artifact_index.yml
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: 6d57469a75b92e9f137efebb99f47fa1ff36c71b676f5ad1785072aa73e55c38
-- path: projects/AgentLab/runs/task_init_shell_code_probe_20260707/artifact_manifest.yml
-  class: active
-  capability_ids:
-  - code_factory_orchestration
-  sha256: 26647e5720df23bfa04d1108ee4d72a87e15d3d50e4822fa1fbe6ec47e60e736
-- path: projects/AgentLab/runs/task_init_shell_code_probe_20260707/lifecycle.yml
-  class: active
-  capability_ids:
-  - code_factory_orchestration
-  sha256: 5a744aea27a59c3ee7cf3b331cedfd3cd3233c52f168b82fd84123fb460bf6c8
-- path: projects/AgentLab/runs/task_init_shell_code_probe_20260707/workflow_plan.yml
-  class: active
-  capability_ids:
-  - code_factory_orchestration
-  - non_code_code_shell_split
-  sha256: 2f3105e0028d2cf69eeea8af5bc93156d8fd4c3a3324d17709e590a208f4b62f
-- path: projects/AgentLab/runs/task_prepare_frugal_real_smoke_20260707/workflow_plan.yml
-  class: active
-  capability_ids:
-  - budget_aware_prepare
-  sha256: 48bf35adc2e20127f5483a88799ff28828a5641d946d4879d8bf3dceec06ab59
-- path: projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/artifact_manifest.yml
-  class: active
-  capability_ids:
-  - non_code_media_route_contract
-  sha256: 25d36b4b3ed6fd1c886a75aba621f5baa37aad1ad9dd4730d8f28f9c8cf99456
-- path: projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/lifecycle.yml
-  class: active
-  capability_ids:
-  - non_code_media_route_contract
-  sha256: 0f03475d530de3beb7922c10ff1a2e98edd62e2b12c28462267af4ce46573b6a
-- path: projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/workflow_plan.yml
-  class: active
-  capability_ids:
-  - non_code_code_shell_split
-  - non_code_media_route_contract
-  sha256: f1bb7d72f984eccdef4c4066ff589722daecda19745277ab9db5895bf28b44d6
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/continuity_ledger.yml
-  class: active
-  capability_ids:
-  - crown_live_writer_light_path
-  sha256: ce933a1a720e86bb6d5011a003052bc7bbcc15bba23e314311a90355cc08a516
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/cost_ledger.yml
-  class: active
-  capability_ids:
-  - provider_reachability
-  sha256: bb8bcb19c77e91c6e3e6ffc725a8fa365c68468e4fa3feec61eb52992b5acaef
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/fiction_draft.md
-  class: active
-  capability_ids:
-  - crown_live_writer_light_path
-  sha256: cd1c23054822e5104c6c966bb0c1f54fcaa07f0d0d09403498ca20dd92778e42
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/narrative_delivery_receipt.yml
-  class: active
-  capability_ids:
-  - crown_live_writer_light_path
-  sha256: daf363e923e02265a1a5a6a20120b1eba36ea7a5ecec3339c7c1468aeed67371
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/state_transition_proposal.yml
-  class: active
-  capability_ids:
-  - crown_live_writer_light_path
-  sha256: 6a69e4a5b0bcb7647cd9967f44fa588014c48ee98f77d5158e69ef6d3cc809dc
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/USER_DECISION_REQUIRED.md
-  class: active
-  capability_ids:
-  - crown_formal_live_narrative_eval
-  sha256: bf5a613ec57c7cace3cbe7d7d959ab5b25dd1fb4612fe63f80ed34a493e45ebc
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/live_generation_error.yml
-  class: active
-  capability_ids:
-  - crown_formal_live_narrative_eval
-  sha256: ca551bcfd156724f68ff461cf0c03e15adcdfd6d8b19b65127e02a46f10ecc23
-- path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/provider_incidents.yml
-  class: active
-  capability_ids:
-  - crown_formal_live_narrative_eval
-  sha256: 1d92dfddf4ea294576dd1308032f05b1a6445c4176723a9c04caf75f86cb141a
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifact_manifest.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: a790f90897478f39c72dfb96d9404c56ee59ad6d3a7efdbc54a527b642dee07a
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/asset_registry.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: fdf146f789f03416efb38ab8d9fedae6793e9b9b11f4b67e1e6bfd7a4fc13cbc
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/generation_ledger.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: beed573252fa1c076dfbc12c63ad00d7320f5619173c7a36f170947c6614d687
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_continuity_ledger.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: 19bf97510ae1d903d8fbc2e3269a0338380ed4bc904024336a6ed51501ecb0fb
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: afd91e5abd9872223ce253413f2a21d2fa620e22a49e17b2c98a2ee753092a8a
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: c44d7880b1da26401d39240e6ce5e9dd27a3bec4c5c4f448a8cc6d6fef8db48f
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: 8b23bf3a7c747b9bda7384d394fcf54952cc7e522db66295896a85b3f340f629
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/prompt_pack.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: 59b0c853c4aa41c902d421cb6c5b82450e026256ad8a4e090b1a0b12fcdf9349
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/shot_list.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: 88ccbf48fa68893e6ed151805b359c7f8ffeb9be8a72c81c28de718d796c5ec2
-- path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/workflow_plan.yml
-  class: active
-  capability_ids:
-  - media_series_scaffold
-  sha256: b7c73bb7c845dc620a7abc2e79b037b2ad6198991eb280be2debe159b8b6a29c
+  sha256: 75d9100b2464b53917914236e52b813f96620af3fddd835d92fccc9c5fcf0cbe
 - path: tests/test_core_package_imports.py
   class: active
   capability_ids:
@@ -393,105 +164,61 @@ current_evidence:
   capability_ids:
   - core_package_import_stability
   sha256: 012937419473a7c9f7d315f6204e5ece4b1ee2d35abc4faa70eefb044da64d06
-current_evidence_count: 74
+current_evidence_count: 29
 historical_references:
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/archive_receipt.yml
+- path: acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifact_promotion_plan.yml
+  - internal_live_readiness
+- path: acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/app.js
+  - internal_live_readiness
+- path: acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/index.html
+  - internal_live_unblock_plan
+- path: acceptance_runs/agentlab_capability_acceptance/media_series_scaffold_audit.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/status.sample.json
+  - media_series_scaffold
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/styles.css
+  - trusted_live_runner_collect
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_action_ledger.json
+  - trusted_live_runner_operator_handoff
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_preflight.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_api_smoke_report.json
+  - trusted_live_runner_preflight
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_browser_smoke_report.json
+  - trusted_live_runner_request
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_candidate_smoke_report.json
+  - trusted_live_runner_request
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
   class: historical
   reason: archive_or_run_history_or_superseded
   capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_interaction_smoke_report.json
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_desktop.png
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_mobile.png
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_smoke_report.json
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_visual_smoke.png
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - live_code_candidate_materialization
-- path: projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_visual_smoke_report.json
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - live_code_candidate_materialization
-- path: projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_batch_ch01_ch20_20260707/artifact_manifest.yml
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - crown_chapter_batch_governance
-- path: projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_batch_ch01_ch20_20260707/lifecycle.yml
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - crown_chapter_batch_governance
-- path: projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_batch_ch01_ch20_20260707/workflow_plan.yml
-  class: historical
-  reason: archive_or_run_history_or_superseded
-  capability_ids:
-  - crown_chapter_batch_governance
-historical_reference_count: 19
-aggregate_digest: 89737a1397c658d08f5304370bd1003e45247d8da1667d7c97a13ef9e29118da
+  - crown_formal_live_narrative_eval
+  - trusted_live_runner_status
+historical_reference_count: 10
+aggregate_digest: 4d12a1d02b7cdd1fde07c0563bfea502e099ac9da74bc41b2960a44aaa4abf7a
 status: pass
 issues: []
 notes:

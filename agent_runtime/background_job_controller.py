@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from agent_runtime.atomic_io import (
     atomic_write_yaml,
@@ -66,6 +66,58 @@ def _parse_timestamp(value: str) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _resolve_background_budget(root: Path, explicit: str | None) -> str:
+    policy = safe_read_yaml(Path(root) / "config" / "execution_policy.yml")
+    budget_policy = policy.get("budget_mode_policy") if isinstance(policy, Mapping) else None
+    if not isinstance(budget_policy, Mapping):
+        raise ValueError("execution budget authority is unavailable")
+    raw_available = budget_policy.get("available_modes")
+    if not isinstance(raw_available, list) or not raw_available:
+        raise ValueError("execution budget authority has no available modes")
+
+    def normalize(value: object) -> str:
+        return str(value or "").strip().lower().replace("-", "_")
+
+    available = {normalize(item) for item in raw_available if normalize(item)}
+    selected = normalize(explicit or budget_policy.get("default_budget_mode"))
+    if not selected or selected not in available:
+        raise ValueError("background job budget is not declared by execution policy")
+    return selected
+
+
+def _validate_writer_capacity_binding(
+    root: Path,
+    *,
+    route_id: str | None,
+    worker: str,
+    model_key: str | None,
+) -> tuple[str, str]:
+    route_key = str(route_id or "").strip()
+    selected_model = str(model_key or "").strip()
+    if not route_key or not selected_model:
+        raise ValueError("writer capacity route and model key must be explicit")
+    policy = safe_read_yaml(Path(root) / "config" / "model_capacity.yml")
+    routes = policy.get("routes") if isinstance(policy, Mapping) else None
+    route = routes.get(route_key) if isinstance(routes, Mapping) else None
+    if not isinstance(route, Mapping):
+        raise ValueError("writer capacity route is not declared")
+    expected = {
+        "role": "writer",
+        "worker": str(worker),
+        "model_key": selected_model,
+    }
+    if any(str(route.get(field) or "") != value for field, value in expected.items()):
+        raise ValueError("writer capacity binding mismatch")
+    for required in ("invocation_contract", "pool"):
+        if not str(route.get(required) or "").strip():
+            raise ValueError(f"writer capacity route has no {required}")
+    if route.get("approved_fallbacks") not in (None, []):
+        raise ValueError("writer capacity route must not declare fallbacks")
+    if route.get("fallback_on") not in (None, []):
+        raise ValueError("writer capacity route must not enable fallback conditions")
+    return route_key, selected_model
 
 
 def _validate_id(value: str, label: str) -> str:
@@ -190,7 +242,10 @@ def create_crown_delivery_job(
     parent_task_id: str | None = None,
     knowledge_contract_required: bool = False,
     allow_writer_cli_fallback: bool = False,
-    writer_budget: str = "frugal",
+    writer_budget: str | None = None,
+    writer_capacity_route: str | None = None,
+    writer_model_key: str | None = None,
+    audit_budget: str | None = None,
     suite: str = "crown-longform-reset-v1",
     max_retries_per_action: int = 3,
     transient_retry_seconds: int = 900,
@@ -225,6 +280,16 @@ def create_crown_delivery_job(
         raise ValueError("transient retry seconds must be positive")
     if attempt_lease_seconds < 1:
         raise ValueError("attempt lease seconds must be positive")
+    if allow_writer_cli_fallback:
+        raise ValueError("Crown background delivery forbids writer CLI fallback")
+    resolved_writer_route, resolved_writer_model = _validate_writer_capacity_binding(
+        root,
+        route_id=writer_capacity_route,
+        worker=writer_worker,
+        model_key=writer_model_key,
+    )
+    resolved_writer_budget = _resolve_background_budget(root, writer_budget)
+    resolved_audit_budget = _resolve_background_budget(root, audit_budget)
     if parent_task_id is not None:
         _validate_id(parent_task_id, "parent_task_id")
     for label, value in (
@@ -279,7 +344,10 @@ def create_crown_delivery_job(
             "heavy_audit_cadence": heavy_audit_cadence,
             "writer_worker": writer_worker,
             "chapter_state_plan": chapter_state_plan,
-            "writer_budget": writer_budget,
+            "writer_budget": resolved_writer_budget,
+            "writer_capacity_route": resolved_writer_route,
+            "writer_model_key": resolved_writer_model,
+            "audit_budget": resolved_audit_budget,
             "knowledge_contract_required": bool(knowledge_contract_required),
             "max_retries_per_action": max_retries_per_action,
             "transient_retry_seconds": transient_retry_seconds,
@@ -1023,10 +1091,20 @@ def consume_process_receipt(
             state["last_error"] = "retry receipt did not include retry_at"
         else:
             _parse_timestamp(str(retry_at))
-            state["status"] = "retry_wait"
-            state["retry_at"] = str(retry_at)
+            counts = state.setdefault("retry_counts", {})
+            counts[action] = int(counts.get(action, 0)) + 1
             state["retry_action"] = action
-            state["last_error"] = result.get("reason") or "transient_failure"
+            if counts[action] > int(state["config"]["max_retries_per_action"]):
+                state["status"] = "blocked"
+                state["retry_at"] = None
+                state["last_error"] = (
+                    "transient retry limit exhausted: "
+                    + (result.get("reason") or "transient_failure")
+                )
+            else:
+                state["status"] = "retry_wait"
+                state["retry_at"] = str(retry_at)
+                state["last_error"] = result.get("reason") or "transient_failure"
     else:
         counts = state.setdefault("retry_counts", {})
         counts[action] = int(counts.get(action, 0)) + 1

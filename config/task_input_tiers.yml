@@ -117,6 +117,9 @@ classification:
     creative_patch: L1
     consistency_patch: L2
     prose_build: L3
+    blueprint_build: L3
+    code_build: L3
+    film_build: L3
     structural_change: L3
     audit_review: L3
     canon_promotion: L3
@@ -126,12 +129,17 @@ classification:
     localized: L1
     cross_artifact: L3
     multi_chapter: L3
+    longform: L3
     project_wide: L3
+    single_chapter: L3
+    large: L3
+    feature: L3
     unknown: L3
   canon_impact_minimum:
     none: L0
     candidate: L0
     canonical: L2
+    new_project: L3
     unknown: L3
   risk_minimum:
     age_continuity: L2
@@ -141,6 +149,7 @@ classification:
     longform_continuity: L3
     main_arc_change: L3
     world_model_change: L3
+    major_reveal: L3
     destructive_change: L3
   target_count:
     l0_max: 1
@@ -148,6 +157,18 @@ classification:
     l2_max: 3
 
 trace_record_contracts:
+  narrative_task_packet:
+    schema_version: narrative-task-packet/v1
+    producer_roles: [Runtime]
+    fields:
+      status: {type: string, equals: compiled}
+      runtime_standard: {type: string, equals: task-runtime-v2}
+      project: {type: string}
+      task_id: {type: string}
+      change_kind: {type: string}
+      request: {type: mapping, minimum_items: 1}
+      truth_bindings: {type: mapping, minimum_items: 1}
+      required_roles: {type: list, minimum_items: 1}
   brain_scope_decision:
     schema_version: brain-scope-decision/v1
     producer_roles: [Supervisor]
@@ -176,6 +197,37 @@ trace_record_contracts:
       status: {type: string, equals: approved}
       route: {type: string, equals: governed_pipeline}
       work_items: {type: list, minimum_items: 2}
+  narrative_user_acceptance:
+    schema_version: narrative-user-acceptance-gate/v1
+    producer_roles: [Runtime]
+    fields:
+      status: {type: string, equals: accepted}
+      receipt_path: {type: string}
+      candidate_set_id: {type: string}
+      candidate_set_sha256: {type: sha256}
+      evidence_bundle_sha256: {type: sha256}
+  narrative_auto_acceptance:
+    schema_version: narrative-auto-acceptance-gate/v1
+    producer_roles: [Runtime]
+    path_list_field: evidence_paths
+    path_hashes_field: content_hashes
+    fields:
+      status: {type: string, equals: accepted}
+      mode: {type: string, equals: detached}
+      project: {type: string}
+      task_id: {type: string}
+      work_item_id: {type: string}
+      chapter_id: {type: integer, minimum: 1}
+      candidate_path: {type: string}
+      candidate_sha256: {type: sha256}
+      senior_editor_review_path: {type: string}
+      reader_panel_review_path: {type: string}
+      policy_sha256: {type: sha256}
+      hard_gate_status: {type: string, equals: pass}
+      fallback_used: {type: boolean, equals: false}
+      exception_count: {type: integer}
+      evidence_paths: {type: list, minimum_items: 5}
+      content_hashes: {type: mapping, minimum_items: 5}
   worker_attempt_receipt:
     schema_version: worker-attempt-receipt/v1
     producer_roles: [Runtime]

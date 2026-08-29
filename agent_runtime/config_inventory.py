@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - package import path
 RUNTIME_CONFIG_NAMES = {
     "backup_policy.local.example.yml",
     "backup_policy.local.yml",
+    "capability_package.example.yml",
     "local_private_topology.example.yml",
     "test_external_agents.yml",
 }

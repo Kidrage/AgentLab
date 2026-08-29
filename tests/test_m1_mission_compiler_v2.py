@@ -497,9 +497,35 @@ class TestMediaGenerationRouting:
     @staticmethod
     def _media_config() -> dict:
         repo_root = Path(__file__).resolve().parents[1]
-        return yaml.safe_load(
+        config = yaml.safe_load(
             (repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8")
         )
+        for backend_id in ("hermes_grok_oauth", "grok_direct"):
+            config["backends"][backend_id].update(
+                {"availability": "test_fixture_only", "selectable": True}
+            )
+        config["policies"]["high_quality_single_or_short"]["backend_chain"] = [
+            "hermes_grok_oauth",
+            "grok_direct",
+            "bailian_cli",
+            "ark_cli",
+        ]
+        config["policies"]["fast_simple"]["backend_chain"] = [
+            "hermes_grok_oauth",
+            "grok_direct",
+            "bailian_cli",
+        ]
+        config["policies"]["draft_batch"]["backend_chain"] = [
+            "hermes_grok_oauth",
+            "grok_direct",
+            "bailian_cli",
+        ]
+        config["policies"]["commercial_final"]["backend_chain"] = [
+            "hermes_grok_oauth",
+            "bailian_cli",
+            "ark_cli",
+        ]
+        return config
 
     def _contract_with_media_config(self, prompt: str, media_config: dict) -> dict:
         repo_root = Path(__file__).resolve().parents[1]
@@ -522,11 +548,21 @@ class TestMediaGenerationRouting:
             )
             return build_mission_contract(prompt, agentlab_root=root)
 
-    def test_unknown_capacity_backed_auth_is_pending_without_fallback_preselection(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        media_config = yaml.safe_load(
-            (repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8")
+    def test_default_media_route_is_a_non_executing_local_model_placeholder(self):
+        contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+        media = contract["media_generation_contract"]
+
+        assert media["selected_backend"] == "local_media_pending"
+        assert media["routing_status"] == "selected"
+        assert media["executable"] is False
+        assert media["fallback_chain"] == ["local_media_pending"]
+        assert media["execution_blocker"]["status"] == "local_media_backend_pending"
+        assert media["execution_blocker"]["recommended_action"] == (
+            "configure_and_verify_local_media_model"
         )
+
+    def test_unknown_capacity_backed_auth_is_pending_without_fallback_preselection(self):
+        media_config = self._media_config()
         assert media_config["backends"]["hermes_grok_oauth"]["auth_state"] == "unknown"
         assert media_config["backends"]["hermes_grok_oauth"]["capacity_source"]
 
@@ -581,8 +617,7 @@ class TestMediaGenerationRouting:
         assert media["execution_blocker"] is None
 
     def test_grok_direct_is_not_auto_selected_when_xai_key_is_present(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+        media_config = self._media_config()
         media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
         with patch.dict(os.environ, {"XAI_API_KEY": "test-key", "GROK_API_KEY": ""}, clear=False):
             contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
@@ -594,8 +629,7 @@ class TestMediaGenerationRouting:
         assert media["backend_contracts"]["grok_direct"]["approval_required"] is True
 
     def test_grok_direct_is_not_auto_selected_when_grok_key_alias_is_present(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+        media_config = self._media_config()
         media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
         with patch.dict(os.environ, {"XAI_API_KEY": "", "GROK_API_KEY": "test-key"}, clear=False):
             contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
@@ -621,8 +655,7 @@ class TestMediaGenerationRouting:
         assert media["backend_contracts"]["grok_direct"]["fallback_only"] is True
 
     def test_missing_direct_api_key_falls_through_instead_of_blocking_default_route(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+        media_config = self._media_config()
         media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
         with patch.dict(os.environ, {"XAI_API_KEY": "", "GROK_API_KEY": ""}, clear=False):
             contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
@@ -635,9 +668,9 @@ class TestMediaGenerationRouting:
         contract = build_mission_contract(PROMPT_BATCH_DRAFT)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "draft_batch"
-        assert media["selected_backend"] is None
-        assert media["routing_status"] == "pending_capacity"
-        assert media["execution_blocker"]["backend"] == "hermes_grok_oauth"
+        assert media["selected_backend"] == "local_media_pending"
+        assert media["routing_status"] == "selected"
+        assert media["execution_blocker"]["status"] == "local_media_backend_pending"
 
     def test_ark_pending_is_not_executable_backend(self):
         media_config = self._media_config()
@@ -669,7 +702,7 @@ class TestMediaGenerationRouting:
                     (repo_root / "config" / name).read_text(encoding="utf-8"),
                     encoding="utf-8",
                 )
-            media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+            media_config = self._media_config()
             media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
             media_config["backends"]["grok_direct"]["auth_state"] = "missing_auth"
             (root / "config" / "media_generation_backends.yml").write_text(
@@ -875,8 +908,9 @@ class TestRenderer:
             assert (out_dir / "media_generation_contract.yml").exists()
             assert "media_generation_contract" in written
             media = yaml.safe_load((out_dir / "media_generation_contract.yml").read_text(encoding="utf-8"))
-            assert media["selected_backend"] is None
-            assert media["routing_status"] == "pending_capacity"
+            assert media["selected_backend"] == "local_media_pending"
+            assert media["routing_status"] == "selected"
+            assert media["execution_blocker"]["status"] == "local_media_backend_pending"
 
 
 # ── External executor recommendation tests ─────────────────────────

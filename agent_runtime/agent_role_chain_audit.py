@@ -270,7 +270,7 @@ def _profile_contract_report(root: Path) -> tuple[list[dict[str, Any]], list[str
     report: list[dict[str, Any]] = []
 
     for mode_name, mode in sorted(modes.items()):
-        if mode_name == "trusted_headless_cli" or not isinstance(mode, dict):
+        if not isinstance(mode, dict):
             continue
         tiers = mode.get("tiers", {}) if isinstance(mode.get("tiers"), dict) else {}
         for tier_name, tier in sorted(tiers.items()):

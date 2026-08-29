@@ -1,7 +1,7 @@
 schema_version: 1
 report_type: agentlab_frontdesk_live_handoff
 root: .
-frontdesk_agent: hermes
+frontdesk_agent: openclaw
 status: ready_for_agentlab_submission
 source_reports:
   live_unblock_plan: acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
@@ -9,11 +9,8 @@ source_reports:
 boundary:
   frontdesk_role: optional_submit_and_observe_only
   canonical_frontdesk:
-    agent_id: hermes
-    invocation_contract: hermes
-    provider: deepseek
-    model_key: deepseek_v4_pro
-    model_id: deepseek-v4-pro
+    agent_id: openclaw
+    invocation_contract: openclaw
   direct_closed_loop_supported: true
   agentlab_owns_execution: true
   sandbox_approval_is_external_runtime_boundary: true
@@ -27,7 +24,7 @@ items:
   - claim provider output without AgentLab role-session evidence
   - promote generated candidates without the configured acceptance gate
   agentlab_execution_owner: Writer
-  assigned_worker: claude_code
+  assigned_worker: agy
   role_session_required: true
   role_session_evidence: agentlab_role_session
   operator_action_required: Submit the formal Crown single-chapter live eval as an
@@ -35,10 +32,10 @@ items:
   user_approval_required: false
   agentlab_command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite
     crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
-    <internal_live_run_id> --writer-worker claude_code
+    <internal_live_run_id> --writer-worker agy
   agentlab_command_after_approval: ./agentlab.sh narrative-eval run --project Crown_of_Ash
     --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
-    <internal_live_run_id> --writer-worker claude_code
+    <internal_live_run_id> --writer-worker agy
   observe_artifacts:
   - acceptance_runs/narrative_eval/Crown_of_Ash/*/longform_eval_report.yml
   - projects/Crown_of_Ash/runs/task_narrative_eval_*/fiction_draft.md
@@ -58,11 +55,11 @@ items:
   operator_action_required: Submit the Crown media role-session acceptance smoke through
     the AgentLab ArtifactProducer role-session and monitor run-local candidate artifacts.
   user_approval_required: false
-  agentlab_command: ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+  agentlab_command: ./agentlab.sh media-backend-execute --contract acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml
     --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_<id>/artifacts/media_backend_live_internal_<id>
     --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_<id>
   agentlab_command_after_approval: ./agentlab.sh media-backend-execute --contract
-    projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml
     --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_<id>/artifacts/media_backend_live_internal_<id>
     --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_<id>
   observe_artifacts:
@@ -73,9 +70,9 @@ checks:
 - id: frontdesk_is_not_execution_worker
   status: pass
   summary: frontdesk policy forbids implementing task content itself
-- id: canonical_frontdesk_is_hermes_deepseek_v4_pro
+- id: canonical_frontdesk_is_openclaw
   status: pass
-  summary: routed task intake uses Hermes CLI with DeepSeek V4 Pro
+  summary: routed task intake uses OpenClaw only as the Frontdesk gateway
 - id: direct_closed_loop_can_skip_frontdesk
   status: pass
   summary: declared AgentLab pipelines can run and be accepted without a FrontDesk
@@ -96,5 +93,5 @@ checks:
 issues: []
 notes:
 - This handoff does not call external providers.
-- Commands execute as AgentLab role-session work; Hermes FrontDesk may submit and
+- Commands execute as AgentLab role-session work; OpenClaw Frontdesk may submit and
   observe but is optional for direct closed-loop validation.

@@ -68,6 +68,7 @@ def _verified_commit(
     brief_sha256: str = "b" * 64,
     source_projection_sha256: str = "e" * 64,
     verification_result_sha256: str = "f" * 64,
+    chapter: int = 1,
 ) -> dict:
     state_delta_sha256 = narrative_payload_sha256(state_delta)
     binding = {
@@ -79,14 +80,14 @@ def _verified_commit(
     }
     receipts = root / "receipts"
     receipts.mkdir(exist_ok=True)
-    seal_receipt = receipts / "seal.yml"
+    seal_receipt = receipts / f"seal-{chapter:03d}.yml"
     seal_receipt.write_text(
         yaml.safe_dump(
             {
                 "schema_version": "narrative-seal-receipt/v1",
                 "issuer": "AgentLab.Supervisor",
-                "attempt_id": "supervisor-attempt-001",
-                "evidence_binding_id": "chapter-001-evidence-001",
+                "attempt_id": f"supervisor-attempt-{chapter:03d}",
+                "evidence_binding_id": f"chapter-{chapter:03d}-evidence-001",
                 "status": seal_status,
                 **binding,
             },
@@ -94,14 +95,14 @@ def _verified_commit(
         ),
         encoding="utf-8",
     )
-    verification_receipt = receipts / "delta.yml"
+    verification_receipt = receipts / f"delta-{chapter:03d}.yml"
     verification_receipt.write_text(
         yaml.safe_dump(
             {
                 "schema_version": "delta-verification-receipt/v1",
                 "issuer": "AgentLab.DeltaVerifier",
-                "attempt_id": "delta-attempt-001",
-                "evidence_binding_id": "chapter-001-evidence-001",
+                "attempt_id": f"delta-attempt-{chapter:03d}",
+                "evidence_binding_id": f"chapter-{chapter:03d}-evidence-001",
                 "status": "pass",
                 "source_projection_sha256": source_projection_sha256,
                 "verification_result_sha256": verification_result_sha256,
@@ -113,23 +114,23 @@ def _verified_commit(
     return {
         "schema_version": "verified-chapter-commit/v1",
         "project": "Crown_of_Ash",
-        "chapter": 1,
+        "chapter": chapter,
         "artifact_sha256": binding["artifact_sha256"],
         "brief_sha256": binding["brief_sha256"],
         "source_projection_sha256": source_projection_sha256,
         "state_delta_sha256": state_delta_sha256,
         "seal": {
             "status": seal_status,
-            "attempt_id": "supervisor-attempt-001",
-            "evidence_binding_id": "chapter-001-evidence-001",
+            "attempt_id": f"supervisor-attempt-{chapter:03d}",
+            "evidence_binding_id": f"chapter-{chapter:03d}-evidence-001",
             "receipt_path": seal_receipt.relative_to(root).as_posix(),
             "receipt_sha256": hashlib.sha256(seal_receipt.read_bytes()).hexdigest(),
             **binding,
         },
         "delta_verification": {
             "status": "pass",
-            "attempt_id": "delta-attempt-001",
-            "evidence_binding_id": "chapter-001-evidence-001",
+            "attempt_id": f"delta-attempt-{chapter:03d}",
+            "evidence_binding_id": f"chapter-{chapter:03d}-evidence-001",
             "receipt_path": verification_receipt.relative_to(root).as_posix(),
             "receipt_sha256": hashlib.sha256(
                 verification_receipt.read_bytes()
@@ -255,6 +256,178 @@ def test_only_accepted_hash_bound_chapter_commit_updates_state(tmp_path: Path) -
     assert after["style_memory"][0]["kind"] == "accepted_pattern"
 
     assert store.commit(commit) == receipt
+
+
+def test_rollback_to_chapter_changes_active_store_via_immutable_event(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "canon.yml"
+    source.write_text("project: Crown_of_Ash\n", encoding="utf-8")
+    store = NarrativeStateStore(tmp_path / "brain", project="Crown_of_Ash")
+    store.bootstrap(
+        {
+            "schema_version": "narrative-bootstrap/v1",
+            "project": "Crown_of_Ash",
+            "precedence": ["canonical"],
+            "sources": [_source(source)],
+            "base_state": {},
+        }
+    )
+    first = store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=store.read()["state_sha256"],
+            state_delta={
+                "world_updates": [{"axis": "stress", "value": 1}]
+            },
+            chapter=1,
+        )
+    )
+    store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=first["state_sha256"],
+            state_delta={
+                "world_updates": [{"axis": "stress", "value": 2}]
+            },
+            artifact_sha256="c" * 64,
+            brief_sha256="d" * 64,
+            source_projection_sha256="1" * 64,
+            verification_result_sha256="2" * 64,
+            chapter=2,
+        )
+    )
+
+    receipt = store.rollback_to_chapter(
+        1,
+        reason="test rollback",
+        idempotency_key="rollback-test-1",
+    )
+    repeated = store.rollback_to_chapter(
+        1,
+        reason="test rollback",
+        idempotency_key="rollback-test-1",
+    )
+    active = store.read()
+
+    assert receipt["status"] == "rolled_back"
+    assert repeated == receipt
+    assert active["world_axes"]["stress"] == 1
+    assert set(active["chapters"]) == {"1"}
+    assert yaml.safe_load(store.snapshot_path.read_text(encoding="utf-8")) == active
+    assert len(store.events_path.read_text(encoding="utf-8").splitlines()) == 4
+
+    replacement = store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=active["state_sha256"],
+            state_delta={
+                "world_updates": [{"axis": "stress", "value": "replacement"}]
+            },
+            artifact_sha256="3" * 64,
+            brief_sha256="4" * 64,
+            source_projection_sha256="5" * 64,
+            verification_result_sha256="6" * 64,
+            chapter=2,
+        )
+    )
+    assert replacement["status"] == "committed"
+    assert store.read()["world_axes"]["stress"] == "replacement"
+
+
+def test_repeated_rollback_keeps_superseded_branch_inactive(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "canon.yml"
+    source.write_text("project: Crown_of_Ash\n", encoding="utf-8")
+    store = NarrativeStateStore(tmp_path / "brain", project="Crown_of_Ash")
+    store.bootstrap(
+        {
+            "schema_version": "narrative-bootstrap/v1",
+            "project": "Crown_of_Ash",
+            "precedence": ["canonical"],
+            "sources": [_source(source)],
+            "base_state": {},
+        }
+    )
+
+    first = store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=store.read()["state_sha256"],
+            state_delta={
+                "style_memory_events": [
+                    {"kind": "accepted_pattern", "value": "base_branch"}
+                ]
+            },
+            chapter=1,
+        )
+    )
+    store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=first["state_sha256"],
+            state_delta={
+                "style_memory_events": [
+                    {"kind": "accepted_pattern", "value": "old_branch"}
+                ]
+            },
+            artifact_sha256="c" * 64,
+            brief_sha256="d" * 64,
+            source_projection_sha256="1" * 64,
+            verification_result_sha256="2" * 64,
+            chapter=2,
+        )
+    )
+    store.rollback_to_chapter(
+        1,
+        reason="replace chapter two",
+        idempotency_key="rollback-old-ch2",
+    )
+    replacement = store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=store.read()["state_sha256"],
+            state_delta={
+                "style_memory_events": [
+                    {"kind": "accepted_pattern", "value": "new_branch"}
+                ]
+            },
+            artifact_sha256="3" * 64,
+            brief_sha256="4" * 64,
+            source_projection_sha256="5" * 64,
+            verification_result_sha256="6" * 64,
+            chapter=2,
+        )
+    )
+    store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=replacement["state_sha256"],
+            state_delta={
+                "style_memory_events": [
+                    {"kind": "accepted_pattern", "value": "chapter_three"}
+                ]
+            },
+            artifact_sha256="7" * 64,
+            brief_sha256="8" * 64,
+            source_projection_sha256="9" * 64,
+            verification_result_sha256="0" * 64,
+            chapter=3,
+        )
+    )
+
+    store.rollback_to_chapter(
+        2,
+        reason="remove chapter three",
+        idempotency_key="rollback-new-ch3",
+    )
+    active = store.read()
+    active_values = [event["value"] for event in active["style_memory"]]
+
+    assert active_values == ["base_branch", "new_branch"]
+    assert "old_branch" not in active_values
+    assert set(active["chapters"]) == {"1", "2"}
 
 
 def test_rejected_or_stale_commit_fails_closed(tmp_path: Path) -> None:
@@ -732,4 +905,78 @@ def test_fact_authority_revision_continues_directly_from_bootstrap_metadata(
             "source_sha256": hashlib.sha256(revision_two.read_bytes()).hexdigest(),
             "event_id": receipt["event_id"],
         }
+    }
+
+
+def test_verified_commit_projects_long_term_state_into_event_snapshot(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "canon.yml"
+    source.write_text("project: Crown_of_Ash\n", encoding="utf-8")
+    store = NarrativeStateStore(tmp_path / "brain", project="Crown_of_Ash")
+    store.bootstrap(
+        {
+            "schema_version": "narrative-bootstrap/v1",
+            "project": "Crown_of_Ash",
+            "precedence": ["canonical"],
+            "sources": [_source(source)],
+            "base_state": {},
+        }
+    )
+    delta = {
+        "long_term_schema": "narrative-long-term-delta/v1",
+        "character_mind_updates": [
+            {
+                "id": "char_arya",
+                "goals": ["protect the archive"],
+                "needs": ["accept help"],
+                "plans": ["enter through the cistern"],
+                "known_facts": ["fact_gate_locked"],
+                "false_beliefs": [],
+                "secrets": [],
+                "fears": [],
+                "resources": ["bronze key"],
+                "moral_boundaries": ["will not abandon a child"],
+                "offstage_actions": [],
+                "next_decision_threshold": "the bell rings twice",
+                "evidence_location": "chapter:1:lines:1-8",
+            }
+        ],
+        "relationship_edge_updates": [],
+        "narrative_entity_updates": [],
+        "promise_updates": [],
+        "truth_updates": [],
+        "active_supporting_characters": [],
+        "offstage_action_updates": [],
+        "outline_update": {
+            "book": "book_1",
+            "part": "part_1",
+            "volume": "volume_1",
+            "arc": "arc_archive",
+            "window": "window_1_25",
+            "chapter": 1,
+            "scenes": ["scene_cistern"],
+        },
+        "summary_updates": [],
+        "exact_name_updates": [],
+    }
+
+    receipt = store.commit(
+        _verified_commit(
+            root=tmp_path,
+            previous_state_sha256=store.read()["state_sha256"],
+            state_delta=delta,
+        )
+    )
+    snapshot = store.read()
+
+    assert receipt["status"] == "committed"
+    assert snapshot["character_minds"]["char_arya"]["resources"] == [
+        "bronze key"
+    ]
+    assert snapshot["outline_tree"]["current"]["chapter"] == 1
+    assert snapshot["last_projection"] == {
+        "chapter": 1,
+        "prose_sha256": "a" * 64,
+        "schema_version": "narrative-long-term-delta/v1",
     }

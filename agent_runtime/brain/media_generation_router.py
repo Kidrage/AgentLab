@@ -146,6 +146,12 @@ def _filter_chain(
     filtered = []
     for backend_id in chain:
         backend = backends.get(backend_id, {})
+        availability = str(backend.get("availability") or "active")
+        if (
+            backend.get("selectable", True) is not True
+            or availability in {"historical_only", "retired", "inactive"}
+        ):
+            continue
         modalities = backend.get("modalities", [])
         if modality in modalities:
             filtered.append(backend_id)
@@ -206,6 +212,14 @@ def _execution_blocker(
         }
     backend = backends.get(selected_backend, {})
     adapter_state = _adapter_state(backend)
+    if backend.get("placeholder_reason") == "local_media_backend_pending":
+        return {
+            "status": "local_media_backend_pending",
+            "backend": selected_backend,
+            "adapter_state": adapter_state,
+            "reason": "No verified local media generation model is configured.",
+            "recommended_action": "configure_and_verify_local_media_model",
+        }
     if adapter_state not in {"ready", "configured"}:
         return {
             "status": "adapter_unavailable",

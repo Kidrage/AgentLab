@@ -27,8 +27,6 @@ AgentName = Literal[
 # describe the AgentLab driver; per-role workers come from agent_model_profiles.
 ExecutionBackend = Literal[
     "agentlab_orchestrated_cli",
-    "api_native",
-    "hybrid_ide",
     "langgraph",
     "codex",
     "qwen",

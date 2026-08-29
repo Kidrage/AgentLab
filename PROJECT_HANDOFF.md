@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-de62d90289e0`
+- Repository ID: `AgentLab-kernel-stabilization-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab`
+- Repository name: `AgentLab-kernel-stabilization`
 - Git repository: `true`
-- Generated at: `2026-07-23T08:46:30.476983+00:00`
+- Generated at: `2026-08-28T08:22:54.035747+00:00`
 
 ## Current State
 
-- Branch: `feature/task-runtime-v2`
-- HEAD: `90358ec`
-- Indexed paths: 2041
+- Branch: `codex/shanhe-youjia-p3`
+- HEAD: `792d806`
+- Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,31 +43,31 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 584 |
-| `tests` | 450 |
-| `acceptance_runs` | 406 |
-| `docs` | 340 |
+| `agent_runtime` | 651 |
+| `tests` | 499 |
+| `docs` | 348 |
+| `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
-| `config` | 124 |
-| `acceptance_runs/narrative_eval` | 116 |
+| `config` | 130 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 50 |
+| `agent_runtime/narrative` | 78 |
 | `skills` | 47 |
 | `skills/active` | 46 |
-| `acceptance_runs/agentlab_capability_acceptance` | 41 |
+| `acceptance_runs/agentlab_capability_acceptance` | 44 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
-| `docs/narrative` | 31 |
-| `scripts` | 22 |
+| `docs/narrative` | 32 |
+| `scripts` | 25 |
+| `agent_runtime/cli` | 22 |
 | `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
+| `agent_runtime/executors` | 19 |
+| `.` | 18 |
+| `acceptance_runs/narrative_eval` | 18 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
-| `agent_runtime/executors` | 18 |
-| `.` | 17 |
 | `acceptance_runs/m2_operator_demo` | 16 |
-| `agent_runtime/cli` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
@@ -75,6 +75,7 @@
 | `agent_runtime/config_center` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `agent_runtime/goals` | 12 |
+| `examples` | 12 |
 | `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
@@ -82,31 +83,32 @@
 | `agent_runtime/skills` | 11 |
 | `acceptance_runs/e2e_minimal_task` | 10 |
 | `acceptance_runs/p2_provider_governance` | 10 |
-| `acceptance_runs/s0_remote_raw_repair` | 10 |
 
 ## Data and File Structure
 
 ### Categories
 
-- code: 975 files, 8618882 bytes
-- literature: 414 files, 2352810 bytes
-- other: 12 files, 74102 bytes
-- structured_data: 640 files, 3277825 bytes
+- code: 1094 files, 11486106 bytes
+- literature: 424 files, 2430234 bytes
+- other: 15 files, 75183 bytes
+- structured_data: 554 files, 3278783 bytes
 
 ### Common Extensions
 
-- `.py`: 961
-- `.yml`: 608
-- `.md`: 375
+- `.py`: 1079
+- `.yml`: 522
+- `.md`: 385
 - `.txt`: 39
 - `.json`: 27
-- `.sh`: 9
+- `.sh`: 10
 - `[no extension]`: 5
 - `.js`: 5
 - `.csv`: 3
+- `.service`: 2
 - `.html`: 2
 - `.css`: 2
 - `.diff`: 1
+- `.timer`: 1
 - `.ini`: 1
 - `.jsonl`: 1
 - `.log`: 1
@@ -124,26 +126,6 @@
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.yml`
 - `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml`
 - `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/model_override_receipt.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_quality_matrix.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_state_plan.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/character_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/continuity_failure_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/foreshadowing_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/longform_eval_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/manuscript_reset_proposal.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/series_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/series_scale_simulation.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/timeline_worldline_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/chapter_quality_matrix.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/chapter_state_plan.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/character_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/continuity_failure_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/foreshadowing_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/longform_eval_report.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/manuscript_reset_proposal.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/series_arc_ledger.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/series_scale_simulation.yml`
-- `acceptance_runs/narrative_eval/Crown_of_Ash/crown_mock_chain_receipt_contract_20260707/mock_chain_receipt_contract_ch01_ch03_20260707/timeline_worldline_ledger.yml`
 - `acceptance_runs/s10_generalization_eval/fixtures/video_story_skeleton_governance/evidence_contract.yml`
 - `agent_runtime/artifact_contract.py`
 - `agent_runtime/assistant/models.py`
@@ -174,6 +156,8 @@
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/narrative/crown_v3_migration.py`
+- `agent_runtime/narrative/knowledge_contract.py`
 - `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
 - `agent_runtime/operator_os/action_contract.py`
@@ -182,7 +166,11 @@
 - `agent_runtime/program_manager/acceptance_contract.py`
 - `agent_runtime/program_manager/models.py`
 - `agent_runtime/program_manager/project_state_contract.py`
+- `agent_runtime/project_agents/contract.py`
+- `agent_runtime/project_agents/models.py`
 - `agent_runtime/project_ops/models.py`
+- `agent_runtime/project_truth/migration.py`
+- `agent_runtime/project_truth/models.py`
 - `agent_runtime/project_workflows/models.py`
 - `agent_runtime/retry/models.py`
 - `agent_runtime/review/models.py`
@@ -194,6 +182,20 @@
 - `agentlab_tui/models.py`
 - `config/agent_model_profiles.yml`
 - `config/capability_schema.yml`
+- `config/config_ui_schema.yml`
+- `config/hermes_brain_model_groups.yml`
+- `config/migration_profile.yml`
+- `config/model_capacity.yml`
+- `config/model_catalog.yml`
+- `config/model_cost_profiles.yml`
+- `config/model_pricing.yml`
+- `config/model_providers.yml`
+- `config/project_artifact_contracts.yml`
+- `config/worker_invocation_contracts.yml`
+- `docs/AGENTLAB_COMPANY_MODEL.md`
+- `docs/AGENT_PACKET_CONTRACT.md`
+- `docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
+- `docs/MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md`
 
 ## Key Entrypoints and Guides
 
@@ -230,35 +232,69 @@
 
 ## Change History
 
-- `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
-- `53640cd 2026-07-22 feat: add governed task runtime v2`
-- `5b8738a 2026-07-22 feat: route Seedance through Hermes Ark skills`
-- `c179aed 2026-07-22 docs: refresh model route handoff`
-- `6c35230 2026-07-22 fix: deliver Agy planner YAML`
-- `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
-- `c990809 2026-07-22 fix: align default routes with native Codex`
-- `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
-- `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
-- `479ebcf 2026-07-21 fix(narrative): enforce Gate 1 prose length`
-- `668d4b7 2026-07-21 fix(narrative): deliver sealed Writer packet on stdin`
-- `bf1c056 2026-07-21 fix(narrative): seal Gate 1 operator plans`
-- `a6ed77b 2026-07-21 fix(narrative): align writer operator materialization`
-- `2452bf9 2026-07-21 feat(narrative): seal live writer packet path`
-- `c8ac0a1 2026-07-21 fix(narrative): bind literary memory evidence`
-- `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
-- `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
-- `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
-- `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
-- `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
+- `792d806 2026-08-28 fix: validate paired blueprint shard envelopes`
+- `3b69677 2026-08-27 docs: refresh kernel stabilization handoff`
+- `b720735 2026-08-27 test(narrative): reject edit delimiter near misses`
+- `e7f1027 2026-08-27 fix(narrative): strip bare cli edit trailers`
+- `2de791c 2026-08-27 fix(runtime): harden blueprint revision evidence`
+- `04ce770 2026-08-26 [docs] refresh R10 verification evidence`
+- `8976976 2026-08-26 [runtime] harden long-packet reviewer coverage`
+- `88db69d 2026-08-26 [docs] refresh shanhe checkpoint evidence`
+- `ae5f813 2026-08-26 [runtime] harden sharded blueprint production`
+- `bd44793 2026-08-25 [protocol] stabilize narrative production and Grok 4.6 evidence`
+- `ce391a7 2026-08-24 stabilize production protocol kernel`
+- `803ac0f 2026-08-24 feat(runtime): stabilize versioned production protocols`
+- `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
+- `91cb273 2026-08-01 feat(narrative): materialize strict professional chapter DAGs`
+- `9e41606 2026-08-01 fix(background): bind Crown jobs to governed model settings`
+- `307a6cc 2026-08-01 fix(background): bind Crown jobs to governed model settings`
+- `0520e7d 2026-08-01 Merge remote-tracking branch 'refs/remotes/github/unified-stable' into codex/relay-memory-github-reconcile-250`
+- `810b42a 2026-08-01 Automate detached narrative acceptance`
+- `9d02aa8 2026-08-01 Merge GitHub unified-stable into 250 relay work`
+- `1cf89cb 2026-07-31 Expose user acceptance gate in work-item CLI`
 
 ## Current Changes
 
-- `## feature/task-runtime-v2`
-- ` M PROJECT_HANDOFF.md`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
-- `?? run_crown_ep1.sh`
+- `## codex/shanhe-youjia-p3...origin/codex/shanhe-youjia-p3`
+- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M agent_runtime/brain/media_generation_router.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/frontdesk_boundary_audit.py`
+- ` M agent_runtime/protocols/artifact_task.py`
+- ` M agent_runtime/protocols/enforcement.py`
+- ` M config/README.md`
+- ` M config/agent_model_profiles.yml`
+- ` M config/agent_role_bindings.yml`
+- ` M config/artifact_task_policy.yml`
+- ` M config/cli_workflow_shells.yml`
+- ` M config/hermes_brain_model_groups.yml`
+- ` M config/media_generation_backends.yml`
+- ` M config/mode_tier_worker_policy.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_providers.yml`
+- ` M config/role_assignment_policy.yml`
+- ` M config/runtime_cli_requirements.yml`
+- ` M config/shared_agent_directory.yml`
+- ` M config/worker_capability_defaults.yml`
+- ` M config/worker_fallback_policy.yml`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M docs/ARTIFACT_PRODUCER_PROTOCOL.md`
+- ` M scripts/generate_agent_cli_matrix.py`
+- ` M tests/test_agent_cli_matrix.py`
+- ` M tests/test_alter_model_profile.py`
+- ` M tests/test_artifact_task_protocol.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_m1_mission_compiler_v2.py`
+- ` M tests/test_m2_role_assignment_router.py`
+- ` M tests/test_m2_worker_governance.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_narrative_author_team_v2.py`
+- ` M tests/test_production_pack_role_session_request.py`
+- ` M tests/test_protocol_enforcement.py`
 
 ## Related Repositories
 
@@ -279,6 +315,7 @@
 
 - `.clinerules/sync-rules.md`
 - `AGENTS.md`
+- `ARCHITECTURE_IMPACT_REPORT.md`
 - `CLAUDE.md`
 - `CLI_ROADMAP.md`
 - `CONTEXT.md`
@@ -289,14 +326,13 @@
 - `USAGE_PLAN.md`
 - `_shared/AGENT_HANDOFF.md`
 - `_shared/AGENT_PROTOCOL.md`
+- `acceptance_runs/PROJECT_TASK_STANDARD_AUDIT.md`
 - `acceptance_runs/agentlab_capability_acceptance/private_live_smoke_approval_handoff.md`
 - `acceptance_runs/agentlab_capability_acceptance/role_session_acceptance_handoff.md`
 - `acceptance_runs/ccs_migration_safety/CCS_MIGRATION_SAFETY_REPORT.md`
 - `acceptance_runs/e2e_minimal_task/final_delivery_report.md`
 - `acceptance_runs/e2e_minimal_task/input_task.md`
 - `acceptance_runs/e2e_minimal_task/revision_packet.md`
-- `acceptance_runs/hotfix_cli_binary_aliases/CLI_COMMAND_INVENTORY.md`
-- `acceptance_runs/hotfix_cli_binary_aliases/HOTFIX_CLI_BINARY_ALIASES_REPORT.md`
 
 ### image
 
@@ -317,9 +353,12 @@
 - `acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_print_smoke.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke.yml`
+- `acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/task_packet.yml`
+- `acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_live_candidate_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_scale_governance_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/current.yml`
+- `acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
 - `acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml`
 - `acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_writer_20260707.yml`
 - `acceptance_runs/agentlab_capability_acceptance/frontdesk_boundary_audit.yml`
@@ -329,9 +368,6 @@
 - `acceptance_runs/agentlab_capability_acceptance/goal_acceptance_scope.yml`
 - `acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml`
-- `acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml`
-- `acceptance_runs/agentlab_capability_acceptance/grok_oauth_cli_smoke.yml`
-- `acceptance_runs/agentlab_capability_acceptance/hermes_frontdesk_deepseek_v4_pro_smoke.yml`
 
 ## Validation and Risks
 
@@ -342,6 +378,57 @@
 ## Agent Notes
 
 <!-- AGENT_NOTES_START -->
+# 2026-07-31 cloud-250 Relay memory delivery
+
+- Scope remained bounded to the registered AgentLab workspace on cloud endpoint 250, plus
+  required receipts/recovery artifacts in the Codex Truenas namespace. The
+  user-owned untracked `config/change_request.yml` was preserved.
+- `d81e12d` adds governed project-memory Relay sync with stable source snapshots,
+  remote per-file locks, versioned 10-slot history, atomic SHA-256 receipts,
+  read-only dry runs, fair/rate-limited watching, and durable task events.
+  `b0de95b` fixes Linux outbound rsync updates (`<f`) being mislabeled unchanged.
+- Endpoint-local `backup_policy.local.yml` now targets the nested canonical
+  the registered Relay Hub workspace and enables endpoint `cloud_250`.
+  TrueNAS status passed with SSH connectivity and a writable probe.
+- Initial executed reconciliation completed with `status: synced`, 17 governed
+  files, 0 problems, and a verified remote SHA-256 for every file across active
+  `AgentLab` and `Crown_of_Ash` project memories.
+- Continuous watcher started under PID `238140`, bound to task event
+  `AgentLab/task_0035`; its verified heartbeat reports `status: watching`,
+  17 watched files, 0 pending paths, and a 60-second policy interval.
+- Validation: 250 focused test `14 passed`; isolated implementation tests
+  `36 passed`; full suite `3573 passed, 21 skipped, 2 pre-existing acceptance
+  hygiene failures`. Both failures are the pre-existing canonical evidence hash
+  mismatch for `config/worker_invocation_contracts.yml`, not this change.
+- Recovery artifacts are under
+  `agents/codex/artifacts/relay_memory_sync_250/` on Truenas; the base bundle and
+  follow-up reporting patch were checksum-verified before handoff.
+- Remaining external blockers: installing the 250 proxy requires explicit
+  authorization to transfer the local Clash profile containing node credentials;
+  Hermes Alter's `xai-oauth` credential reports device-code exhaustion. The
+  system OpenClaw package remains malformed outside the permitted workspace.
+
+# Current authority (supersedes the historical chronology below)
+
+- The only retained project roots and RAG project namespaces are `AgentLab` and
+  `Crown_of_Ash`; NovelGen and other retired projects are recoverable history,
+  not active truth.
+- Crown's current sealed character-content authority is revision 3. The active
+  blueprint, canonical index, fact distillation, project artifact pointer, and
+  RAG snapshot must agree by hash before use.
+- Role/model/tier assignments are not authoritative in this handoff. Read
+  `config/agent_model_profiles.yml`, `config/model_catalog.yml`, invocation
+  contracts, and `config/model_capacity.yml`.
+- Agy exposes catalog discovery only; Codex and Hermes expose authentication
+  status only. Remaining quota and reset time stay unknown until provider
+  runtime evidence supplies them. Recovery uses declared fallbacks and reset
+  canaries.
+- The latest full local regression after the revision-3 validator change passed
+  `3437 passed, 2 skipped, 11 warnings`. Tests left `projects/` with exactly the
+  two retained directories and did not change the Crown policy hash.
+- This delivery targets GitHub branch `agentlab/unified-stable`; do not push
+  `main`, sync TrueNAS, or touch the user-owned untracked `tmp_debug/`.
+
 # Highest-priority plan: narrative production, audit, and delivery closure
 
 - Current authority revision: `v2 / 2026-07-20`. Read
@@ -666,7 +753,93 @@ Ch25 has not passed literary review or anonymous A/B selection, and Ch26/27 have
 not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
 User-positive calibration is still missing and ten human blind pairs at 70% new
 system preference remain required before Gate 2 scaling or Phase 5.
-- 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to `/Users/saintpeter/AgentLab_Archive/task_cleanup_20260722_non_crown/`: 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
+- 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to a local archive (path redacted): 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
+- 2026-07-25 CST: Unified-stable convergence is locally complete. AgentLab now has
+  generic project-specific narrative blueprint sealing/publication, immutable
+  Runtime v2 task packets and append-only pre-execution instructions, Project
+  Agent manifest binding, transaction/RAG rollback hardening, and credential-safe
+  Agy proxy receipts. `NovelGen` is honestly sealed as a legacy/static-team
+  project pending explicit Project Truth conflict resolution; its authority,
+  fact snapshot, artifact index and RAG snapshot are hash-consistent. AgentLab,
+  Crown and NovelGen knowledge rebuild receipt is
+  `kbuild_0d9eb6aca7790ed51d9ace0c8c00bba9ba5cf33bd08031fad34c295f06f50728`;
+  doctor PASS with 38,794 records / 1,721 eligible. Runtime doctors pass
+  (AgentLab 0 tasks, Crown 1/60 events, NovelGen 2 tasks), both blueprint
+  validators pass, focused suite 230 passed, and authoritative full suite is
+  3,431 passed / 2 skipped / 11 warnings. Independent Spec and Standards reviews
+  report no P0/P1/P2 in scope. Remaining intentional product gaps are the
+  chapter-specific Runtime v2 candidate-to-production bridge and the cross-
+  character/chapter/foreshadowing impact graph. Do not claim Crown production
+  prose, enable NovelGen Registry automatically, touch the user-owned
+  `tmp_debug/`, push `main`, or sync this delivery to TrueNAS.
+- 2026-07-25 CST: The current workspace and knowledge scope supersede the
+  preceding three-project snapshot. `projects/` now contains only `AgentLab` and
+  `Crown_of_Ash`; nine retired project directories, including NovelGen's clean
+  nested Git repository, were moved intact to the recoverable local Trash pack
+  a local recoverable Trash location (path redacted).
+  `config/knowledge_system.yml` now allowlists only AgentLab and Crown, while
+  content governance has only Crown active. Cleanup/model-governance checkpoint
+  knowledge rebuild receipt
+  `kbuild_70736396536b702c82605a654633d3e023a2aa617dac4ba4d31f6f14aed6b4cb`
+  retired `project.AgentLab_System`, `project.NovelGen`, and
+  `project.novel-moon-in-seal`, purged 627 shared-domain records, and sealed both
+  retained project snapshots. Knowledge doctor passes with 5 spaces, 37,660
+  records and 1,552 eligible; index snapshot is
+  `idx_8d1a34ae6b4abee0518695e4b14868558a567e27ce2e33896bb1537450b712b4`.
+  The authoritative ingestion rule is current truth
+  only: Git retains patch history; project drafts, attempts, archives and
+  unaccepted Agent outputs do not enter active RAG. External folders and Web
+  crawl remain unsupported without explicit future root/URL evidence governance.
+  Do not touch `tmp_debug/`, push `main`, or sync this delivery to TrueNAS.
+- 2026-07-25 CST: Model surfaces are synchronized across `full`, `performance`,
+  and `low` according to the current role matrix, with the intentional low-tier
+  RepoScout Codex exception. Capacity governance exposes one safe
+  `models capacity --probe all` entry point, but preserves provider truth:
+  `agy models` is catalog-only, `codex login status` and
+  `hermes auth status <provider>` are auth-only, and none reports remaining or
+  reset. Runtime failure evidence still owns quota/rate-limit reset extraction,
+  declared same-role fallback, and reset canary recovery. Governed
+  `models catalog-propose/catalog-apply` and `models propose --all-tiers`
+  interfaces now support fast model iteration without bypassing provider,
+  contract, role-binding, capacity-route, hash-drift, or approval checks.
+- 2026-07-25 CST: Full regression exposed legacy tests recreating six ignored
+  demo/test projects in the authoritative workspace. Those derived directories
+  were moved recoverably under the existing Trash cleanup pack; `m1-demo` and
+  `activation-plan` now accept an explicit `--root`, and affected tests run only
+  under pytest temporary roots. Post-fix focused regression leaves `projects/`
+  with exactly `AgentLab` and `Crown_of_Ash`. Model config/proposal writes now
+  use atomic I/O plus a serialized, recoverable
+  `pending -> applying -> applied` state transition. Final repository regression
+  is 3,437 passed / 2 skipped / 11 warnings, and the physical two-project
+  invariant still holds after the suite.
+- 2026-08-28 CST: The production-stable default remains `full_cli/alter`, with
+  zero selectable Grok routes: Hermes + Codex OAuth xhigh owns Supervisor;
+  native Codex owns code and text artifacts; Agy Gemini 3.6 Flash owns sourced
+  research through an Exa-only, hash-receipted broker boundary; Claude Code +
+  DeepSeek V4 Pro owns sealed long-form Writer packets (performance/low use V4
+  Flash); Hermes + its private DeepSeek V4 Flash provider owns bounded
+  support/audit roles; the professional senior editor has a separate strict
+  no-browse audit contract.
+  Image/video generation fails closed as `local_media_backend_pending` until a
+  verified local adapter exists. Historical Grok contracts, models, backends,
+  and receipts remain replayable but are explicitly nonselectable. Live probes
+  passed for Hermes/DeepSeek and Agy/Gemini+Exa (with the authorized temporary
+  Japan node and restoration to Hong Kong line 2). Fresh sandbox-external,
+  no-tool probes completed on both Claude Code DeepSeek V4 Pro and V4 Flash with
+  exact modelUsage binding, zero tool calls and zero subagents. AgentLab now
+  copies only an allowlisted provider/auth/proxy environment from private Claude
+  settings into a safe-mode/restricted child, so user hooks, plugins, skills,
+  MCP, memory and workspace discovery are not loaded. The final repository suite
+  passes 3,719 tests with 21 skipped and 11 expected missing-fixture warnings in
+  680.69 seconds. Model doctor passes with only seven optional API-key warnings;
+  protocol doctor passes 117 checks with zero failures. The current capability
+  evidence chain verifies with 29 current and 10 historical items, and its
+  hygiene check passes. Overall capability remains honestly `candidate` until
+  fresh governed provider role-session artifacts and human acceptance exist;
+  no legacy Agy Writer, Grok media, or retired runner receipt can promote it.
+  Independent Standards and Spec reviews found no remaining release blocker.
+  This delivery is isolated on `codex/shanhe-youjia-p3`; merge only through a
+  reviewed PR to `main`.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

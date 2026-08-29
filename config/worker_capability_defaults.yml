@@ -137,6 +137,8 @@ workers:
 
   agy:
     supported_capabilities:
+      - external_research
+      - web_search
       - multimodal_observation
       - evidence_quality_review
       - long_context

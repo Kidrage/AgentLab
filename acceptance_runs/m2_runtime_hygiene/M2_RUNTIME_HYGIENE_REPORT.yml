@@ -179,70 +179,157 @@ gitignore_audit:
 secret_scan:
   findings:
   - file: config/model_providers.yml
-    line: 140
+    line: 168
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '    api_key: env:AGENTLAB_LOCAL_API_KEY:********'
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: .env
+    line: 1
+    pattern_matched: OpenAI API Key
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: .env
+    line: 1
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: scripts/p1_acceptance_check.py
     line: 116
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '        "Task summary: local fake repo only. GITHUB_TOKEN=********
-      sk_test_should_not_render",'
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/ingestion/github_reader.py
     line: 110
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '    token = ********("GITHUB_TOKEN")'
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/config_center/validator.py
+    line: 40
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/config_center/renderer.py
+    line: 54
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/config_center/renderer.py
+    line: 64
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/config_center/resolver.py
+    line: 78
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/config_center/resolver.py
+    line: 87
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/config_center/resolver.py
+    line: 169
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/narrative/production/live_revision_preflight.py
+    line: 209
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/narrative/production/revision_attempts.py
+    line: 275
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/narrative/jobs/identity.py
+    line: 56
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/narrative/jobs/identity.py
+    line: 68
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/search/anysearch_adapter.py
     line: 39
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '        self.api_key = ********(self.api_key_env)'
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/.env
     line: 4
     pattern_matched: OpenAI API Key
-    snippet_redacted: DEEPSEEK_API_KEY=********
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/.env
     line: 4
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: DEEPSEEK_API_KEY=********
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/.env
     line: 9
     pattern_matched: OpenAI API Key
-    snippet_redacted: QWEN_API_KEY=********
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/.env
     line: 9
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: QWEN_API_KEY=********
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/.env
     line: 12
     pattern_matched: OpenAI API Key
-    snippet_redacted: DASHSCOPE_API_KEY=********
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/.env
     line: 12
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: DASHSCOPE_API_KEY=********
-  - file: agent_runtime/llm_provider.py
-    line: 56
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/.env
+    line: 15
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '    api_key = ********(provider_config.get("api_key"), "")'
-  - file: agent_runtime/llm_provider.py
-    line: 149
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/.env
+    line: 16
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '    api_key = ********(model_providers, settings.provider)'
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/.env
+    line: 17
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/media_backend_adapter.py
+    line: 1830
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/provider_smoke.py
+    line: 38
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/llm_provider.py
+    line: 50
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/llm_provider.py
+    line: 166
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/run_task.py
-    line: 4044
+    line: 4596
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '    api_key = ********(cfg.get("api_key"), "")'
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/truenas_sync.py
     line: 91
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '    password = ********("AGENTLAB_TRUENAS_PASSWORD", "").strip()'
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/background_job_controller.py
+    line: 438
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
+  - file: agent_runtime/background_job_controller.py
+    line: 557
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '[FULLY_REDACTED]'
   - file: agent_runtime/webhook_dispatcher.py
     line: 189
     pattern_matched: Generic Assignment Secret
-    snippet_redacted: '        secret = ********(endpoint.get("secret_env", ""))'
+    snippet_redacted: '[FULLY_REDACTED]'
   warnings:
-  - Potential secret leak (Generic Assignment Secret) in model_providers.yml:140
+  - Potential secret leak (Generic Assignment Secret) in model_providers.yml:168
+  - Potential secret leak (OpenAI API Key) in .env:1
+  - Potential secret leak (Generic Assignment Secret) in .env:1
   - Potential secret leak (Generic Assignment Secret) in p1_acceptance_check.py:116
   - Potential secret leak (Generic Assignment Secret) in github_reader.py:110
+  - Potential secret leak (Generic Assignment Secret) in validator.py:40
+  - Potential secret leak (Generic Assignment Secret) in renderer.py:54
+  - Potential secret leak (Generic Assignment Secret) in renderer.py:64
+  - Potential secret leak (Generic Assignment Secret) in resolver.py:78
+  - Potential secret leak (Generic Assignment Secret) in resolver.py:87
+  - Potential secret leak (Generic Assignment Secret) in resolver.py:169
+  - Potential secret leak (Generic Assignment Secret) in live_revision_preflight.py:209
+  - Potential secret leak (Generic Assignment Secret) in revision_attempts.py:275
+  - Potential secret leak (Generic Assignment Secret) in identity.py:56
+  - Potential secret leak (Generic Assignment Secret) in identity.py:68
   - Potential secret leak (Generic Assignment Secret) in anysearch_adapter.py:39
   - Potential secret leak (OpenAI API Key) in .env:4
   - Potential secret leak (Generic Assignment Secret) in .env:4
@@ -250,8 +337,15 @@ secret_scan:
   - Potential secret leak (Generic Assignment Secret) in .env:9
   - Potential secret leak (OpenAI API Key) in .env:12
   - Potential secret leak (Generic Assignment Secret) in .env:12
-  - Potential secret leak (Generic Assignment Secret) in llm_provider.py:56
-  - Potential secret leak (Generic Assignment Secret) in llm_provider.py:149
-  - Potential secret leak (Generic Assignment Secret) in run_task.py:4044
+  - Potential secret leak (Generic Assignment Secret) in .env:15
+  - Potential secret leak (Generic Assignment Secret) in .env:16
+  - Potential secret leak (Generic Assignment Secret) in .env:17
+  - Potential secret leak (Generic Assignment Secret) in media_backend_adapter.py:1830
+  - Potential secret leak (Generic Assignment Secret) in provider_smoke.py:38
+  - Potential secret leak (Generic Assignment Secret) in llm_provider.py:50
+  - Potential secret leak (Generic Assignment Secret) in llm_provider.py:166
+  - Potential secret leak (Generic Assignment Secret) in run_task.py:4596
   - Potential secret leak (Generic Assignment Secret) in truenas_sync.py:91
+  - Potential secret leak (Generic Assignment Secret) in background_job_controller.py:438
+  - Potential secret leak (Generic Assignment Secret) in background_job_controller.py:557
   - Potential secret leak (Generic Assignment Secret) in webhook_dispatcher.py:189

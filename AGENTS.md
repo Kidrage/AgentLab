@@ -24,6 +24,9 @@ Before deep repository reads, use the canonical handoff:
 ## Configuration Authorities
 
 - `config/agent_registry.yml`: role contracts and active templates.
+- `config/frontdesk_policy.yml`: Frontdesk F0-F4 intent classification,
+  required-capability labels, and approval signals. It does not select
+  execution agents.
 - `config/routing_rules.yml`: route membership and order.
 - `config/production_packs.yml`: domain lifecycle, outputs, memory, and gates.
 - `config/execution_modes.yml`: active AgentLab workflow drivers.
@@ -52,11 +55,11 @@ Never infer a role, model, provider, fallback, or command from a CLI name or an
 old report. Configuration wins.
 
 Do not generalize a correction for one default role into a global worker/model
-rule. The canonical `full_cli/performance` exceptions are explicit in
-`config/agent_model_profiles.yml`: Supervisor uses native Codex/GPT;
-RepoScout, InterfaceMapper, TesterAuditor, and Verifier use their contracted
-Claude/DeepSeek routes; NarrativePlanner uses the governed Agy subscription
-route. Other modes and tiers keep their own declared mappings.
+rule. The canonical role/tier matrix lives only in
+`config/agent_model_profiles.yml`; provider/model facts live in
+`config/model_catalog.yml` and fallback policy lives in
+`config/model_capacity.yml`. Documentation must point to those authorities
+instead of copying the volatile matrix.
 
 CLI-owned model surfaces must also agree with the selected worker: a Codex
 worker uses a Codex CLI provider/model key, while DeepSeek models require a

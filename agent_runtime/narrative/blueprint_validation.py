@@ -57,13 +57,27 @@ BLUEPRINT_MEMORY_PATHS = (
     "project_brain/fact_distillation.yml",
     "project_brain/project_fact_snapshot.yml",
 )
+CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT = (
+    "deliveries/crown_blueprint_authority_20260724_user_policy_override_final/"
+    "projects/Crown_of_Ash"
+)
 REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS = frozenset(
     {
-        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/mature_sensual_beastfolk_overlay_v1.yml",
-        "runs/task_crown_female_age_rebalance_20260722/outputs/female_age_rebalance_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/uncanny_manifestations_worldtexture_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/writing_memory_absorption_contract_v1.yml",
-        "runs/task_crown_character_policy_user_override_20260724/outputs/user_policy_override_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/"
+        "mature_sensual_beastfolk_overlay_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_female_age_rebalance_20260722/outputs/"
+        "female_age_rebalance_patch_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_uncanny_manifestations_worldtexture_20260722/outputs/"
+        "uncanny_manifestations_worldtexture_patch_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_uncanny_manifestations_worldtexture_20260722/outputs/"
+        "writing_memory_absorption_contract_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_character_policy_user_override_20260724/outputs/"
+        "user_policy_override_v1.yml",
         "production/outlines/03_感情戏执行准则.md",
     }
 )
@@ -566,6 +580,7 @@ def seal_crown_blueprint(
         sealed_fragments.append({**raw, "sha256": _sha256(path)})
     atomic_write_yaml(index_path, {**index, "fragments": sealed_fragments})
     _seal_blueprint_authority(project_root, project=project)
+    _sync_current_authority_hashes_in_fact_distillation(project_root)
 
     card_index_path = project_root / "production" / "chapter_cards" / "index.yml"
     try:
@@ -666,6 +681,57 @@ def seal_crown_blueprint(
         "validation_receipt": validation_receipt_path.relative_to(root).as_posix(),
         "validation_receipt_sha256": _sha256(validation_receipt_path),
     }
+
+
+def _sync_current_authority_hashes_in_fact_distillation(
+    project_root: Path,
+) -> None:
+    """Keep the fact seed bound to the freshly sealed authority components."""
+    distillation_path = project_root / "project_brain" / "fact_distillation.yml"
+    try:
+        distillation = yaml.safe_load(distillation_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot refresh fact distillation authority hashes: {exc}") from exc
+    if not isinstance(distillation, dict):
+        raise ValueError("fact distillation must be a mapping")
+    sources = distillation.get("sources")
+    if not isinstance(sources, list):
+        raise ValueError("fact distillation sources must be a list")
+    current_hashes = {
+        BLUEPRINT_AUTHORITY_PATH: _sha256(
+            project_root / BLUEPRINT_AUTHORITY_PATH
+        ),
+        "production/canonical/character_content_policy.yml": _sha256(
+            project_root / "production" / "canonical" / "character_content_policy.yml"
+        ),
+    }
+    replacements: dict[str, str] = {}
+    seen_paths: set[str] = set()
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        path = str(source.get("path") or "")
+        if path not in current_hashes:
+            continue
+        old_hash = str(source.get("sha256") or "")
+        source["sha256"] = current_hashes[path]
+        replacements[old_hash] = current_hashes[path]
+        seen_paths.add(path)
+    if seen_paths != set(current_hashes):
+        raise ValueError("fact distillation is missing current authority sources")
+    for collection in (distillation.get("facts") or [], distillation.get("conflicts") or []):
+        if not isinstance(collection, list):
+            continue
+        for record in collection:
+            if not isinstance(record, dict):
+                continue
+            source_hashes = record.get("source_hashes")
+            if isinstance(source_hashes, list):
+                record["source_hashes"] = [
+                    replacements.get(str(source_hash), source_hash)
+                    for source_hash in source_hashes
+                ]
+    atomic_write_yaml(distillation_path, distillation)
 
 
 def validate_blueprint_seal(
@@ -1047,7 +1113,7 @@ def validate_crown_blueprint(
         REQUIRED_CHARACTER_CONTENT_POLICY_IDS
         - character_content_policy_record_ids
     )
-    if character_content_policy.get("policy_revision") != 2:
+    if character_content_policy.get("policy_revision") != 3:
         issues.append("character_content_policy:revision_mismatch")
     for policy_id in sorted(missing_policy_ids):
         issues.append(f"character_content_policy:missing_record:{policy_id}")
@@ -1071,6 +1137,7 @@ def validate_crown_blueprint(
         is not True
         or not adult_policy.get("allowed")
         or not adult_policy.get("disallowed")
+        or scene_controls.get("maximum_sensual_beats_per_scene") != 4
         or scene_controls.get("prohibit_repeated_body_inventory") is not True
         or scene_controls.get("chapter_card_must_declare_level_above_1") is not True
     ):
@@ -1080,6 +1147,16 @@ def validate_crown_blueprint(
     appearance_contract = women_policy.get("appearance_contract") or {}
     women_principles = women_policy.get("principles") or []
     prohibited_templates = women_policy.get("prohibited_templates") or []
+    role_position_override = women_policy.get("user_override_20260731") or {}
+    constrained_role_position_override = (
+        agency_contract.get("body_never_reward_or_container") is False
+        and role_position_override.get("status") == "active"
+        and role_position_override.get("allows_harem_competition") is True
+        and role_position_override.get("allows_container_or_prize_position") is True
+        and role_position_override.get("allows_free_new_characters") is True
+        and role_position_override.get("preserves_independent_agency") is True
+        and role_position_override.get("preserves_adult_consent") is True
+    )
     if (
         len(women_principles) < 5
         or any(not str(item).strip() for item in women_principles)
@@ -1092,8 +1169,11 @@ def validate_crown_blueprint(
                 "independent_resources_required",
                 "independent_judgment_required",
                 "meaningful_exit_required",
-                "body_never_reward_or_container",
             )
+        )
+        or (
+            agency_contract.get("body_never_reward_or_container") is not True
+            and not constrained_role_position_override
         )
         or any(
             appearance_contract.get(key) is not True
@@ -1121,7 +1201,8 @@ def validate_crown_blueprint(
         != ["pathologically_slender"]
         or isabella_visual_contract.get("authority_source_path")
         != (
-            "runs/task_crown_character_policy_user_override_20260724/"
+            f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+            "task_crown_character_policy_user_override_20260724/"
             "outputs/user_policy_override_v1.yml"
         )
         or isabella_identity.get("height_cm") != 165

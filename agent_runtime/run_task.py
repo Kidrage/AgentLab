@@ -197,6 +197,12 @@ register_capability_contract_commands(app, console)
 from agent_runtime.cli.capability_acceptance import register_capability_acceptance_commands
 register_capability_acceptance_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.capability_vault import register_capability_vault_commands
+register_capability_vault_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.capability_discovery import register_capability_discovery_commands
+register_capability_discovery_commands(app, _PROJECT_ROOT, console)
+
 from agent_runtime.cli.runtime_hygiene import register_runtime_hygiene_commands
 register_runtime_hygiene_commands(app, lambda: _PROJECT_ROOT, console)
 
@@ -208,6 +214,9 @@ register_model_commands(app, _PROJECT_ROOT, console)
 
 from agent_runtime.cli.governance import register_governance_commands
 register_governance_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.frontdesk import register_frontdesk_commands
+register_frontdesk_commands(app, _PROJECT_ROOT, console)
 
 from agent_runtime.cli.narrative import register_narrative_commands
 register_narrative_commands(app, _PROJECT_ROOT, console)
@@ -443,11 +452,16 @@ def write_yaml_if_allowed(path: Path, data: dict, overwrite: bool = False) -> bo
 
 @app.command("activation-plan")
 def activation_plan(
-    task_packet: Path = typer.Option(..., "--task-packet")
+    task_packet: Path = typer.Option(..., "--task-packet"),
+    root: Path = typer.Option(
+        _PROJECT_ROOT,
+        "--root",
+        help="Workspace root for activation-plan artifacts.",
+    ),
 ) -> None:
     """Compile the execution economy activation plan for a task packet."""
     from agent_runtime.execution_economy.activation_plan import compile_activation_plan
-    plan = compile_activation_plan(task_packet, _PROJECT_ROOT)
+    plan = compile_activation_plan(task_packet, root.resolve())
     print(yaml.safe_dump(plan, sort_keys=False, allow_unicode=True))
 
 
@@ -2672,7 +2686,7 @@ def prepare(
         "agentlab_orchestrated_cli",
         help="Workflow driver mode; per-role workers remain config-driven.",
     ),
-    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: alter, frugal, balanced, or max-quality."),
     observation_input: Optional[list[Path]] = typer.Option(
         None,
         "--observation-input",
@@ -2685,13 +2699,10 @@ def prepare(
     ensure_safe_task_id(task_id)
     if execution_backend not in {
         "agentlab_orchestrated_cli",
-        "api_native",
-        "hybrid_ide",
         "langgraph",
     }:
         raise typer.BadParameter(
-            "execution_backend must be agentlab_orchestrated_cli, api_native, "
-            "hybrid_ide, or langgraph"
+            "execution_backend must be agentlab_orchestrated_cli or langgraph"
         )
     if observation_input and not write_plan:
         raise typer.BadParameter("--observation-input requires --write-plan")
@@ -3411,7 +3422,7 @@ def run_agent(
         "agentlab_orchestrated_cli",
         help="Workflow driver used only when the plan must be rebuilt.",
     ),
-    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode used when rebuilding a plan: frugal, balanced, or max-quality."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode used when rebuilding a plan: alter, frugal, balanced, or max-quality."),
     provider: Optional[str] = typer.Option(None, help="Override provider, e.g. deepseek or openai."),
     model: Optional[str] = typer.Option(None, help="Override model id for this run."),
     output: Optional[Path] = typer.Option(None, help="Optional report output path, relative to run dir unless absolute."),
@@ -3821,13 +3832,39 @@ def run_pipeline(
         "agentlab_orchestrated_cli",
         help="Workflow driver; use langgraph only for the alternate graph engine.",
     ),
-    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: alter, frugal, balanced, or max-quality."),
     dry_run: bool = typer.Option(True, help="Default dry-run, no API calls."),
     execute: bool = typer.Option(False, "--execute", help="Call real LLM APIs (not dry-run). False by default for safety."),
 ) -> None:
     """Run the full lifecycle pipeline. Default is dry-run with fake provider. Use --execute for real API calls."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
+
+    from agent_runtime.production_protocols import prepare_protocol_task_if_present
+
+    protocol_projection = prepare_protocol_task_if_present(
+        agentlab_root,
+        project=project_name,
+        task_id=task_id,
+    )
+    if protocol_projection is not None:
+        if execute:
+            console.print(
+                "[red]Protocol-bound Tasks cannot fall back to the legacy live pipeline.[/red]"
+            )
+            console.print(
+                "Use the protocol-native task/attempt executors for ready WorkItems."
+            )
+            raise typer.Exit(code=1)
+        console.print("[bold]Task Runtime Protocol Preparation[/bold]")
+        console.print(
+            yaml.safe_dump(
+                protocol_projection,
+                sort_keys=False,
+                allow_unicode=True,
+            ).rstrip()
+        )
+        return
 
     if execution_backend in ("langgraph",):
         from langgraph_workflow import build_agentlab_graph, run_agentlab_graph
@@ -3915,7 +3952,7 @@ def run_pipeline(
 def budget_eval_cmd(
     task_id: str = typer.Option("task_0001", help="Task run id used as the source request."),
     project: Optional[str] = typer.Option(None, help="Project name."),
-    modes: str = typer.Option("frugal,balanced,max-quality", help="Comma-separated budget modes."),
+    modes: str = typer.Option("alter,frugal,balanced,max-quality", help="Comma-separated budget modes."),
 ) -> None:
     """Compare route, model, and token budget across budget modes without API calls."""
     ensure_safe_task_id(task_id)
@@ -4550,6 +4587,53 @@ def truenas_sync_cmd(
     raise typer.Exit(code=1 if report["status"] in ("failed", "partial") else 0)
 
 
+@app.command("relay-memory-sync")
+def relay_memory_sync_cmd(
+    execute: bool = typer.Option(False, help="Execute sync; default is a dry-run preview."),
+    watch: bool = typer.Option(False, help="Keep watching agent_docs for changes."),
+    interval_seconds: Optional[int] = typer.Option(None, min=2, help="Watcher polling interval."),
+    project: Optional[str] = typer.Option(None, help="Project owning the watcher task event."),
+    task_id: Optional[str] = typer.Option(None, help="Task id owning the watcher task event."),
+    json_output: bool = typer.Option(False, help="Output JSON for one-shot sync."),
+) -> None:
+    """Sync bounded project memory to Relay with backups and checksum verification."""
+    agentlab_root = resolve_agentlab_root(_PROJECT_ROOT)
+    from project_memory_relay import sync_all_project_memories, watch_project_memories
+
+    if watch:
+        if not execute:
+            console.print("[red]--watch requires --execute[/red]")
+            raise typer.Exit(code=2)
+        if not project or not task_id:
+            console.print("[red]--watch requires --project and --task-id for its durable task event[/red]")
+            raise typer.Exit(code=2)
+        ensure_safe_task_id(task_id)
+        agentlab_root, project_name = runtime_context(project)
+        event_run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+        try:
+            watch_project_memories(
+                agentlab_root,
+                interval_seconds=interval_seconds,
+                event_run_dir=event_run_dir,
+            )
+        except RuntimeError as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            raise typer.Exit(code=2) from exc
+        except KeyboardInterrupt:
+            console.print("[yellow]Relay project-memory watcher stopped.[/yellow]")
+        return
+
+    report = sync_all_project_memories(agentlab_root, execute=execute)
+    if json_output:
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        color = "green" if report["status"] in {"synced", "dry_run_completed"} else "yellow"
+        console.print(f"[bold]Relay Memory Sync:[/bold] [{color}]{report['status']}[/{color}]")
+        console.print(f"  Files: {report['file_count']}")
+        console.print(f"  Problems: {report['problem_count']}")
+    raise typer.Exit(code=1 if report["status"] in {"disabled", "failed", "partial"} else 0)
+
+
 @app.command("backup-status")
 def backup_status_cmd(
     project: Optional[str] = typer.Option(None, help="Project name."),
@@ -4908,7 +4992,7 @@ def artifact_check_cmd(
 
 @app.command("frontdesk-boundary-audit")
 def frontdesk_boundary_audit_cmd(
-    agent: str = typer.Option("hermes", "--agent", help="Frontdesk agent id to audit."),
+    agent: str = typer.Option("openclaw", "--agent", help="Frontdesk agent id to audit."),
     out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
 ) -> None:
     """Audit that frontdesk operation stays separate from role-worker execution."""
@@ -5122,6 +5206,8 @@ def live_unblock_plan_cmd(
         console.print(f"wrote {out}")
     else:
         console.print(text.rstrip())
+    if report.get("status") != "ready_for_internal_live_smoke":
+        raise typer.Exit(code=1)
 
 
 @app.command("external-acceptance-readiness")
@@ -5169,7 +5255,7 @@ def internal_live_readiness_cmd(
 @app.command("frontdesk-live-handoff")
 def frontdesk_live_handoff_cmd(
     out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    agent: str = typer.Option("hermes", "--agent", help="Frontdesk agent id."),
+    agent: str = typer.Option("openclaw", "--agent", help="Frontdesk agent id."),
 ) -> None:
     """Write a frontdesk-safe handoff for live AgentLab acceptance work."""
     agentlab_root, _project_name = runtime_context(None)
@@ -6451,12 +6537,16 @@ def project_snapshot_cmd(
 def m1_demo_cmd(
     suite: str = typer.Option("all", "--suite", help="Suite to run (all, codebase_build, etc.)."),
     out: Path = typer.Option(..., "--out", help="Output directory for reports."),
+    root: Path = typer.Option(
+        _PROJECT_ROOT,
+        "--root",
+        help="Workspace root for generated demo projects.",
+    ),
 ) -> None:
     """Run offline generalization demos for M1-10 stage verification."""
     from agent_runtime.evaluation.m1_demo_runner import run_all_demos
     
-    agentlab_root = Path(__file__).resolve().parents[1]
-    result = run_all_demos(agentlab_root, out)
+    result = run_all_demos(root.resolve(), out)
     
     console.print(f"[green]M1 generalization demo suite finished with verdict: {result['verdict']}[/green]")
     if result["verdict"] == "FAIL":
@@ -7069,11 +7159,20 @@ def recovery_feedback_cmd(
     console.print(f"  [green]MD:[/green]   {md_path}")
 
 
+def _configured_tiers_for_update(
+    tiers_config: dict[str, object],
+    requested_tier: str | None,
+) -> list[str]:
+    if requested_tier:
+        return [requested_tier.lower()]
+    return list(tiers_config)
+
+
 @app.command("configure-agent")
 def configure_agent_cmd(
     agent: str = typer.Option(..., "--agent", help="Canonical agent name (e.g. Supervisor, Coder, RepoScout, etc.)."),
-    mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli, qwen_token_plan_cli, full_api, or hybrid_ide. If omitted, applies to all modes."),
-    tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: full, performance, or low. If omitted, applies to all tiers."),
+    mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli. If omitted, applies to the configured mode."),
+    tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: alter, full, performance, or low. If omitted, applies to all tiers."),
     executor_type: Optional[str] = typer.Option(None, "--executor-type", help="Executor type: cli_agent, direct_api, or special."),
     cli_agent: Optional[str] = typer.Option(None, "--cli-agent", help="CLI agent binary name (e.g. hermes, claude_code)."),
     invocation_contract: Optional[str] = typer.Option(None, "--invocation-contract", help="Worker invocation contract key from config/worker_invocation_contracts.yml."),
@@ -7112,15 +7211,17 @@ def configure_agent_cmd(
     }
     role_key = _role_key_map.get(role_key, role_key)
 
-    modes_to_update = [mode.lower()] if mode else ["full_cli", "qwen_token_plan_cli", "full_api", "hybrid_ide"]
-    tiers_to_update = [tier.lower()] if tier else ["full", "performance", "low"]
-
+    modes_to_update = [mode.lower()] if mode else ["full_cli"]
     modes_data = data.setdefault("modes", {})
 
     updated_count = 0
     for m in modes_to_update:
+        if m != "full_cli":
+            console.print(f"[red]Error: unsupported agent backend mode {m!r}; only full_cli is configured.[/red]")
+            raise typer.Exit(code=1)
         mode_cfg = modes_data.setdefault(m, {})
         tiers_cfg = mode_cfg.setdefault("tiers", {})
+        tiers_to_update = _configured_tiers_for_update(tiers_cfg, tier)
         for t in tiers_to_update:
             tier_cfg = tiers_cfg.setdefault(t, {})
             if skip:

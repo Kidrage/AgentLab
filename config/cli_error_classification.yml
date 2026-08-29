@@ -18,6 +18,11 @@ rules:
       - "login required"
       - "not authenticated"
 
+  - error_class: timeout
+    patterns:
+      - "print mode: timed out"
+      - "print mode wait timed out"
+
   - error_class: network_required
     patterns:
       - "network"

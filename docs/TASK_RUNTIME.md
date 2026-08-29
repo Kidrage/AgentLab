@@ -1,8 +1,8 @@
-# AgentLab Task Runtime v2
+# AgentLab Task Runtime
 
 ## Outcome
 
-Runtime v2 keeps one user-visible business goal under one stable `Task`. It no
+Task Runtime keeps one user-visible business goal under one stable `Task`. It no
 longer treats every chapter, reviewer pass, retry, fallback, or candidate
 revision as another task directory.
 
@@ -72,7 +72,7 @@ referenced Supervisor Attempt output. Worker receipts bind the delegated Attempt
 receipt hashes, while change and memory records bind hashes of real files inside
 the owning project. Sealed outbound sources are limited to governed project
 production/Brain/reset inputs, explicitly labelled candidate run outputs, and
-hashed outputs/receipts from the same Runtime v2 Task. Candidate run files are
+hashed outputs/receipts from the same Task Runtime Task. Candidate run files are
 never labelled as authoritative or silently promoted to production fact.
 
 This permits multiple revisions without growing one ambiguous “current state”
@@ -80,7 +80,7 @@ file: the ledger retains history, while projections show the current selection.
 
 ## RAG boundary
 
-RAG remains project-level. Runtime v2 does not create a vector/keyword database
+RAG remains project-level. Task Runtime does not create a vector/keyword database
 per Task. The only runtime file eligible for the project knowledge collector is:
 
 ```text
@@ -137,9 +137,44 @@ The v2 commands are registered on `agentlab.sh`:
 ./agentlab.sh evidence verify ...
 ./agentlab.sh trace record ...
 
-./agentlab.sh runtime-v2 rebuild --project Demo
-./agentlab.sh runtime-v2 doctor --project Demo
+./agentlab.sh runtime rebuild --project Demo
+./agentlab.sh runtime doctor --project Demo
 ```
+
+Versioned production protocols bind structured task facts to one immutable
+compiled graph before any role runs:
+
+```bash
+./agentlab.sh task create --project Demo --task-id task-code-001 \
+  --title "Large code change" --goal "Produce a tested candidate patch" \
+  --protocol-ref code.large.v1 \
+  --input-profile-json '{"kind":"code_build","scope":"large","target_count":6,"canon_impact":"none","risk_flags":[],"repository":"projects/Demo/production/repository"}' \
+  --idempotency-key create-task-code-001
+./agentlab.sh task execute --project Demo --task-id task-code-001
+./agentlab.sh task execute --project Demo --task-id task-code-001 --live \
+  --work-item-id supervisor_plan \
+  --messages-path projects/Demo/runtime/tasks/task-code-001/requests/supervisor.json \
+  --external-context-request projects/Demo/runtime/tasks/task-code-001/requests/context.yml \
+  --idempotency-key execute-supervisor-001
+./agentlab.sh runtime protocol-canary --iterations 10 \
+  --state-root /tmp/agentlab-protocol-canaries
+```
+
+Without `--live`, `task execute` only compiles and materializes governed
+WorkItems. Live execution enters `RoleAttemptExecutor` for CLI roles or the
+kernel deterministic executor for deterministic profiles, records successful
+outputs against declared artifact contracts, and pauses at `waiting_review`
+until every node-bound gate is recorded with `protocol-gate record`. Gate
+commands bind one successful Attempt and the exact reviewed ArtifactVersion(s);
+human gates additionally require a receipt and detached external signature.
+It never bypasses Attempt receipts or calls the legacy pipeline. The architecture
+decision and the code/narrative/film production ladder are documented in
+`docs/PRODUCTION_PROTOCOL_STRATEGY.zh-CN.md`.
+
+Protocol source facts are paths staged under the owning Project's canonical
+`production/`, `project_brain/`, or `reset_manifests/` roots. A live node may
+read only selected files beneath its declared source fact plus immutable outputs
+from accepted predecessor nodes.
 
 Every mutating command requires an idempotency key, including Task
 pause/resume/cancel. A later pause after a resume must use a new key; retrying the
@@ -149,8 +184,10 @@ may append a successful Attempt after validating the model-execution receipt.
 
 ## Legacy migration
 
-During the staged cutover, `task list` reads both v2 ledgers and legacy
-`projects/<Project>/runs/*/state.yml`; v2 wins if an ID exists in both places.
+During the staged cutover, `task list` returns only v2 ledgers by default.
+`projects/<Project>/runs/*/state.yml` can be inspected only with the explicit
+`--include-legacy` compatibility option; a v2 entry wins if an ID exists in
+both places.
 The new `task`/`job`/`work-item`/`attempt` commands write only to v2. Existing
 legacy pipeline entrypoints remain maintenance-only until their projects are
 migrated; they are not a second authority for a v2 Task.
@@ -158,8 +195,8 @@ migrated; they are not a second authority for a v2 Task.
 Migration is preview/apply and never edits or deletes legacy runs:
 
 ```bash
-./agentlab.sh runtime-v2 migrate-legacy --project Demo
-./agentlab.sh runtime-v2 migrate-legacy --project Demo --apply \
+./agentlab.sh runtime migrate-legacy --project Demo
+./agentlab.sh runtime migrate-legacy --project Demo --apply \
   --expected-plan-hash <approved_sha256>
 ```
 
@@ -174,12 +211,12 @@ files only through a hash-gated compaction plan. The receipt records original an
 compressed hashes; no policy purges the compressed evidence.
 
 ```bash
-./agentlab.sh runtime-v2 compact-logs --project Demo
-./agentlab.sh runtime-v2 compact-logs --project Demo --apply \
+./agentlab.sh runtime compact-logs --project Demo
+./agentlab.sh runtime compact-logs --project Demo --apply \
   --expected-plan-hash <approved_sha256>
 ```
 
-Use `runtime-v2 doctor` to detect ledger or artifact tampering. Use
-`runtime-v2 rebuild` to discard and recreate every projection and the curated RAG
+Use `runtime doctor` to detect ledger or artifact tampering. Use
+`runtime rebuild` to discard and recreate every projection and the curated RAG
 manifest. Never repair a damaged ledger by editing its hashes; stop execution and
 recover from a verified copy or an explicit governance decision.

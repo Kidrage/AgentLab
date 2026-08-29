@@ -39,7 +39,7 @@ def test_mode_tier_prefers_deterministic_workers_and_enforces_risk() -> None:
 
 def test_role_activation_defaults_and_expected_benefit() -> None:
     policy = RoleActivationPolicy()
-    assert policy.get_candidate_worker("Supervisor") == "claude_code"
+    assert policy.get_candidate_worker("Supervisor") == "hermes"
     assert policy.get_candidate_worker("RepoScout") == "rg"
     assert policy.get_candidate_worker("Verifier") == "ruff"
     assert policy.get_expected_benefit("Coder", "medium")["quality_gain"] == "high"
@@ -144,6 +144,7 @@ def test_role_worker_compatibility_rules() -> None:
         assert compatible is False
         assert "lacks required capability" in reason
     assert checker.is_compatible("claude_code", "Coder")[0] is True
+    assert checker.is_compatible("agy", "Researcher")[0] is True
     for worker in ("hermes", "gemini", "qwen"):
         assert checker.is_compatible(worker, "Supervisor")[0] is True
     cloud_upload = schema.get_capability("cloud_upload")

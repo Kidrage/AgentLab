@@ -184,6 +184,11 @@ def register_routing_commands(app: typer.Typer, project_root: ProjectRootProvide
                     root,
                     normalized_type,
                     required_capabilities=extra_capabilities,
+                    preferred_provider=(
+                        "hermes_grok"
+                        if str(tier).strip().lower() in {"alter", "altered"}
+                        else None
+                    ),
                 )
                 selected_provider = provider_route.get("selected") or {}
                 provider_id = str(selected_provider.get("provider_id") or "")
@@ -204,6 +209,7 @@ def register_routing_commands(app: typer.Typer, project_root: ProjectRootProvide
                     constrained_available = []
 
                 capacity_tier = {
+                    "altered": "alter",
                     "max_quality": "full",
                     "max-quality": "full",
                 }.get(tier, tier)

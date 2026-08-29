@@ -20,6 +20,7 @@ from agent_runtime.narrative.quality.live_editor import (
     finalize_literary_ab_review,
 )
 from agent_runtime.background_job_worker import execute_action
+from narrative_test_authority import install_narrative_test_authority
 
 
 HASH = "current-body"
@@ -789,6 +790,7 @@ def test_new_narrative_jobs_require_literary_scorecard_before_seal(tmp_path) -> 
         start_chapter=1,
         end_chapter=1,
         writer_worker="claude_code",
+        **install_narrative_test_authority(tmp_path, writer="claude_code"),
         chapter_state_plan="plan.yml",
         now="2026-01-01T00:00:00+00:00",
     )

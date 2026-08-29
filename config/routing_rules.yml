@@ -259,6 +259,17 @@ routes:
       - Supervisor
       - Writer
 
+  narrative_blueprint_build:
+    size: L3
+    description: 长篇小说前置蓝本路线，生成候选世界、人物、关系、因果、分卷章卡、独立评审与确定性状态投影
+    agents:
+      - Supervisor
+      - Researcher
+      - NarrativePlanner
+      - Writer
+      - Reviewer
+      - Scribe
+
   article_light_draft:
     size: L1
     description: 普通文章/短文/说明文轻路径，生成正文和简单结构检查

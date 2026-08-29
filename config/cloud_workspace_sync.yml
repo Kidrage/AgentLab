@@ -1,0 +1,36 @@
+schema_version: 1
+
+profiles:
+  cloud_250:
+    endpoint_alias: "250"
+    remote_root: /home/admin/AgentLab
+    branch: agentlab/unified-stable
+    interval_seconds: 300
+    source_transport: github_fast_forward
+    project_transport: versioned_single_writer_rsync
+    project_paths:
+      - projects/AgentLab
+      - projects/Crown_of_Ash
+    rag_path: .agentlab_runtime/knowledge
+    receipt_path: .agentlab/sync/cloud_250
+    local_untracked_allowlist:
+      - tmp_debug/
+    initial_rag_seed: true
+    rebuild_rag_after_project_change: true
+    conflict_policy: block_if_both_sides_changed
+    openclaw:
+      role: frontdesk_only
+      worker_capable: false
+      invocation: openclaw agent --message "$(./agentlab.sh frontdesk-session --agent openclaw)"
+    never_sync:
+      - .env
+      - .git
+      - .venv
+      - __pycache__
+      - .pytest_cache
+      - .agents/workspaces
+      - .claude
+      - .codex
+      - .grok
+      - .openclaw
+      - .config/agy

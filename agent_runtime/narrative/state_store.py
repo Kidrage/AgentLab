@@ -25,6 +25,10 @@ from agent_runtime.narrative.fact_authority import (
     load_fact_authority,
     verify_registered_fact_authority,
 )
+from agent_runtime.narrative.long_term_state import (
+    apply_long_term_delta,
+    validate_long_term_delta,
+)
 
 
 EVENT_SCHEMA = "narrative-state-event/v3"
@@ -58,6 +62,10 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
 
 
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def narrative_payload_sha256(value: Any) -> str:
     """Return the canonical hash used to bind narrative contracts."""
 
@@ -81,6 +89,15 @@ def _empty_snapshot(project: str) -> dict[str, Any]:
         "fact_authorities": {},
         "chapters": {},
         "style_memory": [],
+        "character_minds": {},
+        "relationship_edges": {},
+        "narrative_entities": {},
+        "promise_graph": {},
+        "offstage_actions": {},
+        "truth_layers": {},
+        "outline_tree": {},
+        "summary_tree": {},
+        "exact_name_index": {},
         "event_count": 0,
         "last_event_id": None,
         "last_event_sequence": 0,
@@ -205,6 +222,15 @@ class NarrativeStateStore:
                 "fact_authorities",
                 "chapters",
                 "style_memory",
+                "character_minds",
+                "relationship_edges",
+                "narrative_entities",
+                "promise_graph",
+                "offstage_actions",
+                "truth_layers",
+                "outline_tree",
+                "summary_tree",
+                "exact_name_index",
             ):
                 if key in base_state:
                     snapshot[key] = deepcopy(base_state[key])
@@ -258,6 +284,26 @@ class NarrativeStateStore:
                             "source_artifact_sha256": payload["artifact_sha256"],
                         }
                     )
+            if "long_term_schema" in delta:
+                projected = apply_long_term_delta(
+                    snapshot,
+                    delta,
+                    chapter=chapter,
+                    prose_sha256=str(payload["artifact_sha256"]),
+                )
+                for key in (
+                    "character_minds",
+                    "relationship_edges",
+                    "narrative_entities",
+                    "promise_graph",
+                    "offstage_actions",
+                    "truth_layers",
+                    "outline_tree",
+                    "summary_tree",
+                    "exact_name_index",
+                    "last_projection",
+                ):
+                    snapshot[key] = projected[key]
         elif event.get("event_type") == "EDITORIAL_MEMORY_RECORDED":
             polarity = (
                 "negative"
@@ -298,6 +344,22 @@ class NarrativeStateStore:
                     "event_id": event["event_id"],
                 }
             }
+        elif event.get("event_type") == "NARRATIVE_STATE_ROLLED_BACK":
+            restored_state = payload.get("restored_state")
+            if (
+                not isinstance(restored_state, Mapping)
+                or restored_state.get("schema_version") != SNAPSHOT_SCHEMA
+                or restored_state.get("project") != self.project
+                or restored_state.get("state_sha256")
+                != _state_hash(restored_state)
+                or payload.get("restored_state_sha256")
+                != restored_state.get("state_sha256")
+            ):
+                raise NarrativeStateIntegrityError(
+                    "rollback event restored state is invalid"
+                )
+            snapshot.clear()
+            snapshot.update(deepcopy(dict(restored_state)))
         else:
             raise NarrativeStateIntegrityError(
                 f"unsupported narrative event type: {event.get('event_type')}"
@@ -314,6 +376,32 @@ class NarrativeStateStore:
         snapshot["state_sha256"] = _state_hash(snapshot)
         return snapshot
 
+    @staticmethod
+    def _active_authority_events(
+        events: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Resolve the active chapter lineage while retaining immutable history."""
+
+        active: list[dict[str, Any]] = []
+        for event in events:
+            if event.get("event_type") != "NARRATIVE_STATE_ROLLED_BACK":
+                active.append(event)
+                continue
+            target = int(
+                (event.get("payload") or {}).get("target_chapter") or 0
+            )
+            active = [
+                candidate
+                for candidate in active
+                if candidate.get("event_type")
+                != "VERIFIED_CHAPTER_COMMITTED"
+                or int(
+                    (candidate.get("payload") or {}).get("chapter") or 0
+                )
+                <= target
+            ]
+        return active
+
     def _persist_snapshot(self, events: list[dict[str, Any]]) -> dict[str, Any]:
         snapshot = self._project(events)
         atomic_write_yaml(self.snapshot_path, snapshot)
@@ -326,6 +414,7 @@ class NarrativeStateStore:
         label: str,
         expected_schema: str,
         expected_issuer: str,
+        identity_field: str = "attempt_id",
     ) -> dict[str, Any]:
         reference = str(receipt.get("receipt_path") or "").strip()
         relative = Path(reference)
@@ -355,7 +444,7 @@ class NarrativeStateStore:
             raise NarrativeStateIntegrityError(f"{label} receipt schema mismatch")
         if document.get("issuer") != expected_issuer:
             raise NarrativeStateIntegrityError(f"{label} receipt issuer mismatch")
-        for field in ("attempt_id", "evidence_binding_id"):
+        for field in (identity_field, "evidence_binding_id"):
             value = document.get(field)
             if not isinstance(value, str) or not value.strip():
                 raise NarrativeStateIntegrityError(
@@ -380,6 +469,8 @@ class NarrativeStateStore:
                 if event.get("event_type") == "EDITORIAL_MEMORY_RECORDED"
                 else "overridden"
                 if event.get("event_type") == "FACT_AUTHORITY_COMMITTED"
+                else "rolled_back"
+                if event.get("event_type") == "NARRATIVE_STATE_ROLLED_BACK"
                 else "committed"
             ),
             "project": self.project,
@@ -388,6 +479,8 @@ class NarrativeStateStore:
             "state_sha256": snapshot["state_sha256"],
             "manifest_sha256": payload.get("manifest_sha256"),
             "commit_sha256": payload.get("commit_sha256"),
+            "target_chapter": payload.get("target_chapter"),
+            "restored_state_sha256": payload.get("restored_state_sha256"),
         }
 
     def bootstrap(self, manifest: Mapping[str, Any]) -> dict[str, Any]:
@@ -710,11 +803,101 @@ class NarrativeStateStore:
                 events = [
                     event
                     for event in events
-                    if event.get("event_type") != "VERIFIED_CHAPTER_COMMITTED"
-                    or int((event.get("payload") or {}).get("chapter") or 0)
-                    <= chapter
+                    if (
+                        event.get("event_type")
+                        != "VERIFIED_CHAPTER_COMMITTED"
+                        or int((event.get("payload") or {}).get("chapter") or 0)
+                        <= chapter
+                    )
+                    and (
+                        event.get("event_type")
+                        != "NARRATIVE_STATE_ROLLED_BACK"
+                        or int(
+                            (event.get("payload") or {}).get(
+                                "target_chapter"
+                            )
+                            or 0
+                        )
+                        <= chapter
+                    )
                 ]
             return self._project(events)
+
+    def rollback_to_chapter(
+        self,
+        chapter: int,
+        *,
+        reason: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Append an auditable rollback event and make that projection active."""
+
+        if isinstance(chapter, bool) or not isinstance(chapter, int) or chapter < 0:
+            raise ValueError("rollback chapter must be a non-negative integer")
+        reason = str(reason or "").strip()
+        idempotency_key = str(idempotency_key or "").strip()
+        if not reason:
+            raise ValueError("rollback reason is required")
+        if not idempotency_key:
+            raise ValueError("rollback idempotency_key is required")
+        with self._lock():
+            events = self._load_events()
+            if not events:
+                raise NarrativeStateConflict(
+                    "narrative state must be bootstrapped first"
+                )
+            for event in events:
+                if event.get("event_type") != "NARRATIVE_STATE_ROLLED_BACK":
+                    continue
+                payload = event.get("payload") or {}
+                if payload.get("idempotency_key") != idempotency_key:
+                    continue
+                if (
+                    payload.get("target_chapter") != chapter
+                    or payload.get("reason") != reason
+                ):
+                    raise NarrativeStateConflict(
+                        "rollback idempotency key was reused"
+                    )
+                self._persist_snapshot(events)
+                return self._receipt(events, event)
+            current = self._project(events)
+            committed_chapters = [
+                int(value)
+                for value in current.get("chapters", {})
+                if str(value).isdigit()
+            ]
+            if not committed_chapters or chapter >= max(committed_chapters):
+                raise NarrativeStateConflict(
+                    "rollback target must precede the active committed chapter"
+                )
+            historical_events = [
+                event
+                for event in self._active_authority_events(events)
+                if (
+                    event.get("event_type")
+                    != "VERIFIED_CHAPTER_COMMITTED"
+                    or int((event.get("payload") or {}).get("chapter") or 0)
+                    <= chapter
+                )
+            ]
+            restored_state = self._project(historical_events)
+            event = self._new_event(
+                events,
+                event_type="NARRATIVE_STATE_ROLLED_BACK",
+                payload={
+                    "target_chapter": chapter,
+                    "reason": reason,
+                    "idempotency_key": idempotency_key,
+                    "previous_state_sha256": current["state_sha256"],
+                    "restored_state_sha256": restored_state["state_sha256"],
+                    "restored_state": restored_state,
+                },
+            )
+            events.append(event)
+            self._append_event_to_ledger(event)
+            self._persist_snapshot(events)
+            return self._receipt(events, event)
 
     def commit(self, verified_commit: Mapping[str, Any]) -> dict[str, Any]:
         """Commit one accepted, verified chapter delta to narrative authority."""
@@ -777,11 +960,21 @@ class NarrativeStateStore:
             raise NarrativeStateConflict("delta verification projection binding mismatch")
         if any(seal.get(field) != value for field, value in binding.items()):
             raise NarrativeStateConflict("accepted seal narrative binding mismatch")
+        detached_seal = seal.get("mode") == "detached"
         seal_receipt = self._verified_receipt(
             seal,
             label="accepted seal",
-            expected_schema="narrative-seal-receipt/v1",
-            expected_issuer="AgentLab.Supervisor",
+            expected_schema=(
+                "narrative-detached-auto-seal-receipt/v1"
+                if detached_seal
+                else "narrative-seal-receipt/v1"
+            ),
+            expected_issuer=(
+                "AgentLab.DetachedAcceptance"
+                if detached_seal
+                else "AgentLab.Supervisor"
+            ),
+            identity_field=("decision_id" if detached_seal else "attempt_id"),
         )
         verification_receipt = self._verified_receipt(
             delta_verification,
@@ -794,6 +987,120 @@ class NarrativeStateStore:
             != verification_receipt["evidence_binding_id"]
         ):
             raise NarrativeStateConflict("receipt evidence binding mismatch")
+        if detached_seal and (
+            not str(seal.get("decision_id") or "").strip()
+            or seal_receipt.get("decision_id") != seal.get("decision_id")
+        ):
+            raise NarrativeStateConflict("detached acceptance decision binding mismatch")
+        if detached_seal:
+            task_id = str(seal_receipt.get("task_id") or "")
+            work_item_id = str(seal_receipt.get("work_item_id") or "")
+            decision_id = str(seal_receipt.get("decision_id") or "")
+            acceptance_sha256 = str(
+                seal_receipt.get("acceptance_record_sha256") or ""
+            )
+            if (
+                not task_id
+                or not work_item_id
+                or not decision_id
+                or not _SHA256.fullmatch(acceptance_sha256)
+                or seal.get("task_id") != task_id
+                or seal.get("work_item_id") != work_item_id
+                or seal.get("acceptance_record_sha256") != acceptance_sha256
+            ):
+                raise NarrativeStateConflict(
+                    "detached seal lacks immutable acceptance provenance"
+                )
+            project_root = self.project_brain_dir.parent
+            agentlab_root = project_root.parent.parent
+            from agent_runtime.narrative.auto_acceptance import (
+                validate_detached_candidate_acceptance,
+            )
+            from agent_runtime.task_runtime_v2 import TaskRuntime
+
+            runtime = TaskRuntime(agentlab_root, project=self.project)
+            task_projection = runtime.load_task(task_id)
+            record = (task_projection.get("trace_records") or {}).get(decision_id)
+            if (
+                not isinstance(record, Mapping)
+                or record.get("record_type") != "narrative_auto_acceptance"
+                or record.get("sha256") != acceptance_sha256
+                or (record.get("record_data") or {}).get("work_item_id")
+                != work_item_id
+            ):
+                raise NarrativeStateConflict(
+                    "detached seal does not resolve to immutable acceptance evidence"
+                )
+            try:
+                acceptance = validate_detached_candidate_acceptance(
+                    agentlab_root,
+                    project=self.project,
+                    task_id=task_id,
+                    work_item_id=work_item_id,
+                    data=record.get("record_data") or {},
+                    task_projection=task_projection,
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise NarrativeStateConflict(
+                    "detached acceptance evidence is invalid"
+                ) from exc
+            if acceptance.get("candidate_sha256") != binding["artifact_sha256"]:
+                raise NarrativeStateConflict(
+                    "detached acceptance candidate binding mismatch"
+                )
+            attempt_id = str(delta_verification.get("attempt_id") or "")
+            attempt = (task_projection.get("attempts") or {}).get(attempt_id)
+            execution_contract = (
+                attempt.get("execution_contract")
+                if isinstance(attempt, Mapping)
+                else {}
+            )
+            outcome = attempt.get("outcome") if isinstance(attempt, Mapping) else {}
+            if (
+                not isinstance(attempt, Mapping)
+                or attempt.get("status") != "succeeded"
+                or attempt.get("work_item_id") != work_item_id
+                or execution_contract.get("role") != "Scribe"
+                or execution_contract.get("executor_type") != "deterministic_tool"
+                or (execution_contract.get("deterministic_tool") or {}).get(
+                    "acceptance_record_id"
+                )
+                != decision_id
+                or outcome.get("execution_origin")
+                != "deterministic_tool_executor"
+            ):
+                raise NarrativeStateConflict(
+                    "delta verification is not bound to a succeeded Scribe Attempt"
+                )
+            try:
+                runtime.verify_attempt_execution_receipt(task_id, attempt_id)
+                task_root = project_root / "runtime" / "tasks" / task_id
+                attempt_receipt_path = task_root / str(outcome.get("receipt_path") or "")
+                attempt_receipt = yaml.safe_load(
+                    attempt_receipt_path.read_text(encoding="utf-8")
+                )
+                attempt_output_path = task_root / str(
+                    (attempt_receipt or {}).get("output_path") or ""
+                )
+                attempt_output = yaml.safe_load(
+                    attempt_output_path.read_text(encoding="utf-8")
+                )
+            except (OSError, RuntimeError, ValueError, yaml.YAMLError) as exc:
+                raise NarrativeStateConflict(
+                    "Scribe Attempt output evidence is invalid"
+                ) from exc
+            if (
+                not isinstance(attempt_receipt, Mapping)
+                or not attempt_output_path.resolve().is_relative_to(task_root.resolve())
+                or _sha256_file(attempt_output_path)
+                != attempt_receipt.get("output_sha256")
+                or outcome.get("output_sha256")
+                != attempt_receipt.get("output_sha256")
+                or attempt_output != state_delta
+            ):
+                raise NarrativeStateConflict(
+                    "Scribe Attempt output does not match the committed state delta"
+                )
         if seal_receipt.get("status") != "accepted" or any(
             seal_receipt.get(field) != value for field, value in binding.items()
         ):
@@ -812,7 +1119,7 @@ class NarrativeStateStore:
             events = self._load_events()
             if not events:
                 raise NarrativeStateConflict("narrative state must be bootstrapped first")
-            for event in events:
+            for event in self._active_authority_events(events):
                 if event.get("event_type") != "VERIFIED_CHAPTER_COMMITTED":
                     continue
                 payload = event.get("payload") or {}
@@ -826,6 +1133,15 @@ class NarrativeStateStore:
             current = self._project(events)
             if verified_commit.get("previous_state_sha256") != current["state_sha256"]:
                 raise NarrativeStateConflict("previous narrative state hash is stale")
+            long_term_issues = validate_long_term_delta(
+                state_delta,
+                current_state=current,
+            )
+            if long_term_issues:
+                raise NarrativeStateConflict(
+                    "long-term narrative delta is invalid: "
+                    + ",".join(long_term_issues)
+                )
             payload = deepcopy(dict(verified_commit))
             payload["commit_sha256"] = commit_sha256
             event = self._new_event(

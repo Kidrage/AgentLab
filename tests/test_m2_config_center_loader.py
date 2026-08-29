@@ -126,7 +126,7 @@ def test_routing_policy_default_budget_resolves() -> None:
     rp = merged.get("routing_policy", {})
     assert isinstance(rp, dict)
     assert "default_budget" in rp, f"routing_policy keys: {list(rp.keys())}"
-    assert rp["default_budget"] in ("frugal", "balanced", "max_quality")
+    assert rp["default_budget"] in ("alter", "frugal", "balanced", "max_quality")
 
 
 def test_execution_policy_nested_keys_resolve() -> None:

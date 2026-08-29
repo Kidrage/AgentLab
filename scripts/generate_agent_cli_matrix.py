@@ -70,9 +70,20 @@ def _artifact_dispatch_summary(
         required = set((artifact_config or {}).get("required_capabilities") or [])
         eligible: list[tuple[int, str, dict[str, Any]]] = []
         for provider_id, provider_config in providers.items():
-            handles = set((provider_config or {}).get("handles") or [])
+            provider_config = provider_config or {}
+            availability = str(provider_config.get("availability") or "")
+            if availability == "historical_only":
+                continue
+            placeholder = provider_config.get("provider_type") == "placeholder"
+            if provider_config.get("selectable") is False and not placeholder:
+                continue
+            if not placeholder and capacity_tier not in (
+                provider_config.get("capacity_routes") or {}
+            ):
+                continue
+            handles = set(provider_config.get("handles") or [])
             capabilities = set(
-                (provider_config or {}).get("capabilities") or []
+                provider_config.get("capabilities") or []
             )
             if artifact_type not in handles and "mixed" not in handles:
                 continue
@@ -80,9 +91,9 @@ def _artifact_dispatch_summary(
                 continue
             eligible.append(
                 (
-                    int((provider_config or {}).get("priority", 0)),
+                    int(provider_config.get("priority", 0)),
                     str(provider_id),
-                    provider_config or {},
+                    provider_config,
                 )
             )
         eligible.sort(key=lambda item: item[0], reverse=True)
@@ -103,7 +114,8 @@ def _artifact_dispatch_summary(
             capacity_route,
         )
         grouped.setdefault(key, []).append(str(artifact_type))
-        selected_rows.append((str(artifact_type), provider_config))
+        if provider_config.get("provider_type") != "placeholder":
+            selected_rows.append((str(artifact_type), provider_config))
 
     parts: list[str] = []
     for (provider_id, worker, contract, capacity_route), types in grouped.items():
@@ -138,19 +150,19 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
     matrix_rows: list[dict[str, str]] = []
     required_performance_routes = {
         "supervisor": (
-            "codex",
-            "codex_supervisor",
-            "codex_gpt_5_6_sol_xhigh_cli_oauth",
+            "hermes",
+            "hermes_supervisor",
+            "codex_gpt_5_6_sol_xhigh_hermes_oauth",
         ),
-        "reposcout": ("claude_code", "claude", "deepseek_v4_pro"),
-        "interface_mapper": ("claude_code", "claude", "deepseek_v4_pro"),
+        "reposcout": ("codex", "codex", "codex_gpt_5_6_sol_high_cli_oauth"),
+        "interface_mapper": ("codex", "codex", "codex_gpt_5_6_sol_xhigh_cli_oauth"),
         "narrative_planner": (
             "agy",
             "agy_narrative_planner",
-            "gemini_3_5_flash_high_agy_oauth",
+            "gemini_3_6_flash_high_agy_oauth",
         ),
-        "tester_auditor": ("claude_code", "claude", "deepseek_v4_pro"),
-        "verifier": ("claude_code", "claude", "deepseek_v4_flash"),
+        "tester_auditor": ("hermes", "hermes_deepseek", "deepseek_v4_flash_hermes_private"),
+        "verifier": ("hermes", "hermes_deepseek", "deepseek_v4_flash_hermes_private"),
     }
     full_cli = (((profiles.get("modes") or {}).get("full_cli") or {}).get("tiers") or {})
     for tier, tier_config in full_cli.items():
@@ -197,10 +209,14 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
             if role_config.get("executor_type") == "cli_agent":
                 if cli_agent not in workers:
                     errors.append(f"full_cli.{tier}.{role_key}: unknown worker {cli_agent!r}")
+                elif (workers.get(cli_agent) or {}).get("selectable", True) is False:
+                    errors.append(f"full_cli.{tier}.{role_key}: worker {cli_agent!r} is not selectable")
                 if contract_id not in contracts:
                     errors.append(f"full_cli.{tier}.{role_key}: unknown contract {contract_id!r}")
                 elif str((contracts.get(contract_id) or {}).get("worker_id") or "") != cli_agent:
                     errors.append(f"full_cli.{tier}.{role_key}: contract {contract_id!r} belongs to another worker")
+                elif (contracts.get(contract_id) or {}).get("selectable", True) is False:
+                    errors.append(f"full_cli.{tier}.{role_key}: contract {contract_id!r} is not selectable")
                 allowed_workers = (roles.get(binding_role) or {}).get("allowed_workers") or []
                 binding_status = "ok" if cli_agent in allowed_workers else "mismatch"
                 if binding_status != "ok":
@@ -208,6 +224,8 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
 
             if model_key and model_key not in catalog:
                 errors.append(f"full_cli.{tier}.{role_key}: unknown model {model_key!r}")
+            elif model_key and (catalog.get(model_key) or {}).get("selectable", True) is False:
+                errors.append(f"full_cli.{tier}.{role_key}: model {model_key!r} is not selectable")
             expected_route = (
                 required_performance_routes.get(str(role_key))
                 if str(tier) == "performance"
@@ -255,6 +273,7 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                         provider_config.get("invocation_contract") or ""
                     )
                     capacity_tier = {
+                        "altered": "alter",
                         "max_quality": "full",
                         "max-quality": "full",
                     }.get(str(tier), str(tier))
@@ -352,6 +371,11 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                                 f"references unknown fallback route {fallback_route!r}"
                             )
                             continue
+                        if fallback_cfg.get("selectable", True) is False:
+                            errors.append(
+                                f"full_cli.{tier}.{role_key}: fallback route {fallback_route!r} "
+                                "is not selectable"
+                            )
                         fallback_worker = str(fallback_cfg.get("worker") or "")
                         fallback_contract = str(fallback_cfg.get("invocation_contract") or "")
                         fallback_model = str(fallback_cfg.get("model_key") or "")
@@ -447,6 +471,30 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
 
     if errors:
         raise ValueError("Invalid AgentLab matrix references:\n- " + "\n- ".join(errors))
+    full_cli_authorities = "|".join(
+        (
+            "config/agent_model_profiles.yml",
+            "config/model_catalog.yml",
+            "config/model_capacity.yml",
+            "config/worker_invocation_contracts.yml",
+            "config/agent_role_bindings.yml",
+            "config/runtime_cli_requirements.yml",
+            "config/artifact_task_policy.yml",
+        )
+    )
+    cli_authorities = "|".join(
+        (
+            "config/runtime_cli_requirements.yml",
+            "config/worker_invocation_contracts.yml",
+            "config/agent_role_bindings.yml",
+        )
+    )
+    for row in matrix_rows:
+        row["generated_non_authoritative"] = "true"
+        row["authority_paths"] = full_cli_authorities
+    for row in cli_rows:
+        row["generated_non_authoritative"] = "true"
+        row["authority_paths"] = cli_authorities
     return matrix_rows, cli_rows
 
 

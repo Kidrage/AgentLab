@@ -16,8 +16,8 @@ import sys
 
 import yaml
 
-from atomic_io import atomic_write_text
-from execution_log import append_command_record
+from agent_runtime.atomic_io import atomic_write_text
+from agent_runtime.execution_log import append_command_record
 
 
 DEFAULT_COMMAND_POLICY: dict[str, Any] = {

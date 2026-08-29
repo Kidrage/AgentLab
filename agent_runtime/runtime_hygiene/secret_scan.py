@@ -46,13 +46,14 @@ def scan_secrets(agentlab_root: Path) -> SecretScanReport:
                         if len(val) < 8 or any(x in val.lower() for x in ["your_", "placeholder", "xxx", "tbd", "test", "dummy"]):
                             continue
                         
-                        # Redact the secret
-                        redacted = line.replace(val, "*" * 8)
                         findings.append({
                             "file": str(file_path.relative_to(agentlab_root)),
                             "line": idx,
                             "pattern_matched": name,
-                            "snippet_redacted": redacted
+                            # Never retain the source line. A detector may match
+                            # only a prefix of a token (for example before "/"),
+                            # so partial replacement can leak the remaining value.
+                            "snippet_redacted": "[FULLY_REDACTED]"
                         })
                         warnings.append(f"Potential secret leak ({name}) in {file_path.name}:{idx}")
         except Exception:

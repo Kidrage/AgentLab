@@ -25,7 +25,7 @@ def test_agy_cli_smoke_dry_run_reports_command_without_private_context(tmp_path:
     assert report["prompt_scope"] == "non_private_observer_session_reachability_smoke"
     assert report["status"] in {"configured", "blocked"}
     assert report["invocation_contract"] == "agy_observer"
-    assert "--model gemini-3.5-flash-high" in report["command_shape"]
+    assert "--model gemini-3.6-flash-high" in report["command_shape"]
     assert "--sandbox" in report["command_shape"]
     assert len(report["command_variants"]) == 1
     assert "<non_private_prompt>" in report["command_shape"]
@@ -40,7 +40,7 @@ def test_agy_cli_smoke_dry_run_reports_command_without_private_context(tmp_path:
 def test_agy_cli_smoke_live_pass_with_fake_runner(tmp_path: Path) -> None:
     def fake_runner(args: list[str], timeout: int, log_path: Path) -> subprocess.CompletedProcess[str]:
         assert args[0] == "agy"
-        assert args[args.index("--model") + 1] == "gemini-3.5-flash-high"
+        assert args[args.index("--model") + 1] == "gemini-3.6-flash-high"
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="AGENTLAB_AGY_CLI_SMOKE_OK\n", stderr="")
 
     report = build_agy_cli_smoke_report(
@@ -53,6 +53,59 @@ def test_agy_cli_smoke_live_pass_with_fake_runner(tmp_path: Path) -> None:
     assert report["status"] == "pass"
     assert report["expected_token_present"] is True
     assert "reason" not in report
+
+
+def test_agy_cli_smoke_injects_default_proxy_when_environment_is_empty(
+    tmp_path: Path,
+) -> None:
+    with patch.dict(
+        "agent_runtime.agy_cli_smoke.os.environ",
+        {"PATH": "/usr/bin"},
+        clear=True,
+    ):
+        report = build_agy_cli_smoke_report(
+            ROOT,
+            live=False,
+            command_runner=lambda *_: None,
+            smoke_dir=tmp_path / "smoke",
+        )
+
+    assert report["status"] == "configured"
+    assert report["proxy_binding_verified"] is True
+    assert report["proxy_source"] == "default_fallback"
+    assert report["proxy_url"] == "http://127.0.0.1:7890"
+    assert set(report["proxy_environment_names"]) == {
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "http_proxy",
+        "https_proxy",
+    }
+
+
+def test_agy_cli_smoke_redacts_proxy_credentials(tmp_path: Path) -> None:
+    with patch.dict(
+        "agent_runtime.agy_cli_smoke.os.environ",
+        {
+            "PATH": "/usr/bin",
+            "HTTP_PROXY": (
+                "http://demo-user:demo-password@proxy.example:8080/"
+                "private?token=secret"
+            ),
+        },
+        clear=True,
+    ):
+        report = build_agy_cli_smoke_report(
+            ROOT,
+            live=False,
+            command_runner=lambda *_: None,
+            smoke_dir=tmp_path / "smoke",
+        )
+
+    rendered = yaml.safe_dump(report, sort_keys=False)
+    assert report["proxy_url"] == "http://proxy.example:8080"
+    assert "demo-user" not in rendered
+    assert "demo-password" not in rendered
+    assert "token=secret" not in rendered
 
 
 def test_agy_cli_smoke_real_subprocess_does_not_inherit_direct_api_keys(
@@ -119,6 +172,35 @@ def test_agy_cli_smoke_classifies_localhost_bind_denied(tmp_path: Path) -> None:
     assert report["status"] == "blocked"
     assert report["reason"] == "agy_localhost_bind_denied"
     assert "127.0.0.1:0" in report["log_excerpt"]
+
+
+def test_agy_cli_smoke_classifies_region_block_from_full_log(tmp_path: Path) -> None:
+    def fake_runner(
+        args: list[str], timeout: int, log_path: Path
+    ) -> subprocess.CompletedProcess[str]:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text(
+            ("startup diagnostic\n" * 80)
+            + "FAILED_PRECONDITION (code 400): User location is not supported "
+            "for the API use.\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr="Error: Agent execution terminated due to error.\n",
+        )
+
+    report = build_agy_cli_smoke_report(
+        ROOT,
+        live=True,
+        command_runner=fake_runner,
+        smoke_dir=tmp_path / "smoke",
+    )
+
+    assert report["status"] == "blocked"
+    assert report["reason"] == "agy_provider_region_unsupported"
 
 
 def test_agy_cli_smoke_timeout_omits_null_returncode(tmp_path: Path) -> None:

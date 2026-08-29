@@ -26,7 +26,18 @@ PRIVATE_CONTEXT_APPROVAL_SCOPE_SHA256_ENV_NAME = (
 PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME = (
     "AGENTLAB_PRODUCTION_PACK_CONTEXT_APPROVED"
 )
-_FORBIDDEN_SOURCE_NAMES = {".env", ".ssh", ".gnupg", "credentials", "secrets"}
+_FORBIDDEN_SOURCE_NAMES = {
+    ".agents",
+    ".codex",
+    ".env",
+    ".git",
+    ".gnupg",
+    ".hermes",
+    ".ssh",
+    "credentials",
+    "secrets",
+}
+_FORBIDDEN_SOURCE_SUFFIXES = {".key", ".pem"}
 _PLACEHOLDER_MARKERS = (
     "placeholder",
     "dummy",
@@ -81,6 +92,17 @@ def _relative_source(root: Path, path: Path) -> tuple[str, bool]:
         return "<outside-agentlab-root>", False
 
 
+def is_forbidden_source_path(path: Path) -> bool:
+    """Return whether *path* names a sensitive source that must not be read."""
+
+    candidate = Path(path)
+    return any(
+        part.lower() in _FORBIDDEN_SOURCE_NAMES
+        or part.lower().startswith(".env")
+        for part in candidate.parts
+    ) or candidate.suffix.lower() in _FORBIDDEN_SOURCE_SUFFIXES
+
+
 def _source_records(
     root: Path, source_paths: Iterable[Path]
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -94,10 +116,7 @@ def _source_records(
             continue
         seen.add(resolved)
         relative, inside_root = _relative_source(root, path)
-        forbidden_name = any(
-            part.lower() in _FORBIDDEN_SOURCE_NAMES or part.lower().startswith(".env")
-            for part in path.parts
-        )
+        forbidden_name = is_forbidden_source_path(path)
         exists = path.is_file()
         is_symlink = path.is_symlink()
         record: dict[str, Any] = {
@@ -107,7 +126,7 @@ def _source_records(
             "is_symlink": is_symlink,
             "forbidden_name": forbidden_name,
         }
-        if exists and not is_symlink:
+        if exists and inside_root and not forbidden_name and not is_symlink:
             payload = path.read_bytes()
             record.update({"bytes": len(payload), "sha256": _sha256_bytes(payload)})
         records.append(record)
@@ -153,6 +172,7 @@ def build_outbound_context_manifest(
     provider_project_scan_requested: bool = False,
     provider_shell_or_browser_requested: bool = False,
     source_inventory_required: bool = False,
+    approval_authority: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a content-free receipt for the exact provider-bound payload."""
     root = root.resolve(strict=False)
@@ -275,6 +295,7 @@ def build_outbound_context_manifest(
             "trusted_runner_env_name": TRUSTED_RUNNER_ENV_NAME,
             "trusted_runner_observed": os.getenv(TRUSTED_RUNNER_ENV_NAME) == "1",
             "env_values_rendered": False,
+            "authority": dict(approval_authority or {}),
         },
         "issues": issues,
     }

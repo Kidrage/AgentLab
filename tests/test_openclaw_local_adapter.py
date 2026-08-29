@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 from openclaw_local_adapter import (
     build_agentlab_cli_command,
     build_openclaw_event_message,
+    load_openclaw_local_policy,
     parse_openclaw_user_reply,
     write_local_event_queue_record,
 )
@@ -122,3 +123,13 @@ def test_payload_without_decision_card_generates_notification() -> None:
     assert message["notification"] is True
     assert message["options"] == []
     assert message["summary"] == "Done"
+
+
+def test_repository_policy_enables_openclaw_as_private_frontdesk() -> None:
+    policy = load_openclaw_local_policy(ROOT)
+
+    assert policy["enabled"] is True
+    assert policy["mode"] == "local"
+    assert policy["security"]["expose_agentlab_publicly"] is False
+    assert policy["frontdesk"]["agent_id"] == "openclaw"
+    assert policy["frontdesk"]["model_id"] == "deepseek-v4-flash"

@@ -61,8 +61,8 @@ DEFAULT_CANDIDATES = [
     },
     {
         "worker_id": "grok",
-        "display_name": "Grok via Hermes xAI OAuth",
-        "command": "hermes",
+        "display_name": "Native Grok CLI OAuth",
+        "command": "grok",
         "category": WorkerCategory.MULTIMODAL_CLOUD_TOOL,
         "cost_tier": "high",
         "risk_level": "high",

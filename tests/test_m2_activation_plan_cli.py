@@ -46,7 +46,16 @@ def test_compile_activation_plan_and_cli(tmp_path):
     runner = CliRunner()
 
     # Test activation-plan
-    result = runner.invoke(app, ["activation-plan", "--task-packet", str(packet_path)])
+    result = runner.invoke(
+        app,
+        [
+            "activation-plan",
+            "--task-packet",
+            str(packet_path),
+            "--root",
+            str(tmp_path),
+        ],
+    )
     assert result.exit_code == 0
     assert "activation_plan" in result.stdout
 
@@ -87,6 +96,8 @@ def test_activation_plan_honors_explicit_catalog_route(tmp_path):
 
     assert plan["route_key"] == "narrative_light_chapter"
     assert [item["role"] for item in plan["decisions"]] == ["Supervisor", "Writer"]
+    workers = {item["role"]: item["candidate_worker"] for item in plan["decisions"]}
+    assert workers == {"Supervisor": "hermes", "Writer": "claude_code"}
     assert all(
         item["session_boundary"] == "independent_role_receipt"
         for item in plan["role_sessions"]

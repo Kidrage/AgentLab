@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -17,10 +18,13 @@ import pytest
 import yaml
 
 from agent_runtime.cli_executor import run_cli_agent
+from agent_runtime.cli_executor import _claude_provider_model_mismatch
 from agent_runtime.schemas import AgentRoute, WorkflowPlan
+from outbound_approval_support import authorize_external_packet
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_REAL_SUBPROCESS_RUN = subprocess.run
 
 
 def _make_plan(runtime_root: Path) -> WorkflowPlan:
@@ -64,6 +68,28 @@ REVIEWER_SEALED_MESSAGES = [
 ]
 
 
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {},
+        {"provider_reported_model_ids": []},
+        {
+            "provider_reported_model_ids": [
+                "deepseek-v4-pro",
+                "deepseek-v4-flash",
+            ]
+        },
+    ],
+)
+def test_governed_claude_model_binding_fails_closed_without_one_exact_model(
+    usage: dict,
+) -> None:
+    assert _claude_provider_model_mismatch(
+        {"applicable": True, "selected_model_id": "deepseek-v4-pro"},
+        usage,
+    ) is True
+
+
 def _runtime_from_real_config(
     tmp_path: Path,
     contract_name: str,
@@ -71,7 +97,12 @@ def _runtime_from_real_config(
     replace: tuple[str, str] | None = None,
     inject_after_binary: str | None = None,
 ) -> Path:
-    """Copy real config and apply one intentional command-contract mutation."""
+    """Copy a Claude contract into an explicitly selectable test-only runtime.
+
+    The fixture isolates the copied contract and disables its host-private
+    settings requirement so lower-level command mutations can be tested without
+    depending on the developer machine's Claude credentials.
+    """
     config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True)
 
@@ -80,7 +111,12 @@ def _runtime_from_real_config(
             encoding="utf-8"
         )
     )
-    template = contracts["contracts"][contract_name]["template"]
+    contract = contracts["contracts"][contract_name]
+    contract["availability"] = "test_fixture_only"
+    contract["selectable"] = True
+    if isinstance(contract.get("environment"), dict):
+        contract["environment"]["load_user_settings_env"] = False
+    template = contract["template"]
     if replace is not None:
         old, new = replace
         assert old in template, f"real {contract_name} template lost expected token {old!r}"
@@ -88,7 +124,7 @@ def _runtime_from_real_config(
     if inject_after_binary is not None:
         assert template.startswith("claude ")
         template = template.replace("claude ", f"claude {inject_after_binary} ", 1)
-    contracts["contracts"][contract_name]["template"] = template
+    contract["template"] = template
     (config_dir / "worker_invocation_contracts.yml").write_text(
         yaml.safe_dump(contracts, sort_keys=False),
         encoding="utf-8",
@@ -146,6 +182,17 @@ def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
             Path(plan.run_dir) / "outbound_context_manifest_reviewer.yml"
         ).read_text(encoding="utf-8")
     )
+    authorize_external_packet(
+        plan,
+        agent_name="Reviewer",
+        cli_agent_name="claude_code",
+        sealed_messages=REVIEWER_SEALED_MESSAGES,
+    )
+
+    def signed_provider_run(argv, **kwargs):
+        if argv[0] == "/usr/bin/openssl":
+            return _REAL_SUBPROCESS_RUN(argv, **kwargs)
+        return _provider_result()
 
     with patch.dict(
         "agent_runtime.cli_executor.os.environ",
@@ -159,7 +206,8 @@ def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
     ), patch(
         "agent_runtime.cli_executor.shutil.which", return_value="/usr/bin/claude"
     ), patch(
-        "agent_runtime.cli_executor.subprocess.run", return_value=_provider_result()
+        "agent_runtime.cli_executor.subprocess.run",
+        side_effect=signed_provider_run,
     ) as run:
         result = run_cli_agent(
             plan,
@@ -183,14 +231,67 @@ def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
 
 
 def _provider_result() -> SimpleNamespace:
+    from agent_runtime.narrative_heavy_audit import fake_narrative_heavy_audit_content
+    from agent_runtime.patch_applicator import parse_edit_blocks
+
+    structured_result = {
+        Path(str(block["path"])).stem: yaml.safe_load(
+            str(block["html_block_content"])
+        )
+        for block in parse_edit_blocks(
+            fake_narrative_heavy_audit_content("Reviewer")
+        )
+    }
     payload = {
         "type": "result",
-        "result": "bounded offline result",
+        "result": structured_result,
         "session_id": "offline-test-session",
         "usage": {"input_tokens": 3, "output_tokens": 2},
         "modelUsage": {"deepseek-v4-pro": {"outputTokens": 2}},
     }
     return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
+
+
+def test_writer_blocks_before_provider_without_exact_private_deepseek_environment(
+    tmp_path: Path,
+) -> None:
+    runtime_root = _runtime_from_real_config(tmp_path, "claude_writer")
+    contracts_path = runtime_root / "config" / "worker_invocation_contracts.yml"
+    contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
+    contracts["contracts"]["claude_writer"]["environment"] = {
+        "load_user_settings_env": True,
+        "expected_base_url": "https://api.deepseek.com/anthropic",
+    }
+    contracts_path.write_text(
+        yaml.safe_dump(contracts, sort_keys=False), encoding="utf-8"
+    )
+
+    with patch.dict(
+        "agent_runtime.cli_executor.os.environ",
+        {
+            "HOME": str(tmp_path),
+            "ANTHROPIC_AUTH_TOKEN": "ambient-token-must-not-count",
+            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+        },
+        clear=True,
+    ), patch(
+        "agent_runtime.cli_executor.shutil.which", return_value="/usr/bin/claude"
+    ), patch("agent_runtime.cli_executor.subprocess.run") as process:
+        result = run_cli_agent(
+            _make_plan(runtime_root),
+            "Writer",
+            _role_profile("claude_writer"),
+            sealed_messages=PURE_WRITER_SEALED_MESSAGES,
+        )
+
+    _assert_blocked_before_provider(
+        result,
+        process,
+        expect_command_binding_failure=False,
+    )
+    assert "claude_private_deepseek_environment_mismatch" in result.raw_usage[
+        "claude_model_preflight"
+    ]["issues"]
 
 
 def _assert_blocked_before_provider(
@@ -265,7 +366,7 @@ def test_writer_and_supervisor_fallback_reject_missing_or_weakened_runtime_bindi
     if contract_name == "claude_writer" and mutation[0].startswith(
         "--permission-mode"
     ):
-        mutation = (mutation[0].replace("plan", "bypassPermissions"), mutation[1])
+        mutation = (mutation[0].replace("plan", "dontAsk"), mutation[1])
     runtime_root = _runtime_from_real_config(
         tmp_path,
         contract_name,
@@ -486,7 +587,7 @@ def test_ultracode_rejects_unsealed_packet_even_with_valid_opt_in(
             "claude_writer",
             "Writer",
             "1.00",
-            "bypassPermissions",
+            "dontAsk",
             True,
             id="writer",
         ),

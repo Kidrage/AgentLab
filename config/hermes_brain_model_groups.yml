@@ -1,20 +1,23 @@
 schema_version: 1
 policy_id: hermes_brain_model_groups
 summary: >
-  AgentLab's default brain/supervisor layer runs through the native Codex CLI.
+  AgentLab's default brain/supervisor layer runs through Hermes with Codex
+  OAuth, while bounded support and independent audit roles use Hermes with
+  DeepSeek V4 Flash.
   It owns durable plan handoffs, feedback interpretation, and budget-aware
   escalation before execution-layer agents receive task packets. Hermes remains
   a non-default workflow/frontdesk shell. Executable fallback selection belongs
   only to config/model_capacity.yml.
 
 default_recommendation:
-  model_mix: codex_gpt56_sol_supervisor_with_specialists
+  model_mix: codex_supervisor_with_current_specialists
   rationale:
-    - Native Codex CLI with GPT-5.6 Sol xhigh is the default registered Supervisor route.
+    - Hermes with Codex OAuth is the default registered Supervisor route.
     - Claude shell with DeepSeek owns bounded Chinese Writer work.
-    - Default performance NarrativePlanner uses Agy Gemini subscription capacity; full tier retains Claude/DeepSeek V4 Pro.
-    - Agy observes multimodal evidence; it does not write final prose or claim image generation.
-    - Grok/xAI owns sourced social/web research and registered image/video tool orchestration.
+    - Every full_cli tier uses Agy Gemini subscription capacity for NarrativePlanner.
+    - Agy Gemini 3.6 observes multimodal evidence and handles governed Writer/Scribe roles; it does not claim image generation.
+    - Agy Gemini 3.6 with the Exa-only audited MCP boundary owns sourced web research.
+    - Codex GPT-5.6 Sol medium owns text artifact production.
 
 providers:
   deepseek:
@@ -54,6 +57,8 @@ providers:
       reset_at: null
       rule: never_guess_subscription_capacity
   grok_xai:
+    availability: historical_only
+    selectable: false
     role: social_web_research_and_registered_media_tool_orchestration
     strengths:
       - social_search
@@ -61,33 +66,33 @@ providers:
       - registered_image_tool_orchestration
       - registered_video_tool_orchestration
     default_models:
-      - grok_4_3_hermes_oauth
+      - grok_4_6_hermes_oauth
     multimodal: tool_orchestration_only
     direct_media_generation: false
     audio_generation: false
 
 brain_layouts:
   recommended:
-    name: codex_gpt56_sol_supervisor_with_specialists
+    name: codex_supervisor_with_current_specialists
     brain_chain:
-      supervisor: codex_gpt_5_6_sol_xhigh_cli_oauth
+      supervisor: codex_gpt_5_6_sol_xhigh_hermes_oauth
       writer: deepseek_v4_pro
-      multimodal_observer: gemini_3_5_flash_high_agy_oauth
-      observer_fallback: claude_sonnet_4_6_agy_oauth
-      social_web_research: grok_4_3_hermes_oauth
-      artifact_producer: grok_4_3_hermes_oauth
-      performance_narrative_planner: gemini_3_5_flash_high_agy_oauth
-      full_narrative_planner: deepseek_v4_pro
-      independent_verifier: deepseek_v4_flash
+      multimodal_observer: gemini_3_6_flash_high_agy_oauth
+      observer_fallback: null
+      social_web_research: gemini_3_6_flash_high_agy_oauth
+      artifact_producer: codex_gpt_5_6_sol_medium_cli_oauth
+      performance_narrative_planner: gemini_3_6_flash_high_agy_oauth
+      full_narrative_planner: gemini_3_6_flash_high_agy_oauth
+      independent_verifier: deepseek_v4_flash_hermes_private
     execution_rule: >
-      Native Codex CLI with GPT-5.6 Sol keeps Supervisor plan ownership and routes
+      Hermes with Codex OAuth keeps Supervisor plan ownership and routes
       only verified task packets to the separate Writer, Observer, Researcher,
       ArtifactProducer, and independent Verifier roles. Producers cannot
       self-approve, and capacity changes must follow config/model_capacity.yml.
   single_multimodal_brain:
     name: agy_multimodal_observer_with_qwen_text_support
     examples:
-      - gemini_3_5_flash_high_agy_oauth
+      - gemini_3_6_flash_high_agy_oauth
       - claude_sonnet_4_6_agy_oauth
       - qwen3_6_plus_dashscope
     collaboration_mode: >
@@ -112,8 +117,8 @@ brain_layouts:
       planner: codex_gpt_5_6_sol_xhigh_cli_oauth
       reviewer: qwen3_6_flash_dashscope
       writer: deepseek_v4_pro
-      multimodal_observer: gemini_3_5_flash_high_agy_oauth
-      social_web_research: grok_4_3_hermes_oauth
+      multimodal_observer: gemini_3_6_flash_high_agy_oauth
+      social_web_research: gemini_3_6_flash_high_agy_oauth
     execution_rule: >
       Codex GPT-5.6 Sol xhigh acts through the native Codex Supervisor shell. It
       must emit the standard AgentLab handoff contract (plan_status,

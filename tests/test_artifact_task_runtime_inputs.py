@@ -505,7 +505,7 @@ def test_artifact_context_inventory_only_adds_runtime_validated_sources(
         "",
     ],
 )
-def test_full_api_assigned_inputs_fail_with_explicit_capability_mismatch(
+def test_retired_full_api_mode_is_rejected_before_artifact_input_routing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     assigned_inputs: object,
@@ -555,8 +555,5 @@ def test_full_api_assigned_inputs_fail_with_explicit_capability_mismatch(
     assert profile["executor_type"] == "blocked"
     assert profile["artifact_routing_status"] == "capability_mismatch"
     assert profile["_artifact_task_contract"]["routing"]["mode_blocker"] == (
-        "full_api_assigned_inputs_unsupported"
+        "unsupported_artifact_execution_mode:full_api"
     )
-    assert "does not support assigned file inputs" in profile[
-        "artifact_routing_reason"
-    ]

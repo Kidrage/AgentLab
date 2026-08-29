@@ -10,11 +10,18 @@ from .registry import ProjectAgentRegistry
 
 _TEAMS: dict[str, tuple[tuple[str, str, str, tuple[str, ...]], ...]] = {
     "narrative": (
+        ("supervisor", "Narrative Supervisor Agent", "project_manager", ("plan.*",)),
         ("world", "World Agent", "world_architect", ("world.*",)),
         ("character", "Character Agent", "character_architect", ("character.*",)),
         ("timeline", "Timeline Agent", "timeline_guardian", ("timeline.*",)),
         ("plot", "Plot Agent", "plot_architect", ("plot.*",)),
         ("foreshadow", "Foreshadow Agent", "foreshadow_guardian", ("foreshadow.*",)),
+        (
+            "blueprint_producer",
+            "Blueprint Producer Agent",
+            "artifact_producer",
+            ("blueprint.*",),
+        ),
         ("writer", "Writer Agent", "writer", ("manuscript.*",)),
         ("checker", "Checker Agent", "consistency_checker", ()),
         ("reviewer", "Reviewer Agent", "quality_reviewer", ()),
@@ -80,6 +87,7 @@ _RUNTIME_ROLE_BY_PROJECT_ROLE = {
     "coder": "Coder",
     "consistency_checker": "Verifier",
     "listener_qa": "Reviewer",
+    "project_manager": "Supervisor",
     "quality_reviewer": "Reviewer",
     "security_reviewer": "Reviewer",
     "test_engineer": "Verifier",

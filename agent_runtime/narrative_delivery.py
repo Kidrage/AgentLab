@@ -875,7 +875,6 @@ def build_chapter_packet(
         "project": project,
         "task_id": task_id,
         "chapter": chapter,
-        "writer_context_profile": "chapter_relevance_v1",
         "baseline_mode": baseline_mode,
         "continuity_source_kind": (
             "reset_snapshot"

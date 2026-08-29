@@ -268,7 +268,12 @@ def _frontdesk_project_state_sources(root: Path) -> dict[str, list[str]]:
     return sources
 
 
-def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
+def check_role_binding(
+    root: Path,
+    worker: str,
+    role: str,
+    invocation_contract: str | None = None,
+) -> tuple[bool, str]:
     bindings = _load_policy(root, "agent_role_bindings.yml")
     canonical_role = _normalize_role(role)
     worker_cfg = ((bindings.get("workers") or {}).get(worker) or {})
@@ -277,9 +282,49 @@ def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
     forbidden_by_worker = worker_cfg.get("forbidden_roles") or []
     allowed_by_role = role_cfg.get("allowed_workers") or []
     capabilities = set(worker_capabilities(worker_cfg))
+    contract_name = str(invocation_contract or "").strip()
+    worker_contracts = (
+        (worker_cfg.get("contract_bound_roles") or {}).get(canonical_role) or []
+    )
+    role_contracts = (
+        (role_cfg.get("contract_bound_workers") or {}).get(worker) or []
+    )
+    contract_declared_for_binding = bool(contract_name) and (
+        contract_name in worker_contracts and contract_name in role_contracts
+    )
+    invocation_contracts = _load_policy(root, "worker_invocation_contracts.yml")
+    contract_cfg = (
+        (invocation_contracts.get("contracts") or {}).get(contract_name) or {}
+    )
+    if contract_name:
+        if not contract_cfg:
+            return False, f"invocation contract '{contract_name}' is not declared"
+        if contract_cfg.get("worker_id") != worker:
+            return False, (
+                f"invocation contract '{contract_name}' belongs to worker "
+                f"'{contract_cfg.get('worker_id') or 'unknown'}', not '{worker}'"
+            )
+        if (
+            contract_cfg.get("selectable", True) is False
+            or str(contract_cfg.get("availability") or "active")
+            in {"historical_only", "retired", "inactive", "unavailable_current_host"}
+        ):
+            return False, f"invocation contract '{contract_name}' is not selectable"
+    contract_bound_allowed = contract_declared_for_binding and (
+        contract_cfg.get("worker_id") == worker
+        and contract_cfg.get("selectable", True) is not False
+        and str(contract_cfg.get("availability") or "active")
+        not in {"historical_only", "retired", "inactive"}
+    )
 
     if not worker_cfg:
         return False, f"worker '{worker}' is not bound in config/agent_role_bindings.yml"
+    if (
+        worker_cfg.get("selectable") is False
+        or str(worker_cfg.get("availability") or "").strip() == "historical_only"
+    ):
+        availability = str(worker_cfg.get("availability") or "inactive")
+        return False, f"worker '{worker}' is not selectable (availability={availability})"
     if worker_cfg.get("frontdesk_capable") and not worker_cfg.get("worker_capable"):
         return False, f"worker '{worker}' is frontdesk-only and cannot execute AgentLab role '{canonical_role}'"
     if canonical_role in {"ArtifactProducer", "Writer"}:
@@ -287,12 +332,14 @@ def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
             return False, f"worker '{worker}' lacks candidate_artifact_worker or role_worker capability"
     elif "role_worker" not in capabilities:
         return False, f"worker '{worker}' lacks role_worker capability for AgentLab role '{canonical_role}'"
-    if canonical_role in forbidden_by_worker:
+    if canonical_role in forbidden_by_worker and not contract_bound_allowed:
         return False, f"worker '{worker}' is explicitly forbidden for role '{canonical_role}'"
-    if canonical_role not in allowed_by_worker:
+    if canonical_role not in allowed_by_worker and not contract_bound_allowed:
         return False, f"worker '{worker}' is not listed in allowed_roles for '{canonical_role}'"
-    if worker not in allowed_by_role:
+    if worker not in allowed_by_role and not contract_bound_allowed:
         return False, f"role '{canonical_role}' does not list worker '{worker}' in allowed_workers"
+    if contract_bound_allowed:
+        return True, "contract-bound role binding allowed"
     return True, "role binding allowed"
 
 
@@ -357,6 +404,7 @@ def build_frontdesk_context(
     bindings = _load_policy(root, "agent_role_bindings.yml")
     worker_cfg = ((bindings.get("workers") or {}).get(agent_id) or {})
     default_frontdesk = frontdesk_policy.get("default_frontdesk") or {}
+    frontdesk_cfg = ((frontdesk_policy.get("frontdesk_agents") or {}).get(agent_id) or {})
     entry = build_workspace_entry(root, agent_id, project=project, task_id=task_id)
     content_policy = _load_policy(root, "content_project_governance.yml")
     return {
@@ -368,6 +416,12 @@ def build_frontdesk_context(
         "frontdesk_profile": (worker_cfg.get("frontdesk_profiles") or ["unbound"])[0],
         "default_frontdesk": default_frontdesk,
         "is_default_frontdesk": agent_id == default_frontdesk.get("agent_id"),
+        "backend": {
+            key: frontdesk_cfg.get(key)
+            for key in ("provider", "model_key", "model_id")
+            if frontdesk_cfg.get(key)
+        },
+        "turn_contract": frontdesk_policy.get("turn_contract") or {},
         "execution_paths": frontdesk_policy.get("execution_paths") or {},
         "role": "AgentLab Frontdesk / Chat Assistant Layer",
         "meaning": "Talk with the user, translate intent into AgentLab operations, and report grounded state.",
@@ -394,6 +448,9 @@ def build_frontdesk_context(
             "prepare": "./agentlab.sh prepare --project <Project> --task-id <task_id> --write-plan",
             "run_pipeline_dry": "./agentlab.sh run-pipeline --project <Project> --task-id <task_id> --dry-run",
             "frontdesk_doctor": f"./agentlab.sh frontdesk-doctor --agent {agent_id}",
+            "frontdesk_route": f"./agentlab.sh frontdesk route --adapter {agent_id} --request <verbatim-user-request> --explain",
+            "frontdesk_search": "./agentlab.sh frontdesk search --query <literal> [--path <tracked-scope>]",
+            "frontdesk_report": "./agentlab.sh frontdesk report --project <Project> --task-id <task_id>",
             "role_session": "./agentlab.sh role-session --role <Role> --worker <worker> --project <Project> --task-id <task_id>",
         },
     }
@@ -407,16 +464,42 @@ def build_frontdesk_session(
     task_id: str | None = None,
 ) -> str:
     context = build_frontdesk_context(root, agent_id, project=project, task_id=task_id)
+    anchor = "OPENCLAW FRONTDESK ONLY" if agent_id == "openclaw" else f"{agent_id.upper()} FRONTDESK ONLY"
+    compact_context = {
+        key: context[key]
+        for key in (
+            "packet_type",
+            "schema_version",
+            "agent_id",
+            "is_default_frontdesk",
+            "backend",
+            "role",
+            "turn_contract",
+            "allowed_actions",
+            "forbidden_actions",
+            "active_project_state_sources",
+            "write_gate",
+            "canonical_commands",
+        )
+    }
     return "\n".join([
         "# AgentLab Frontdesk Session",
         "",
-        "You are the AgentLab Frontdesk / Chat Assistant Layer.",
-        "Use only this packet plus AgentLab CLI/artifacts for state. Do not rediscover the repository.",
-        "Do not implement tasks or edit target files. Generate handoffs and invoke registered AgentLab contracts only.",
+        f"## ROLE LOCK — {anchor}",
+        "You are the user-facing intake, routing, monitoring, and grounded-report layer. You are never a task worker.",
+        "At the start of every turn, preserve the user's request verbatim before interpretation and choose exactly one phase: INTAKE, CLARIFY, ROUTE, MONITOR, or REPORT.",
+        f"Run `./agentlab.sh frontdesk route --adapter {agent_id} --request <verbatim-user-request> --explain` before routing. Never route from a paraphrase.",
+        "Use `./agentlab.sh frontdesk search --query <literal> [--path <tracked-scope>]` for repository facts. Never invent a path, line, match, or hash.",
+        "Use `./agentlab.sh frontdesk report --project <Project> --task-id <task_id>` before reporting task completion or verification.",
+        "No evidence means UNKNOWN. A worker statement is not verified until AgentLab artifacts provide path-and-hash evidence.",
+        "Do not implement, edit task targets, select an unregistered worker, silently fallback, or claim delegated work as your own.",
+        "Reply with: Phase; Intent/decision; Evidence paths and hashes; Next AgentLab action; Unknowns; Boundary check.",
         "",
-        "```yaml",
-        yaml.safe_dump(context, sort_keys=False, allow_unicode=True).rstrip(),
+        "```yaml session-context",
+        yaml.safe_dump(compact_context, sort_keys=False, allow_unicode=True).rstrip(),
         "```",
+        "",
+        f"## END ROLE LOCK — {anchor}",
     ])
 
 
@@ -427,10 +510,16 @@ def build_role_session(
     *,
     project: str = "AgentLab",
     task_id: str = "task_0001",
+    invocation_contract: str | None = None,
 ) -> dict[str, Any]:
     root = Path(root)
     canonical_role = _normalize_role(role)
-    allowed, reason = check_role_binding(root, worker, canonical_role)
+    allowed, reason = check_role_binding(
+        root,
+        worker,
+        canonical_role,
+        invocation_contract,
+    )
     if canonical_role in {"Coder", "Writer"}:
         try:
             from agent_runtime.revision_governance import revision_dispatch_status
@@ -457,6 +546,7 @@ def build_role_session(
         "binding": {
             "allowed": allowed,
             "reason": reason,
+            "invocation_contract": invocation_contract,
         },
         "revision_dispatch": dispatch,
         "project": project,
@@ -521,6 +611,30 @@ def _check(status: bool, check_id: str, message: str, severity: str = "fail") ->
     return ProtocolCheck(check_id, "pass" if status else "fail", severity, message)
 
 
+def _probe_frontdesk_runtime(root: Path, contract: dict[str, Any]) -> tuple[bool, str]:
+    probe = contract.get("safe_probe") or []
+    if not isinstance(probe, list) or not probe or not all(isinstance(item, str) and item for item in probe):
+        return False, "frontdesk invocation contract has no valid safe_probe"
+    try:
+        result = subprocess.run(
+            probe,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, f"frontdesk command is unavailable: {probe[0]}"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"frontdesk runtime probe failed: {type(exc).__name__}"
+    if result.returncode == 0:
+        return True, "frontdesk runtime probe passed"
+    lines = [line.strip() for line in (result.stderr or result.stdout).splitlines() if line.strip()]
+    detail = next((line for line in lines if "Reason:" in line), lines[0] if lines else f"exit code {result.returncode}")
+    return False, f"frontdesk runtime probe failed: {detail[:240]}"
+
+
 def run_frontdesk_doctor(root: Path, agent_id: str) -> dict[str, Any]:
     root = Path(root)
     frontdesk = _load_policy(root, "frontdesk_policy.yml")
@@ -546,6 +660,16 @@ def run_frontdesk_doctor(root: Path, agent_id: str) -> dict[str, Any]:
             "frontdesk-only agents must not use task_packet_prompt invocation",
         ),
     ]
+    default_frontdesk = (frontdesk.get("default_frontdesk") or {}).get("agent_id")
+    if agent_id == default_frontdesk:
+        runtime_ok, runtime_detail = _probe_frontdesk_runtime(root, contract)
+        checks.append(
+            _check(
+                runtime_ok,
+                "frontdesk_runtime_usable",
+                runtime_detail,
+            )
+        )
     return _doctor_result("frontdesk_doctor", checks)
 
 
@@ -622,8 +746,22 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
     for role in AGENTLAB_ROLES:
         role_cfg = roles.get(role) or {}
         allowed_workers = role_cfg.get("allowed_workers") or []
-        checks.append(_check(bool(allowed_workers), "role_has_allowed_worker", f"{role} has allowed workers"))
+        selectable_workers = [
+            worker
+            for worker in allowed_workers
+            if ((workers.get(worker) or {}).get("selectable", True) is not False)
+        ]
+        checks.append(_check(bool(selectable_workers), "role_has_allowed_worker", f"{role} has selectable workers"))
         for worker in allowed_workers:
+            if (workers.get(worker) or {}).get("selectable", True) is False:
+                checks.append(
+                    _check(
+                        True,
+                        "role_worker_binding_inactive",
+                        f"{role}/{worker}: retained only as a nonselectable binding",
+                    )
+                )
+                continue
             allowed, reason = check_role_binding(root, worker, role)
             checks.append(_check(allowed, "role_worker_binding_valid", f"{role}/{worker}: {reason}"))
 
@@ -647,9 +785,9 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
         ),
         _check(
             agy_info.get("may_execute_agentlab_roles_directly")
-            == ["Observer", "Reviewer", "NarrativePlanner", "Writer"],
+            == ["Observer", "Researcher", "Reviewer", "NarrativePlanner", "Writer", "Scribe"],
             "agy_role_scope_is_bounded",
-            "agy direct role scope is limited to Observer, Reviewer, NarrativePlanner, and Writer",
+            "agy direct role scope is limited to Observer, sourced Researcher, Reviewer, NarrativePlanner, Writer, and Scribe",
         ),
     ])
 

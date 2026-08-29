@@ -12,6 +12,8 @@ import yaml
 
 from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.narrative.blueprint_validation import (
+    CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT,
+    REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS,
     materialize_crown_blueprint,
     seal_crown_blueprint,
     validate_crown_blueprint,
@@ -27,7 +29,11 @@ def _write_yaml(path: Path, value: object) -> None:
     )
 
 
-def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
+def _valid_blueprint(
+    root: Path,
+    *,
+    chapter_end: int = 20,
+) -> tuple[Path, list[dict]]:
     project = root / "projects" / "Crown_of_Ash"
     evidence = [
         {
@@ -198,14 +204,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
     fragment = project / "production" / "canonical" / "core.yml"
     _write_yaml(fragment, {"schema_version": 1, "records": records})
     fragment_hash = hashlib.sha256(fragment.read_bytes()).hexdigest()
-    disposition_source_paths = (
-        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/mature_sensual_beastfolk_overlay_v1.yml",
-        "runs/task_crown_female_age_rebalance_20260722/outputs/female_age_rebalance_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/uncanny_manifestations_worldtexture_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/writing_memory_absorption_contract_v1.yml",
-        "runs/task_crown_character_policy_user_override_20260724/outputs/user_policy_override_v1.yml",
-        "production/outlines/03_感情戏执行准则.md",
-    )
+    disposition_source_paths = tuple(sorted(REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS))
     for relative in disposition_source_paths:
         source = project / relative
         source.parent.mkdir(parents=True, exist_ok=True)
@@ -215,7 +214,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
         policy,
         {
             "schema_version": 1,
-            "policy_revision": 2,
+            "policy_revision": 3,
             "records": [
                 {
                     "id": "policy_adult_dark_intimacy",
@@ -244,6 +243,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                         },
                     },
                     "scene_controls": {
+                        "maximum_sensual_beats_per_scene": 4,
                         "prohibit_repeated_body_inventory": True,
                         "chapter_card_must_declare_level_above_1": True,
                     },
@@ -284,7 +284,8 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                         "active_build_id": "full_figured_mature",
                         "retired_build_ids": ["pathologically_slender"],
                         "authority_source_path": (
-                            "runs/task_crown_character_policy_user_override_20260724/"
+                            f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+                            "task_crown_character_policy_user_override_20260724/"
                             "outputs/user_policy_override_v1.yml"
                         ),
                     },
@@ -363,8 +364,8 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
             "status": "candidate",
             "candidate_only": True,
             "production_modified": False,
-            "chapter_range": [1, 20],
-            "chapters": list(range(1, 21)),
+            "chapter_range": [1, chapter_end],
+            "chapters": list(range(1, chapter_end + 1)),
             "target_character_range": [2100, 3400],
             "hard_character_range": [1800, 3800],
             "chapter_state_plan": [
@@ -384,10 +385,10 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                     "closing_state": f"closing state {chapter}",
                     "must_not_repeat": f"climax pattern {chapter}",
                 }
-                for chapter in range(1, 21)
+                for chapter in range(1, chapter_end + 1)
             ],
             "validation_contract": {
-                "exact_chapter_count": 20,
+                "exact_chapter_count": chapter_end,
                 "ordered_unique_chapters": True,
                 "unique_scene_goals": True,
                 "unique_irreversible_plot_changes": True,
@@ -395,7 +396,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
             },
         },
     )
-    for chapter in range(1, 21):
+    for chapter in range(1, chapter_end + 1):
         _write_yaml(
             project / "production" / "chapter_cards" / f"ch{chapter:03d}.yml",
             {
@@ -427,7 +428,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
             "conflict_action": "fail_closed_before_context_compilation",
             "scope": {
                 "planned_total_chapters": 1920,
-                "detailed_chapter_contract_range": [1, 20],
+                "detailed_chapter_contract_range": [1, chapter_end],
             },
             "components": [
                 {
@@ -483,6 +484,39 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
     ]
     _write_yaml(distillation_path, distillation)
     return fragment, records
+
+
+def _refresh_policy_authority_hashes(project: Path) -> None:
+    """Refresh the three hash-bound records after an approved policy edit."""
+    policy = project / "production" / "canonical" / "character_content_policy.yml"
+    index_path = project / "production" / "canonical" / "index.yml"
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    for fragment in index["fragments"]:
+        if fragment["path"] == "production/canonical/character_content_policy.yml":
+            fragment["sha256"] = hashlib.sha256(policy.read_bytes()).hexdigest()
+    _write_yaml(index_path, index)
+
+    authority_path = project / "production" / "blueprint_authority.yml"
+    authority = yaml.safe_load(authority_path.read_text(encoding="utf-8"))
+    for component in authority["components"]:
+        if component["path"] == "production/canonical":
+            component["sha256"] = artifact_sha256(project / "production" / "canonical")
+    _write_yaml(authority_path, authority)
+
+    distillation_path = project / "project_brain" / "fact_distillation.yml"
+    distillation = yaml.safe_load(distillation_path.read_text(encoding="utf-8"))
+    hashes = {
+        "production/blueprint_authority.yml": hashlib.sha256(
+            authority_path.read_bytes()
+        ).hexdigest(),
+        "production/canonical/character_content_policy.yml": hashlib.sha256(
+            policy.read_bytes()
+        ).hexdigest(),
+    }
+    for source in distillation["sources"]:
+        if source["path"] in hashes:
+            source["sha256"] = hashes[source["path"]]
+    _write_yaml(distillation_path, distillation)
 
 
 def test_validates_agentlab_decisions_canon_invariants_and_twenty_chapter_cards(
@@ -571,6 +605,21 @@ def test_materializes_validated_bundle_from_parent_task_atomically(tmp_path: Pat
     assert validate_crown_blueprint(tmp_path)["status"] == "pass"
 
 
+def test_materializer_is_initialization_only_for_existing_production(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    bundle = _bundle_from_valid_blueprint(tmp_path)
+    production = tmp_path / "projects" / "Crown_of_Ash" / "production"
+    (production / "existing_blueprint.yml").write_text(
+        "status: current\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="production blueprint root must be absent"):
+        materialize_crown_blueprint(tmp_path, bundle_path=bundle)
+
+
 def test_materializer_rejects_unsafe_fragment_without_writing_production(
     tmp_path: Path,
 ) -> None:
@@ -631,6 +680,7 @@ def test_character_content_policy_blocks_deleted_disposition_source(
         tmp_path
         / "projects"
         / "Crown_of_Ash"
+        / CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT
         / "runs"
         / "task_crown_mature_sensual_beastfolk_overlay_20260722"
         / "outputs"
@@ -643,7 +693,8 @@ def test_character_content_policy_blocks_deleted_disposition_source(
     assert result["status"] == "blocked"
     assert (
         "character_content_policy:invalid_evidence_disposition:"
-        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/"
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/"
         "mature_sensual_beastfolk_overlay_v1.yml"
     ) in result["issues"]
 
@@ -684,6 +735,133 @@ def test_seal_rejects_semantically_empty_character_content_policy(
         match="character_content_policy:missing_record:policy_adult_dark_intimacy",
     ):
         seal_crown_blueprint(tmp_path)
+
+
+def test_character_content_policy_rejects_retired_revision_or_intensity(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    policy["policy_revision"] = 2
+    records = {item["id"]: item for item in policy["records"]}
+    records["policy_adult_dark_intimacy"]["scene_controls"][
+        "maximum_sensual_beats_per_scene"
+    ] = 2
+    _write_yaml(policy_path, policy)
+    index_path = project / "production" / "canonical" / "index.yml"
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    for entry in index["fragments"]:
+        if entry["path"] == (
+            "production/canonical/character_content_policy.yml"
+        ):
+            entry["sha256"] = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    _write_yaml(index_path, index)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert "character_content_policy:revision_mismatch" in result["issues"]
+    assert "character_content_policy:adult_contract_incomplete" in result["issues"]
+
+
+def test_character_content_policy_accepts_constrained_role_position_override(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    records = {item["id"]: item for item in policy["records"]}
+    women_policy = records["policy_women_agency_and_appearance"]
+    women_policy["agency_contract"]["body_never_reward_or_container"] = False
+    women_policy["user_override_20260731"] = {
+        "status": "active",
+        "allows_harem_competition": True,
+        "allows_container_or_prize_position": True,
+        "allows_free_new_characters": True,
+        "preserves_independent_agency": True,
+        "preserves_adult_consent": True,
+    }
+    _write_yaml(policy_path, policy)
+    _refresh_policy_authority_hashes(project)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "pass"
+
+
+def test_character_content_policy_rejects_unconstrained_role_position_override(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    records = {item["id"]: item for item in policy["records"]}
+    women_policy = records["policy_women_agency_and_appearance"]
+    women_policy["agency_contract"]["body_never_reward_or_container"] = False
+    women_policy["user_override_20260731"] = {
+        "status": "active",
+        "allows_harem_competition": True,
+        "allows_container_or_prize_position": True,
+        "allows_free_new_characters": True,
+        "preserves_independent_agency": True,
+    }
+    _write_yaml(policy_path, policy)
+    _refresh_policy_authority_hashes(project)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert (
+        "character_content_policy:women_agency_contract_incomplete"
+        in result["issues"]
+    )
+
+
+def test_seal_refreshes_fact_distillation_for_role_position_override(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    policy_path = (
+        project / "production" / "canonical" / "character_content_policy.yml"
+    )
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    records = {item["id"]: item for item in policy["records"]}
+    women_policy = records["policy_women_agency_and_appearance"]
+    women_policy["agency_contract"]["body_never_reward_or_container"] = False
+    women_policy["user_override_20260731"] = {
+        "status": "active",
+        "allows_harem_competition": True,
+        "allows_container_or_prize_position": True,
+        "allows_free_new_characters": True,
+        "preserves_independent_agency": True,
+        "preserves_adult_consent": True,
+    }
+    _write_yaml(policy_path, policy)
+
+    seal_crown_blueprint(tmp_path, allow_registered_blueprint_drift=True)
+
+    distillation_path = project / "project_brain" / "fact_distillation.yml"
+    distillation = yaml.safe_load(distillation_path.read_text(encoding="utf-8"))
+    source_hashes = {
+        source["path"]: source["sha256"] for source in distillation["sources"]
+    }
+    assert source_hashes["production/blueprint_authority.yml"] == hashlib.sha256(
+        (project / "production" / "blueprint_authority.yml").read_bytes()
+    ).hexdigest()
+    assert source_hashes[
+        "production/canonical/character_content_policy.yml"
+    ] == hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    assert validate_crown_blueprint(tmp_path)["status"] == "pass"
 
 
 def test_character_policy_rejects_old_context_invalidation_and_slender_isabella(
@@ -891,6 +1069,100 @@ def test_validate_blueprint_cli_is_registered() -> None:
         authority_result.stdout,
     )
     assert "--project" in authority_stdout
+
+    reseal_result = subprocess.run(
+        [
+            str(root / "agentlab.sh"),
+            "narrative",
+            "seal-blueprint",
+            "--help",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+            },
+            "COLUMNS": "180",
+            "NO_COLOR": "1",
+        },
+    )
+    assert reseal_result.returncode == 0, reseal_result.stderr
+    reseal_stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", reseal_result.stdout)
+    assert "--allow-registered-blueprint-drift" in reseal_stdout
+    for command, expected_options in (
+        (
+            "publish-blueprint-change",
+            ("--manifest", "--acceptance-receipt"),
+        ),
+        ("compile-task-packet", ("--task-id", "--request")),
+        (
+            "append-task-instruction",
+            ("--instruction-id", "--request"),
+        ),
+    ):
+        command_result = subprocess.run(
+            [
+                str(root / "agentlab.sh"),
+                "narrative",
+                command,
+                "--help",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **{
+                    key: value
+                    for key, value in os.environ.items()
+                    if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+                },
+                "COLUMNS": "180",
+                "NO_COLOR": "1",
+            },
+        )
+        assert command_result.returncode == 0, command_result.stderr
+        command_stdout = re.sub(
+            r"\x1b\[[0-?]*[ -/]*[@-~]",
+            "",
+            command_result.stdout,
+        )
+        for option in expected_options:
+            assert option in command_stdout
+
+
+def test_validate_blueprint_cli_uses_authoritative_range_when_omitted(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path, chapter_end=25)
+    (tmp_path / "agentlab.sh").touch()
+    (tmp_path / "agent_runtime").mkdir()
+    root = Path(__file__).resolve().parents[1]
+
+    result = subprocess.run(
+        [
+            str(root / "agentlab.sh"),
+            "narrative",
+            "validate-blueprint",
+            "--project",
+            "Crown_of_Ash",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "AGENTLAB_ROOT": str(tmp_path), "NO_COLOR": "1"},
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    receipt = yaml.safe_load(result.stdout)
+    assert receipt["chapter_range"] == [1, 25]
+    assert receipt["chapter_card_count"] == 25
 
 
 def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_roots(

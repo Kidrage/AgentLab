@@ -51,9 +51,10 @@ AgentLab 可以让同一个 Hermes 会话使用其原生 subagents、plan/goal �
 | 模式 | AgentLab 行为 | Worker 边界 |
 |---|---|---|
 | `agentlab_orchestrated_cli` | 使用 `full_cli` 角色矩阵逐角色调度 | 每次一个受限角色 |
-| `api_native` | 使用 `full_api` 角色矩阵逐角色调度 | API 返回一个角色产物 |
-| `hybrid_ide` | AgentLab 规划/审核，显式 IDE worker 执行 Coder | 仅 Coder 阶段 |
 | `langgraph` | 使用替代图执行引擎，角色矩阵仍由 AgentLab 解析 | 不改变角色权限 |
+
+`full_cli` 是唯一配置的 Agent backend mode；其他 backend mode 不得创建新
+run，也不得在 worker 不可用时作为隐式 fallback。
 
 `codex_full_driver` 已退役，只允许读取历史 `workflow_plan.yml` 和 handoff；不得
 创建新 run 或恢复调度。历史规范位于
@@ -104,8 +105,8 @@ AgentLab 可以让同一个 Hermes 会话使用其原生 subagents、plan/goal �
   回执和候选产物。
 - Coder 完成不等于任务完成。TesterAuditor/Verifier 必须独立读取实际 diff、命令
   结果和产物，不接受 Coder 自报作为通过证据。
-- `AGENTLAB_EXTERNAL_CODER` 或 `EXTERNAL_CODER_READY` 只能开启明确的
-  `hybrid_ide` Coder handoff，不能开启全链路接管。
+- 外部 Coder 只能通过明确的单角色 handoff 接入，不能开启未配置的 backend
+  mode，也不能接管完整角色链。
 
 ## 审批、容量与暂停
 

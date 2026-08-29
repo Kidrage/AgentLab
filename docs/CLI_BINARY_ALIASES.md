@@ -32,8 +32,8 @@ coder:
   binary_candidates: [claude, ccs]
 ```
 
-Direct `cli_command` in `agent_model_profiles.yml` is reserved for explicit
-safety-gated profiles such as `trusted_headless_cli`.
+Active `agent_model_profiles.yml` entries use invocation contracts rather than
+embedding direct `cli_command` strings.
 
 ### `binary_candidates` — Environment-Specific Binary Resolution
 

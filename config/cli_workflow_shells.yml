@@ -17,20 +17,6 @@ mode_policy:
     onboarding_required_before_use: true
     shell_capability_audit_required: true
     own_workflow_shell_scaffold: false
-  full_api:
-    primary_governance_object: agentlab_internal_work_shell
-    rule: >
-      Direct API models do not bring a mature local CLI workflow shell, so
-      AgentLab must provide task packet execution, tool routing, memory
-      discipline, validation, and receipt collection itself.
-    onboarding_required_before_use: false
-    shell_capability_audit_required: false
-    own_workflow_shell_scaffold: true
-  hybrid_ide:
-    primary_governance_object: external_ide_handoff_and_evidence
-    rule: >
-      External IDE agents are governed as handoff surfaces unless they are
-      explicitly promoted into a CLI workflow shell registry entry.
 
 boundary:
   agentlab_owns:
@@ -280,7 +266,7 @@ shells:
         agentlab_use: health, observability, and preflight diagnostics
       media_backend_shell:
         examples:
-          - hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <prompt>
+          - hermes --ignore-rules --provider xai-oauth -m grok-4.6 -z <prompt>
         agentlab_use: Grok OAuth media backend shell behind ArtifactProducer/grok
     allowed_roles:
       - Supervisor
@@ -471,8 +457,8 @@ shells:
     command_families:
       print_mode:
         examples:
-          - agy --sandbox --model gemini-3.5-flash-high -p <prompt>
-          - agy --model gemini-3.5-flash-high --print <prompt>
+          - agy --sandbox --model gemini-3.6-flash-high -p <prompt>
+          - agy --model gemini-3.6-flash-high --print <prompt>
         agentlab_use: Gemini OAuth role/session execution and frontdesk packet handling
       plugins_and_models:
         examples:
@@ -693,6 +679,8 @@ shells:
       - narrative heavy-audit stdin packets require the private role-session approval gate and source inventory
 
   grok:
+    availability: historical_only
+    selectable: false
     worker_id: grok
     command: hermes
     agentlab_scope: research_and_media_workflow_shell
@@ -717,7 +705,7 @@ shells:
     command_families:
       media_and_agent:
         examples:
-          - hermes --provider xai-oauth -m grok-4.3 -z <prompt>
+          - hermes --provider xai-oauth -m grok-4.6 -z <prompt>
         agentlab_use: Separate sourced Researcher and candidate-only media tool contracts
       auth_and_capacity:
         examples:

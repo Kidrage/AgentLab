@@ -58,8 +58,9 @@ config/artifact_task_policy.yml
 
 Current provider order:
 
-- `grok_media`: registered candidate image/video producer through the bounded
-  Hermes+xAI media contract.
+- `local_media_pending`: explicit fail-closed placeholder for image/video;
+  requests return `local_media_backend_pending` until a verified local adapter
+  is configured.
 - `qwen_cli`: text, spreadsheet, and presentation producer
   through the governed Qwen CLI contract. It receives only the sealed task
   packet and hash-verified read-only input copies in an isolated workspace;
@@ -67,7 +68,8 @@ Current provider order:
 - `qwen_37max_api`: explicit fallback for only the artifact types and
   capabilities declared in policy.
 
-No governed audio backend is currently registered. Audio requests therefore
+Historical Grok media contracts remain replayable evidence but are not
+selectable. No governed audio backend is currently registered. Audio requests therefore
 return `capability_mismatch` until a provider with `generate_audio` and
 `write_artifact_file` is explicitly added. A fallback flag never makes an
 otherwise incapable provider eligible.

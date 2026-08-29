@@ -320,7 +320,8 @@ def build_trusted_live_runner_operator_handoff(
         writer_request_item.get("assigned_worker") == "agy"
         and "--writer-worker agy"
         in str(writer_request_item.get("command") or "")
-        and "--writer-worker agy" not in str(writer_request_item.get("command") or "")
+        and "--writer-worker claude_code"
+        not in str(writer_request_item.get("command") or "")
     )
     issues: list[str] = []
     if request.get("status") != "ready_for_trusted_runner":

@@ -36,33 +36,7 @@ def _role(root: Path, role_id: str) -> dict[str, Any]:
     return ((bindings.get("roles") or {}).get(role_id) or {}) if bindings else {}
 
 
-def _artifact_backend_bindings(root: Path) -> list[dict[str, Any]]:
-    profiles = _read_yaml(root / "config" / "agent_model_profiles.yml")
-    bindings: list[dict[str, Any]] = []
-
-    def visit(node: Any, path: list[str]) -> None:
-        if isinstance(node, dict):
-            backend = node.get("artifact_backend")
-            agent = path[-1] if path else "unknown"
-            if backend:
-                bindings.append(
-                    {
-                        "path": ".".join(path),
-                        "agent_profile": agent,
-                        "artifact_backend": backend,
-                    }
-                )
-            for key, value in node.items():
-                visit(value, [*path, str(key)])
-        elif isinstance(node, list):
-            for index, value in enumerate(node):
-                visit(value, [*path, str(index)])
-
-    visit(profiles, [])
-    return bindings
-
-
-def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") -> dict[str, Any]:
+def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "openclaw") -> dict[str, Any]:
     """Build a deterministic audit of the frontdesk/role-worker boundary."""
     root = root.resolve()
     frontdesk_policy = _read_yaml(root / "config" / "frontdesk_policy.yml")
@@ -74,7 +48,6 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     invocation_contracts = _read_yaml(
         root / "config" / "worker_invocation_contracts.yml"
     )
-    model_catalog = _read_yaml(root / "config" / "model_catalog.yml")
     capability_cli = _read_text(root / "agent_runtime" / "cli" / "capability_contracts.py")
     narrative_cli = _read_text(root / "agent_runtime" / "cli" / "narrative_eval.py")
     narrative_runtime = _read_text(root / "agent_runtime" / "narrative_eval.py")
@@ -90,6 +63,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     contracts = invocation_contracts.get("contracts") or {}
     grok_research_contract = contracts.get("grok_research") or {}
     grok_media_contract = contracts.get("grok_media") or {}
+    grok_native_contract = contracts.get("grok_native_medium") or {}
     shell_registry = workflow_shells.get("shells") if isinstance(workflow_shells.get("shells"), dict) else {}
     mode_policy = (
         workflow_shells.get("mode_policy")
@@ -137,10 +111,15 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     execution_paths = frontdesk_policy.get("execution_paths") or {}
     direct_closed_loop = execution_paths.get("direct_closed_loop") or {}
     routed_task_intake = execution_paths.get("routed_task_intake") or {}
-    catalog_models = model_catalog.get("models") or {}
-    artifact_backend_bindings = _artifact_backend_bindings(root)
-    grok_artifact_bindings = [
-        item for item in artifact_backend_bindings if item.get("artifact_backend") == "hermes_grok_oauth"
+    codex_artifact_profiles = [
+        str(tier)
+        for tier, tier_config in full_cli.items()
+        if isinstance(tier_config, dict)
+        and isinstance(tier_config.get("artifact_producer"), dict)
+        and tier_config["artifact_producer"].get("cli_agent") == "codex"
+        and tier_config["artifact_producer"].get("invocation_contract") == "codex"
+        and tier_config["artifact_producer"].get("default")
+        == "codex_gpt_5_6_sol_medium_cli_oauth"
     ]
 
     checks = [
@@ -163,29 +142,29 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             "summary": f"{frontdesk_agent} has a frontdesk session entrypoint",
         },
         {
-            "id": "hermes_deepseek_v4_pro_is_default_frontdesk",
+            "id": "openclaw_is_default_frontdesk",
             "status": "pass"
-            if frontdesk_agent == "hermes"
-            and default_frontdesk.get("agent_id") == "hermes"
-            and default_frontdesk.get("provider") == "deepseek"
-            and default_frontdesk.get("model_key") == "deepseek_v4_pro"
-            and default_frontdesk.get("model_id") == "deepseek-v4-pro"
-            and "deepseek_v4_pro" in catalog_models
+            if frontdesk_agent == "openclaw"
+            and default_frontdesk.get("agent_id") == "openclaw"
+            and default_frontdesk.get("invocation_contract") == "openclaw"
+            and "openclaw" in (frontdesk_policy.get("frontdesk_agents") or {})
             else "fail",
-            "evidence": ["config/frontdesk_policy.yml", "config/model_catalog.yml"],
-            "summary": "Hermes CLI with DeepSeek V4 Pro is the canonical AgentLab frontdesk",
+            "evidence": ["config/frontdesk_policy.yml"],
+            "summary": "OpenClaw is the canonical AgentLab frontdesk",
         },
         {
             "id": "frontdesk_profile_is_separate_from_role_sessions",
             "status": "pass"
             if worker.get("frontdesk_capable") is True
             and "frontdesk_gateway" in (worker.get("worker_capabilities") or [])
-            and "role_worker" in (worker.get("worker_capabilities") or [])
+            and worker.get("worker_capable") is False
+            and "role_worker" not in (worker.get("worker_capabilities") or [])
+            and not (worker.get("allowed_roles") or [])
             and (role_bindings.get("enforcement") or {}).get("forbid_frontdesk_profile_as_worker") is True
             and ((role_bindings.get("roles") or {}).get("Supervisor") or {}).get("required_session") is True
             else "fail",
             "evidence": ["config/agent_role_bindings.yml"],
-            "summary": "Hermes may be FrontDesk or a role worker, but never both in the same session",
+            "summary": "OpenClaw is Frontdesk-only and cannot enter a role-worker session",
         },
         {
             "id": "codex_is_external_worker_not_frontdesk",
@@ -204,7 +183,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             and {"run-pipeline", "role-session", "narrative-eval"}.issubset(
                 set(direct_closed_loop.get("entrypoints") or [])
             )
-            and routed_task_intake.get("frontdesk_agent") == "hermes"
+            and routed_task_intake.get("frontdesk_agent") == "openclaw"
             else "fail",
             "evidence": ["config/frontdesk_policy.yml"],
             "summary": "AgentLab can validate a declared pipeline directly without creating a FrontDesk session",
@@ -258,10 +237,9 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             "status": "pass"
             if full_cli_shells
             and full_cli_shells.issubset(set(shell_registry))
+            and set(mode_policy) == {"full_cli"}
             and ((mode_policy.get("full_cli") or {}).get("primary_governance_object") == "cli_shell_capability_and_delivery")
             and ((mode_policy.get("full_cli") or {}).get("own_workflow_shell_scaffold") is False)
-            and ((mode_policy.get("full_api") or {}).get("primary_governance_object") == "agentlab_internal_work_shell")
-            and ((mode_policy.get("full_api") or {}).get("own_workflow_shell_scaffold") is True)
             else "fail",
             "evidence": ["config/cli_workflow_shells.yml", "config/agent_model_profiles.yml"],
             "summary": (
@@ -284,44 +262,66 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             and "workflow_shell" in (claude_worker.get("worker_capabilities") or [])
             and "role_worker" in (claude_worker.get("worker_capabilities") or [])
             and claude_worker.get("frontdesk_capable") is False
+            and claude_worker.get("selectable") is True
+            and set(claude_worker.get("allowed_roles") or [])
+            == {"Writer", "Reviewer"}
             else "fail",
             "evidence": ["config/agent_role_bindings.yml", "config/cli_workflow_shells.yml"],
-            "summary": "Hermes and Claude Code remain bounded role-session shells; Hermes FrontDesk is a separate profile",
+            "summary": "Hermes is a bounded role shell; Claude Code is selectable only for isolated Writer and Reviewer contracts",
         },
         {
-            "id": "hermes_grok_backend_uses_workflow_shell_without_role_leakage",
+            "id": "hermes_grok_backend_is_historical_and_nonselectable",
             "status": "pass"
-            if hermes_grok.get("execution_kernel") == "hermes_workflow_shell"
+            if hermes_grok.get("availability") == "historical_only"
+            and hermes_grok.get("selectable") is False
+            and hermes_grok.get("execution_kernel") == "hermes_workflow_shell"
             and hermes_grok.get("orchestration_scope") == "bounded_role_session_backend"
             and hermes_grok.get("worker_id") == "grok"
             and hermes_grok.get("role_owner") == "ArtifactProducer"
             and ((hermes_grok.get("agentlab_boundary") or {}).get("shell_state_is_not_project_memory") is True)
             else "fail",
             "evidence": ["config/media_generation_backends.yml", "config/cli_workflow_shells.yml"],
-            "summary": "Hermes workflow shell powers the Grok media backend, but ArtifactProducer/grok remains the AgentLab role-worker owner",
+            "summary": "The legacy Hermes/Grok media backend is retained for evidence replay but cannot be selected",
         },
         {
-            "id": "grok_cli_is_registered_as_internal_research_and_artifact_worker",
+            "id": "grok_cli_worker_is_historical_and_nonselectable",
             "status": "pass"
-            if "grok" in (researcher_role.get("allowed_workers") or [])
+            if grok_worker.get("availability") == "historical_only"
+            and grok_worker.get("selectable") is False
+            and "grok" in (researcher_role.get("allowed_workers") or [])
             and "grok" in (artifact_role.get("allowed_workers") or [])
             and grok_worker.get("worker_capable") is True
             and grok_worker.get("frontdesk_capable") is False
             and "candidate_artifact_worker" in (grok_worker.get("worker_capabilities") or [])
             and set(grok_worker.get("allowed_roles") or []) == {
+                "Supervisor",
+                "RepoScout",
                 "Researcher",
+                "InterfaceMapper",
+                "PromptEngineer",
+                "Coder",
                 "ArtifactProducer",
+                "TesterAuditor",
+                "Verifier",
+                "Archivist",
             }
-            and "Coder" in (grok_worker.get("forbidden_roles") or [])
             and "Writer" in (grok_worker.get("forbidden_roles") or [])
             else "fail",
             "evidence": ["config/agent_role_bindings.yml", "config/worker_invocation_contracts.yml"],
-            "summary": "Grok is a bounded internal Researcher and ArtifactProducer worker, never a Writer, Coder, or FrontDesk",
+            "summary": "Legacy Grok role bindings remain readable for receipts but central enforcement rejects them",
         },
         {
-            "id": "grok_current_contracts_use_hermes_surface",
+            "id": "grok_contracts_are_historical_and_nonselectable",
             "status": "pass"
-            if grok_research_contract.get("worker_id") == "grok"
+            if grok_native_contract.get("availability") == "historical_only"
+            and grok_native_contract.get("selectable") is False
+            and grok_research_contract.get("availability") == "historical_only"
+            and grok_research_contract.get("selectable") is False
+            and grok_media_contract.get("availability") == "historical_only"
+            and grok_media_contract.get("selectable") is False
+            and grok_native_contract.get("worker_id") == "grok"
+            and grok_native_contract.get("command") == "grok"
+            and grok_research_contract.get("worker_id") == "grok"
             and grok_research_contract.get("command") == "hermes"
             and grok_research_contract.get("invocation_style")
             == "sourced_research_task_packet"
@@ -331,13 +331,18 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             == "media_backend_task_packet"
             else "fail",
             "evidence": ["config/worker_invocation_contracts.yml"],
-            "summary": "grok_research and grok_media are separate role contracts on the configured Hermes xAI OAuth executable",
+            "summary": "All Grok invocation contracts are historical evidence surfaces and cannot launch",
         },
         {
-            "id": "artifact_producer_profiles_bind_grok_oauth",
-            "status": "pass" if grok_artifact_bindings else "fail",
+            "id": "artifact_producer_profiles_bind_current_codex_default",
+            "status": "pass"
+            if set(codex_artifact_profiles) == {"alter", "full", "performance", "low"}
+            else "fail",
             "evidence": ["config/agent_model_profiles.yml"],
-            "summary": f"artifact backend bindings for hermes_grok_oauth: {len(grok_artifact_bindings)}",
+            "summary": (
+                "ArtifactProducer default is Codex GPT-5.6 Sol medium in tiers: "
+                f"{sorted(codex_artifact_profiles)}; media generation fails closed at the local-model placeholder"
+            ),
         },
         {
             "id": "raw_media_live_cli_requires_role_session",
@@ -365,7 +370,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     warn_count = sum(1 for check in checks if check["status"] == "warn")
     status = "fail" if fail_count else ("warn" if warn_count else "pass")
     conclusion = (
-        "Hermes CLI with DeepSeek V4 Pro is the canonical FrontDesk for routed intake, while declared pipelines "
+        "OpenClaw is the canonical FrontDesk for routed intake, while declared pipelines "
         "may run directly without FrontDesk. Role execution still requires role-session evidence. Registered CLI "
         "workflow-shell capabilities are absorbed as bounded role-session execution shells, while AgentLab "
         "keeps ownership of project memory, validation, receipts, and promotion."
@@ -378,7 +383,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
         "status": status,
         "conclusion": conclusion,
         "intended_chain": [
-            f"{frontdesk_agent} / DeepSeek V4 Pro: optional frontdesk-session for task intake and routing",
+            f"{frontdesk_agent}: optional frontdesk-session for task intake and routing",
             "Direct closed loop: AgentLab pipeline or role-session without FrontDesk",
             "Supervisor: route and mission contract",
             "Researcher: Grok sourced research through grok_research role-session",
@@ -417,7 +422,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
 def write_frontdesk_boundary_audit(
     root: Path,
     out: Path,
-    frontdesk_agent: str = "hermes",
+    frontdesk_agent: str = "openclaw",
 ) -> dict[str, Any]:
     report = build_frontdesk_boundary_audit(root, frontdesk_agent=frontdesk_agent)
     write_report_yaml(out, report, root)

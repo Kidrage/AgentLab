@@ -5,11 +5,11 @@ schema_version: 3
 # 路由流程: user_request → routing_rules route → classify Risk → select Budget
 # ────────────────────────────────────────────────────────────────────────
 
-default_budget: balanced
+default_budget: alter
 
 risk_auto_upgrade:
-  R2: balanced    # 高风险强制至少 balanced
-  R3: max_quality # 关键风险强制 max_quality
+  R2: alter
+  R3: alter
 
 # ══════════════════════════════════════════════════════════════════════
 # 项目体量分类 (S0-S5)
@@ -126,12 +126,16 @@ risk_keywords:
 
 budget_selection:
   methods:
-    - cli_flag: "--budget {frugal|balanced|max-quality}"
+    - cli_flag: "--budget {alter|frugal|balanced|max-quality}"
     - env_var: "AGENTLAB_BUDGET_MODE"
     - user_request_md_keyword: "budget_mode:"
-    - default: balanced
+    - exact_task_keyword: "alter"
+    - default: alter
 
   descriptions:
+    alter:
+      display: "🔄 订阅优先 (默认)"
+      risk_limits: [R0, R1, R2, R3]
     frugal:
       display: "💰 最低成本"
       risk_limits: [R0, R1]  # R2+ 自动升级
@@ -165,7 +169,7 @@ skip_rules:
     include_when: "S2+ 或 R2+"
   Archivist:
     skip_when: "S0 或 frugal"
-    include_when: "S2+ 或 balanced 及以上"
+    include_when: "S2+ 或 alter/balanced 及以上"
 
 # ══════════════════════════════════════════════════════════════════════
 # Agent 执行顺序

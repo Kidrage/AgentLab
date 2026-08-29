@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 from typing import Any, Callable
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
@@ -37,6 +38,31 @@ _PROXY_ENV_VARS = (
     "HTTP_PROXY",
     "http_proxy",
 )
+_DEFAULT_PROXY_ENV_VARS = (
+    "HTTPS_PROXY",
+    "https_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+)
+
+
+def _safe_proxy_endpoint(value: str) -> str:
+    """Render only proxy scheme/host/port, never credentials or query data."""
+
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        if not parsed.scheme or not hostname:
+            return "[REDACTED_PROXY_ENDPOINT]"
+        rendered_host = f"[{hostname}]" if ":" in hostname else hostname
+        netloc = (
+            f"{rendered_host}:{parsed.port}"
+            if parsed.port is not None
+            else rendered_host
+        )
+        return urlunsplit((parsed.scheme, netloc, "", "", ""))
+    except ValueError:
+        return "[REDACTED_PROXY_ENDPOINT]"
 
 
 def _is_direct_gemini_api_key_environment(name: str) -> bool:
@@ -78,10 +104,13 @@ def _command_shape(args: list[str]) -> str:
     return " ".join(rendered)
 
 
-def _classify_failure(stderr: str, log_excerpt: str) -> str:
-    combined = f"{stderr}\n{log_excerpt}"
+def _classify_failure(stderr: str, log_text: str) -> str:
+    combined = f"{stderr}\n{log_text}"
+    lowered = combined.lower()
     if "listen tcp 127.0.0.1:0" in combined and "operation not permitted" in combined:
         return "agy_localhost_bind_denied"
+    if "user location is not supported for the api use" in lowered:
+        return "agy_provider_region_unsupported"
     if "oauth_session_or_region_blocked" in combined:
         return "agy_oauth_session_or_region_blocked"
     if "Settings fetch failed" in combined:
@@ -114,10 +143,7 @@ def _write_task_packet(path: Path) -> None:
 
 
 def _run_command(args: list[str], timeout_seconds: int, log_path: Path) -> subprocess.CompletedProcess[str]:
-    process_env = os.environ.copy()
-    for name in list(process_env):
-        if _is_direct_gemini_api_key_environment(name):
-            process_env.pop(name, None)
+    process_env = _agy_process_environment()
     return subprocess.run(
         args,
         check=False,
@@ -126,6 +152,25 @@ def _run_command(args: list[str], timeout_seconds: int, log_path: Path) -> subpr
         timeout=timeout_seconds,
         env=process_env,
     )
+
+
+def _agy_process_environment() -> dict[str, str]:
+    """Build the OAuth-only Agy environment with an explicit proxy fallback."""
+
+    process_env = os.environ.copy()
+    for name in list(process_env):
+        if _is_direct_gemini_api_key_environment(name):
+            process_env.pop(name, None)
+    if not any(
+        str(process_env.get(name) or "").strip() for name in _PROXY_ENV_VARS
+    ):
+        default_proxy = (
+            str(process_env.get("AGENTLAB_DEFAULT_PROXY") or "").strip()
+            or "http://127.0.0.1:7890"
+        )
+        for name in _DEFAULT_PROXY_ENV_VARS:
+            process_env[name] = default_proxy
+    return process_env
 
 
 def _resolve_command_path(command: str, command_runner: CommandRunner | None) -> str | None:
@@ -222,7 +267,7 @@ def _build_attempt_report(
         status = "pass" if expected else "blocked"
         reason = "agy_cli_expected_token_observed_before_process_timeout" if expected else "agy_cli_timeout"
     elif completed.returncode != 0:
-        reason = _classify_failure(stderr, log_excerpt)
+        reason = _classify_failure(stderr, log_text)
         status = "blocked"
     elif expected:
         status = "pass"
@@ -265,9 +310,22 @@ def build_agy_cli_smoke_report(
     task_packet = smoke_dir / "task_packet.yml"
     log_path = smoke_dir / "agy_cli_smoke.log"
     _write_task_packet(task_packet)
-    proxy_environment_names = sorted(
-        name for name in _PROXY_ENV_VARS if str(os.environ.get(name) or "").strip()
+    inherited_proxy = any(
+        str(os.environ.get(name) or "").strip() for name in _PROXY_ENV_VARS
     )
+    process_env = _agy_process_environment()
+    proxy_environment_names = sorted(
+        name for name in _PROXY_ENV_VARS if str(process_env.get(name) or "").strip()
+    )
+    raw_proxy_url = next(
+        (
+            str(process_env.get(name) or "").strip()
+            for name in _PROXY_ENV_VARS
+            if str(process_env.get(name) or "").strip()
+        ),
+        "",
+    )
+    proxy_url = _safe_proxy_endpoint(raw_proxy_url) if raw_proxy_url else ""
     proxy_binding_verified = bool(proxy_environment_names)
     command_variants = _command_variants(root, task_packet, log_path)
     if not command_variants or not command_variants[0]:
@@ -283,6 +341,10 @@ def build_agy_cli_smoke_report(
             "secret_values_rendered": False,
             "proxy_binding_verified": proxy_binding_verified,
             "proxy_environment_names": proxy_environment_names,
+            "proxy_url": proxy_url,
+            "proxy_source": (
+                "inherited_from_environment" if inherited_proxy else "default_fallback"
+            ),
             "worker": "agy",
             "invocation_contract": "agy_observer",
             "expected_stdout_token": EXPECTED,
@@ -306,6 +368,10 @@ def build_agy_cli_smoke_report(
         "secret_values_rendered": False,
         "proxy_binding_verified": proxy_binding_verified,
         "proxy_environment_names": proxy_environment_names,
+        "proxy_url": proxy_url,
+        "proxy_source": (
+            "inherited_from_environment" if inherited_proxy else "default_fallback"
+        ),
         "worker": "agy",
         "invocation_contract": "agy_observer",
         "command": first_args[0],

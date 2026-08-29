@@ -120,6 +120,32 @@ def preflight_media_contract(
     if not backend:
         return _preflight_result(contract, backend_id, backend, checks, "blocked", "backend_config_missing")
 
+    availability = str(backend.get("availability") or "active").strip()
+    lifecycle_selectable = (
+        backend.get("selectable", True) is True
+        and availability not in {"historical_only", "retired", "inactive"}
+    )
+    check(
+        lifecycle_selectable,
+        "backend_lifecycle_selectable",
+        (
+            f"backend lifecycle is selectable ({availability})"
+            if lifecycle_selectable
+            else f"backend lifecycle is not selectable ({availability})"
+        ),
+        availability=availability,
+        selectable=backend.get("selectable", True) is True,
+    )
+    if not lifecycle_selectable:
+        return _preflight_result(
+            contract,
+            backend_id,
+            backend,
+            checks,
+            "blocked",
+            "backend_not_selectable",
+        )
+
     adapter_state = _adapter_state(backend)
     adapter_kind = str(backend.get("adapter_kind") or "")
     modality = str(contract.get("modality") or "").strip()

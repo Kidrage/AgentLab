@@ -30,14 +30,20 @@ authority:
 # ══════════════════════════════════════════════════════════════════════
 
 budget_mode_policy:
-  default_budget_mode: balanced
-  available_modes: [frugal, balanced, max_quality]
+  default_budget_mode: alter
+  available_modes: [alter, frugal, balanced, max_quality]
   selection_methods:
-    - cli_flag: "--budget {frugal|balanced|max-quality}"
+    - cli_flag: "--budget {alter|frugal|balanced|max-quality}"
     - env_var: "AGENTLAB_BUDGET_MODE"
     - user_request_md_keyword: "budget_mode:"
-    - default: balanced
+    - exact_task_keyword: "alter"
+    - default: alter
   mode_philosophy:
+    alter:
+      goal: 优先使用已验证可用的 Codex、Agy/Gemini 与 Hermes/DeepSeek 执行面
+      allow_sacrifice: [非必要的最高推理档位]
+      forbid_sacrifice: [权限隔离, 测试闭环, 多模态输入能力]
+      fallback: 未经实时健康验证不自动切换 provider；Claude Code 仅在已验证的 Writer/Reviewer DeepSeek Pro/Flash 合同中可选
     frugal:
       goal: 最低成本跑通
       allow_sacrifice: [推理深度, 审查覆盖率, 模型强度]
@@ -78,7 +84,7 @@ execution_policy:
       env_var: AGENTLAB_EXTERNAL_CODER
       signal_file: EXTERNAL_CODER_READY
       cli_flag: "--executor external_ide"
-    allowed_for_budgets: [balanced, max_quality]  # Frugal 不给外部 IDE（费用不可控）
+    allowed_for_budgets: [alter, balanced, max_quality]  # Frugal 不给外部 IDE（费用不可控）
     handoff_protocol: >
       AgentLab 大脑层完成所有规划/感知工作后,
       生成完整 handoff prompt，包含 scope + repo context + interface 契约。

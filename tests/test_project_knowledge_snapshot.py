@@ -13,6 +13,7 @@ from agent_runtime.knowledge_system import (
     build_knowledge_base,
     write_project_knowledge_snapshot,
 )
+from agent_runtime.project_truth import ChangeSet, FactChange, ProjectTruthStore
 
 
 def test_project_narrative_snapshot_exposes_only_production_and_project_brain(
@@ -108,3 +109,72 @@ def test_knowledge_build_cli_exposes_project_snapshot_seal() -> None:
     assert result.returncode == 0, result.stderr
     stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
     assert "--seal-project-snapshot" in stdout
+
+
+def test_enforced_project_snapshot_binds_only_current_canonical_truth(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config" / "knowledge_system.yml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "mode": "assist",
+                "auto_memory": "propose_only",
+                "indexing": {"project_allowlist": ["Crown_of_Ash"]},
+                "retrieval": {"required_channels": ["keyword"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    project.mkdir(parents=True)
+    (project / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Crown_of_Ash",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project)
+    initial = truth.initialize("Crown_of_Ash")
+    truth.commit(
+        ChangeSet(
+            project_id="Crown_of_Ash",
+            expected_snapshot_id=initial.current_snapshot_id,
+            actor_id="user",
+            idempotency_key="policy-v3",
+            facts=(
+                FactChange(
+                    key="narrative.character_content_policy_revision",
+                    value=3,
+                    owner="style_guardian",
+                ),
+            ),
+        )
+    )
+    build = build_knowledge_base(tmp_path, projects=["Crown_of_Ash"])
+
+    snapshot = write_project_knowledge_snapshot(
+        tmp_path,
+        project="Crown_of_Ash",
+        build_receipt=build,
+    )
+
+    assert snapshot["formal_fact_roots"] == ["canonical_truth"]
+    assert snapshot["indexed_paths"] == sorted(
+        [
+            "projects/Crown_of_Ash/project_truth.yml",
+            (
+                "projects/Crown_of_Ash/.agentlab/truth/snapshots/"
+                f"{truth.current().snapshot_id}.yml"
+            ),
+        ]
+    )

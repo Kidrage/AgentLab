@@ -19,6 +19,9 @@ from agent_runtime.narrative.candidates.promotion import (
     evidence_bundle_sha256,
     promote_candidate_set,
 )
+from narrative_acceptance_support import (
+    record_signed_candidate_acceptance,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
@@ -632,17 +635,14 @@ def test_first_publication_promotes_hash_bound_candidate_atomically(tmp_path: Pa
         receipt = yaml.safe_load(path.read_text(encoding="utf-8"))
         receipt["candidate_set_sha256"] = frozen["candidate_set_sha256"]
         _write_yaml(path, receipt)
-    approval = receipts / "user-acceptance.yml"
-    _write_yaml(
-        approval,
-        {
-            "status": "accepted",
-            "candidate_set_id": "candidate-set-first",
-            "candidate_set_sha256": frozen["candidate_set_sha256"],
-            "evidence_bundle_sha256": evidence_bundle_sha256(project_root, frozen),
-            "accepted_by": "user",
-        },
+    accepted = record_signed_candidate_acceptance(
+        project_root,
+        manifest_path=Path(created["manifest_path"]),
+        actor_id="test-user",
+        idempotency_key="accept-candidate-set-first",
+        approved_at="2026-01-01T00:01:30+00:00",
     )
+    approval = project_root / accepted["receipt_path"]
 
     result = promote_candidate_set(
         project_root,
@@ -667,6 +667,92 @@ def test_first_publication_promotes_hash_bound_candidate_atomically(tmp_path: Pa
         (project_root / "project_artifact_index.yml").read_text(encoding="utf-8")
     )
     assert index["current_release"]["edition_id"] == "edition-001"
+
+
+def test_crown_promotion_rejects_receipts_without_verified_runtime(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "projects" / "Crown_of_Ash"
+    artifact = project_root / "candidates" / "raw" / "chapter_001.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("unverified Crown candidate\n", encoding="utf-8")
+    artifact_sha = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    receipts = project_root / "receipts"
+    receipts.mkdir()
+    created = create_candidate_set(
+        project_root,
+        candidate_set_id="crown-unverified",
+        created_at="2026-01-01T00:00:00+00:00",
+        canon_snapshot_sha256="canon-sha",
+        scorecard_version=1,
+        chapters=[
+            {
+                "chapter_id": 1,
+                "artifact_path": "candidates/raw/chapter_001.md",
+                "source_run_id": "run-ch001",
+                "source_model": "writer-model",
+                "model_tier": "final",
+                "context_manifest_sha256": "context-sha",
+                "predecessor_chapter_sha256": None,
+                "generation_receipt": "receipts/generation.yml",
+                "correctness_audit": "receipts/correctness.yml",
+                "literary_audit": "receipts/literary.yml",
+                "cost_receipt": "receipts/cost.yml",
+            }
+        ],
+    )
+    frozen = freeze_candidate_set(project_root, Path(created["manifest_path"]))
+    for name in ("generation", "correctness", "literary", "cost"):
+        _write_yaml(
+            receipts / f"{name}.yml",
+            {
+                "status": "pass",
+                "candidate_set_sha256": frozen["candidate_set_sha256"],
+                "artifact_sha256": artifact_sha,
+                "blocking_count": 0,
+            },
+        )
+    weak_acceptance = receipts / "hand-written-acceptance.yml"
+    _write_yaml(
+        weak_acceptance,
+        {
+            "status": "accepted",
+            "candidate_set_id": frozen["candidate_set_id"],
+            "candidate_set_sha256": frozen["candidate_set_sha256"],
+            "evidence_bundle_sha256": evidence_bundle_sha256(
+                project_root,
+                frozen,
+            ),
+        },
+    )
+    with pytest.raises(ValueError, match="receipt contract is invalid"):
+        promote_candidate_set(
+            project_root,
+            manifest_path=Path(created["manifest_path"]),
+            user_acceptance_receipt=weak_acceptance,
+            edition_id="edition-hand-written",
+            release_slot="main",
+            promoted_at="2026-01-01T00:01:45+00:00",
+        )
+    accepted = record_signed_candidate_acceptance(
+        project_root,
+        manifest_path=Path(created["manifest_path"]),
+        actor_id="test-user",
+        idempotency_key="accept-crown-unverified",
+        approved_at="2026-01-01T00:01:30+00:00",
+    )
+
+    with pytest.raises(ValueError, match="contract is invalid"):
+        promote_candidate_set(
+            project_root,
+            manifest_path=Path(created["manifest_path"]),
+            user_acceptance_receipt=project_root / accepted["receipt_path"],
+            edition_id="edition-unverified",
+            release_slot="main",
+            promoted_at="2026-01-01T00:02:00+00:00",
+        )
+
+    assert not (project_root / "release_objects").exists()
 
 
 def test_failed_promotion_keeps_existing_production_unchanged(tmp_path: Path) -> None:
@@ -794,16 +880,14 @@ def test_index_write_failure_rolls_back_staged_production(
                 "blocking_count": 0,
             },
         )
-    approval = receipts / "approval.yml"
-    _write_yaml(
-        approval,
-        {
-            "status": "accepted",
-            "candidate_set_id": "candidate-set-atomic",
-            "candidate_set_sha256": frozen["candidate_set_sha256"],
-            "evidence_bundle_sha256": evidence_bundle_sha256(project_root, frozen),
-        },
+    accepted = record_signed_candidate_acceptance(
+        project_root,
+        manifest_path=Path(created["manifest_path"]),
+        actor_id="test-user",
+        idempotency_key="accept-candidate-set-atomic",
+        approved_at="2026-01-01T00:01:30+00:00",
     )
+    approval = project_root / accepted["receipt_path"]
     real_write = promotion_module.atomic_write_yaml
 
     def fail_index_write(path: Path, data: dict) -> None:
@@ -932,7 +1016,12 @@ def test_receipt_mutation_after_user_acceptance_makes_promotion_stale(
     assert not (project_root / "release_objects" / "editions" / "edition-receipts").exists()
 
 
-def test_retry_recovers_target_left_after_process_interruption(tmp_path: Path) -> None:
+def test_retry_recovers_target_left_after_process_interruption(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import agent_runtime.narrative.candidates.promotion as promotion_module
+
     project_root = tmp_path / "projects" / "Novel"
     artifact = project_root / "candidates" / "raw" / "chapter_001.md"
     artifact.parent.mkdir(parents=True)
@@ -974,16 +1063,14 @@ def test_retry_recovers_target_left_after_process_interruption(tmp_path: Path) -
             },
         )
     evidence_sha = evidence_bundle_sha256(project_root, frozen)
-    approval = receipts / "approval.yml"
-    _write_yaml(
-        approval,
-        {
-            "status": "accepted",
-            "candidate_set_id": frozen["candidate_set_id"],
-            "candidate_set_sha256": frozen["candidate_set_sha256"],
-            "evidence_bundle_sha256": evidence_sha,
-        },
+    accepted = record_signed_candidate_acceptance(
+        project_root,
+        manifest_path=Path(created["manifest_path"]),
+        actor_id="test-user",
+        idempotency_key="accept-candidate-set-recover",
+        approved_at="2026-01-01T00:01:30+00:00",
     )
+    approval = project_root / accepted["receipt_path"]
     interrupted_target = project_root / "release_objects" / "editions" / "edition-recover"
     interrupted_target.mkdir(parents=True)
     (interrupted_target / "chapter_001.md").write_bytes(artifact.read_bytes())
@@ -1008,6 +1095,34 @@ def test_retry_recovers_target_left_after_process_interruption(tmp_path: Path) -
             ],
             "production_modified": True,
         },
+    )
+    real_write = promotion_module.atomic_write_yaml
+
+    def fail_index_once(path: Path, value: dict) -> None:
+        if Path(path).name == "project_artifact_index.yml":
+            raise OSError("simulated resumed index failure")
+        real_write(path, value)
+
+    monkeypatch.setattr(
+        promotion_module,
+        "atomic_write_yaml",
+        fail_index_once,
+    )
+    with pytest.raises(OSError, match="resumed index failure"):
+        promote_candidate_set(
+            project_root,
+            manifest_path=Path(created["manifest_path"]),
+            user_acceptance_receipt=approval,
+            edition_id="edition-recover",
+            release_slot="main",
+            promoted_at="2026-01-01T00:02:00+00:00",
+        )
+    assert interrupted_target.is_dir()
+    assert (interrupted_target / "promotion_receipt.yml").is_file()
+    monkeypatch.setattr(
+        promotion_module,
+        "atomic_write_yaml",
+        real_write,
     )
 
     result = promote_candidate_set(

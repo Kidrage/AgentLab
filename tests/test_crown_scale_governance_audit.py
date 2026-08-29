@@ -19,8 +19,8 @@ def test_crown_scale_governance_audit_passes_without_prose_claim() -> None:
 
     assert report["report_type"] == "crown_scale_governance_audit"
     assert report["status"] == "pass"
-    assert report["chapter_count"] == 1500
-    assert report["target_total_chapters"] == 1500
+    assert report["chapter_count"] == 1980
+    assert report["target_total_chapters"] == 1980
     assert report["text_generation_claimed"] is False
     assert by_id["target_chapter_count"]["status"] == "pass"
     assert by_id["governance_only_scope"]["status"] == "pass"

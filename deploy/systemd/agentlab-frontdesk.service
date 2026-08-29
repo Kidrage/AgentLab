@@ -1,0 +1,21 @@
+[Unit]
+Description=AgentLab local Frontdesk routing service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/AgentLab
+ExecStart=%h/AgentLab/agentlab.sh frontdesk serve --adapter openclaw --socket %t/agentlab/frontdesk.sock --state %h/.agentlab_runtime/frontdesk_state.yml
+Restart=on-failure
+RestartSec=3
+RuntimeDirectory=agentlab
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.agentlab_runtime %t/agentlab
+
+[Install]
+WantedBy=default.target

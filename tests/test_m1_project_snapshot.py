@@ -36,8 +36,9 @@ def test_build_and_write_snapshot(tmp_path: Path):
     assert loaded["current_phase"]["phase_id"] == "phase_01"
 
 
-def test_project_compress_and_snapshot_cli(tmp_path: Path):
+def test_project_compress_and_snapshot_cli(tmp_path: Path, monkeypatch):
     runner = CliRunner()
+    monkeypatch.chdir(tmp_path)
 
     # 1. Test project-summarize-phase CLI
     sum_res = runner.invoke(

@@ -122,6 +122,15 @@ def test_current_scoped_acceptance_audits_are_complete(
     assert report["role_session_execution_boundary"][
         "approval_gate_before_private_context"
     ] is True
+    retired_code_item_id = (
+        "preserve_code_factory"
+        if report_type == "agentlab_goal_completion_audit"
+        else "test_long_running_code_project_with_agentlab_ui_app"
+    )
+    retired_code_item = items[retired_code_item_id]
+    assert retired_code_item["status"] == "fail"
+    assert "retired" in retired_code_item["conclusion"]
+    assert retired_code_item["evidence_health"]["checked"] == 0
 
     crown = items[crown_id]
     writer_acceptance = crown["details"]["writer_selected_acceptance"]
@@ -208,10 +217,15 @@ def test_scoped_audits_reopen_when_selected_writer_acceptance_is_pending(
     report = builder(private_crown_project_root)
     items = {item["id"]: item for item in report[items_key]}
 
+    has_independent_failure = any(
+        item.get("status") == "fail"
+        for item_id, item in items.items()
+        if item_id != crown_id
+    )
     assert report["status"] == (
-        "partial"
-        if _persisted_writer_request_is_current(private_crown_project_root)
-        else "fail"
+        "fail"
+        if has_independent_failure or not _persisted_writer_request_is_current(private_crown_project_root)
+        else "partial"
     )
     assert items[crown_id]["status"] in {"candidate", "warn"}
     assert {item["id"] for item in report["pending_internal_live_smokes"]} == {

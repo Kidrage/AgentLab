@@ -123,3 +123,45 @@ def test_migration_rejects_unbound_fact_evidence(tmp_path: Path) -> None:
                 ],
             }
         )
+
+
+def test_migration_normalizes_yaml_integer_keys_for_durable_audit(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "projects" / "Crown"
+    source = project_root / "production" / "policy.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "policy_revision: 3\nintensity_ladder:\n  0: identify\n  3: fade\n",
+        encoding="utf-8",
+    )
+    (project_root / "project.yml").write_text(
+        "project_id: Crown\nfeatures:\n  project_truth_mode: legacy\n",
+        encoding="utf-8",
+    )
+
+    ProjectTruthMigrator(project_root).apply(
+        {
+            "schema_version": "project-truth-migration/v1",
+            "project_id": "Crown",
+            "idempotency_key": "integer-key-normalization",
+            "expected_source_hashes": {
+                "production/policy.yml": _sha(source),
+            },
+            "facts": [],
+            "resources": [
+                {
+                    "key": "policy.current",
+                    "source_path": "production/policy.yml",
+                    "media_type": "application/yaml",
+                }
+            ],
+            "enable_project_agents": False,
+        }
+    )
+
+    truth = ProjectTruthStore(project_root)
+    assert truth.current().resources["policy.current"].content[
+        "intensity_ladder"
+    ] == {"0": "identify", "3": "fade"}
+    truth.audit()

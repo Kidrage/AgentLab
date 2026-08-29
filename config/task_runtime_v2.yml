@@ -75,6 +75,9 @@ retention:
 
 worker_routing:
   visual_generation:
-    primary_contract: hermes_ark_artifact_producer
-    fallback_contract: claude_seedance_artifact_fallback
-    fallback_is_explicit_and_receipted: true
+    availability: local_adapter_pending
+    selectable: false
+    primary_backend: local_media_pending
+    primary_contract: null
+    fallback_contract: null
+    fallback_is_explicit_and_receipted: false

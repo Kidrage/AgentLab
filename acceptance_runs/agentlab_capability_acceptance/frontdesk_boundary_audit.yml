@@ -1,22 +1,24 @@
 schema_version: 1
 report_type: agentlab_frontdesk_boundary_audit
 root: .
-frontdesk_agent: hermes
+frontdesk_agent: openclaw
 status: pass
-conclusion: Hermes CLI with DeepSeek V4 Pro is the canonical FrontDesk for routed
-  intake, while declared pipelines may run directly without FrontDesk. Role execution
-  still requires role-session evidence. Registered CLI workflow-shell capabilities
-  are absorbed as bounded role-session execution shells, while AgentLab keeps ownership
-  of project memory, validation, receipts, and promotion.
+conclusion: OpenClaw is the canonical FrontDesk for routed intake, while declared
+  pipelines may run directly without FrontDesk. Role execution still requires role-session
+  evidence. Registered CLI workflow-shell capabilities are absorbed as bounded role-session
+  execution shells, while AgentLab keeps ownership of project memory, validation,
+  receipts, and promotion.
 intended_chain:
-- 'hermes / DeepSeek V4 Pro: optional frontdesk-session for task intake and routing'
+- 'openclaw: optional frontdesk-session for task intake and routing'
 - 'Direct closed loop: AgentLab pipeline or role-session without FrontDesk'
 - 'Supervisor: route and mission contract'
+- 'Researcher: Grok sourced research through grok_research role-session'
 - 'ArtifactProducer: media/artifact production role-session'
 - 'Writer: narrative live eval role-session'
 - 'Registered CLI workflow shells: native capability families inside bounded role
   sessions'
-- 'hermes_grok_oauth: local Grok CLI backend behind ArtifactProducer'
+- 'hermes_grok_oauth: configured Hermes executable behind separate grok_research and
+  grok_media contracts'
 - 'TesterAuditor/Verifier: audit generated candidate artifacts'
 operator_boundary:
   allowed:
@@ -43,18 +45,17 @@ checks:
   evidence:
   - config/frontdesk_policy.yml
   - config/cli_entrypoint_policy.yml
-  summary: hermes has a frontdesk session entrypoint
-- id: hermes_deepseek_v4_pro_is_default_frontdesk
+  summary: openclaw has a frontdesk session entrypoint
+- id: openclaw_is_default_frontdesk
   status: pass
   evidence:
   - config/frontdesk_policy.yml
-  - config/model_catalog.yml
-  summary: Hermes CLI with DeepSeek V4 Pro is the canonical AgentLab frontdesk
+  summary: OpenClaw is the canonical AgentLab frontdesk
 - id: frontdesk_profile_is_separate_from_role_sessions
   status: pass
   evidence:
   - config/agent_role_bindings.yml
-  summary: Hermes may be FrontDesk or a role worker, but never both in the same session
+  summary: OpenClaw is Frontdesk-only and cannot enter a role-worker session
 - id: codex_is_external_worker_not_frontdesk
   status: pass
   evidence:
@@ -97,8 +98,7 @@ checks:
   - config/cli_workflow_shells.yml
   - config/agent_model_profiles.yml
   summary: full_cli governs selected CLI shell capabilities/delivery instead of rebuilding
-    shell scaffolds; full_cli_shells=['agy', 'claude_code', 'codex', 'grok', 'hermes',
-    'qwen']
+    shell scaffolds; full_cli_shells=['agy', 'claude_code', 'codex', 'grok']
 - id: workflow_shell_workers_are_bounded_role_workers
   status: pass
   evidence:
@@ -113,18 +113,25 @@ checks:
   - config/cli_workflow_shells.yml
   summary: Hermes workflow shell powers the Grok media backend, but ArtifactProducer/grok
     remains the AgentLab role-worker owner
-- id: grok_cli_is_registered_as_internal_artifact_worker
+- id: grok_cli_is_registered_as_internal_research_and_artifact_worker
   status: pass
   evidence:
   - config/agent_role_bindings.yml
   - config/worker_invocation_contracts.yml
-  summary: Grok is an internal ArtifactProducer-only media worker, not a general provider
-    or writing/coding agent
-- id: artifact_producer_profiles_bind_grok_oauth
+  summary: Grok is the bounded alter-tier role worker for non-Agy roles, never a Writer
+    or FrontDesk
+- id: grok_current_contracts_use_hermes_surface
+  status: pass
+  evidence:
+  - config/worker_invocation_contracts.yml
+  summary: alter uses native Grok contracts while legacy research/media contracts
+    remain explicitly on Hermes xAI OAuth
+- id: artifact_producer_profiles_bind_current_codex_default
   status: pass
   evidence:
   - config/agent_model_profiles.yml
-  summary: 'artifact backend bindings for hermes_grok_oauth: 3'
+  summary: 'ArtifactProducer default is Codex GPT-5.6 Sol medium in tiers: [''full'',
+    ''low'', ''performance'']; Grok remains a governed media backend'
 - id: raw_media_live_cli_requires_role_session
   status: pass
   evidence:

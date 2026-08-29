@@ -127,9 +127,9 @@ def test_writer_without_explicit_opt_in_keeps_the_pure_writer_contract(
     )
 
     assert profile.get("writer_workflow_activation_status") is None
-    assert profile["cli_agent"] == "agy"
-    assert profile["invocation_contract"] == "agy_writer"
-    assert profile["capacity_route"] == "WriterAgy"
+    assert profile["cli_agent"] == "claude_code"
+    assert profile["invocation_contract"] == "claude_writer"
+    assert profile["capacity_route"] == "WriterFlash"
 
 
 def test_narrative_planner_resolves_fixed_agy_gemini_route(
@@ -150,7 +150,7 @@ def test_narrative_planner_resolves_fixed_agy_gemini_route(
     assert role == "narrative_planner"
     assert profile["cli_agent"] == "agy"
     assert profile["invocation_contract"] == "agy_narrative_planner"
-    assert profile["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert profile["default"] == "gemini_3_6_flash_high_agy_oauth"
     assert profile["capacity_route"] == "NarrativePlannerAgy"
 
 
@@ -234,7 +234,7 @@ def test_narrative_planner_context_accepts_only_hash_bound_inputs(
     assert run_dir / "narrative_rewrite_contract.yml" in sources
 
 
-def test_writer_ultracode_opt_in_reaches_cli_only_through_dedicated_route(
+def test_writer_ultracode_opt_in_blocks_known_unavailable_claude_route(
     tmp_path: Path,
 ) -> None:
     from agent_runner import run_agent_model
@@ -271,12 +271,8 @@ def test_writer_ultracode_opt_in_reaches_cli_only_through_dedicated_route(
             Path(plan.run_dir) / "revision_plan.md",
         )
 
-    assert result.status == "completed"
-    profile = observed["profile"]
-    assert profile["invocation_contract"] == "claude_writer_ultracode"
-    assert profile["capacity_selected_route"] == "WriterUltracode"
-    assert profile["capacity_selection_kind"] == "primary"
-    assert observed["sealed_messages"]
+    assert result.status == "blocked_user_decision"
+    assert observed == {}
 
 
 def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: Path) -> None:
@@ -294,10 +290,10 @@ def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: 
     )
 
     assert profile["artifact_type"] == "text"
-    assert profile["artifact_provider"] == "qwen_cli"
-    assert profile["cli_agent"] == "qwen"
-    assert profile["invocation_contract"] == "qwen_artifact"
-    assert profile["capacity_route"] == "ArtifactProducerQwen"
+    assert profile["artifact_provider"] == "codex_cli"
+    assert profile["cli_agent"] == "codex"
+    assert profile["invocation_contract"] == "codex"
+    assert profile["capacity_route"] == "ArtifactProducerCodex"
     assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
 
     request_path.write_text("Generate an audio narration.wav", encoding="utf-8")
@@ -345,7 +341,7 @@ def test_artifact_producer_honors_prebound_native_codex_yaml_route(
     assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
 
 
-def test_artifact_producer_full_api_uses_explicit_text_api_only(
+def test_artifact_producer_rejects_retired_backend_modes(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -356,48 +352,24 @@ def test_artifact_producer_full_api_uses_explicit_text_api_only(
     plan.route.agents = ["Supervisor", "ArtifactProducer"]
     request_path = Path(plan.user_request_path)
     request_path.parent.mkdir(parents=True, exist_ok=True)
-    request_path.write_text("Write a concise markdown article.", encoding="utf-8")
-    monkeypatch.setenv("AGENTLAB_MODE", "full_api")
-
-    _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
-        ROOT, plan, "ArtifactProducer"
-    )
-
-    assert mode == "full_api"
-    assert profile["executor_type"] == "direct_api"
-    assert profile["artifact_provider"] == "qwen_37max_api"
-    assert profile["artifact_routing_status"] == "routed"
-
-    request_path.write_text("Create a spreadsheet.xlsx", encoding="utf-8")
-    _configs, _mode, _role, blocked = _resolve_cli_profile_for_agent(
-        ROOT, plan, "ArtifactProducer"
-    )
-    assert blocked["artifact_routing_status"] == "capability_mismatch"
-    assert blocked["executor_type"] == "blocked"
-
-
-def test_artifact_producer_does_not_cross_execution_mode_billing_surface(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    from agent_runner import _resolve_cli_profile_for_agent
-
-    plan = _make_plan(tmp_path)
-    plan.route.route_key = "article_light_draft"
-    request_path = Path(plan.user_request_path)
-    request_path.parent.mkdir(parents=True, exist_ok=True)
     request_path.write_text("Write a markdown article.", encoding="utf-8")
-    monkeypatch.setenv("AGENTLAB_MODE", "qwen_token_plan_cli")
+    for retired_mode in (
+        "qwen_token_plan_cli",
+        "full_api",
+        "hybrid_ide",
+        "trusted_headless_cli",
+    ):
+        monkeypatch.setenv("AGENTLAB_MODE", retired_mode)
+        _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
+            ROOT, plan, "ArtifactProducer"
+        )
 
-    _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
-        ROOT, plan, "ArtifactProducer"
-    )
-
-    assert mode == "qwen_token_plan_cli"
-    assert profile["artifact_routing_status"] == "capability_mismatch"
-    assert profile["_artifact_task_contract"]["routing"]["mode_blocker"] == (
-        "unsupported_artifact_execution_mode:qwen_token_plan_cli"
-    )
+        assert mode == retired_mode
+        assert profile["executor_type"] == "blocked"
+        assert profile["artifact_routing_status"] == "capability_mismatch"
+        assert profile["_artifact_task_contract"]["routing"]["mode_blocker"] == (
+            f"unsupported_artifact_execution_mode:{retired_mode}"
+        )
 
 
 def test_artifact_producer_materializes_contract_before_cli_execution(
@@ -418,8 +390,8 @@ def test_artifact_producer_materializes_contract_before_cli_execution(
         assert contract_path.exists()
         contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
         assert contract["artifact_type"] == "text"
-        assert contract["routing"]["selected"]["provider_id"] == "qwen_cli"
-        assert profile["cli_agent"] == "qwen"
+        assert contract["routing"]["selected"]["provider_id"] == "codex_cli"
+        assert profile["cli_agent"] == "codex"
         for raw_path in contract["validation"]["required_paths"]:
             target = Path(plan.project_root) / raw_path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -444,7 +416,7 @@ def test_artifact_producer_materializes_contract_before_cli_execution(
         )
 
     assert result.status == "completed"
-    assert result.raw_usage["capacity_route_id"] == "ArtifactProducerQwen"
+    assert result.raw_usage["capacity_route_id"] == "ArtifactProducerCodex"
 
 
 def test_artifact_producer_context_resolves_internal_project_config_symlink(
@@ -562,6 +534,22 @@ workers:
         + "\n",
         encoding="utf-8",
     )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_supervisor": {"worker_id": "hermes"},
+                    "claude": {"worker_id": "claude_code"},
+                    "claude_writer": {"worker_id": "claude_code"},
+                    "codex": {"worker_id": "codex"},
+                    "qwen": {"worker_id": "qwen"},
+                    "qwen_narrative_literary_ab": {"worker_id": "qwen"},
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _cli_role_profile() -> dict:
@@ -581,6 +569,47 @@ def _cli_success_result() -> LLMCallResult:
         model="hermes",
         content="# Supervisor Report (CLI)\n\nAll good.",
         status="completed",
+    )
+
+
+def _install_cli_result(
+    monkeypatch,
+    *,
+    role_key: str,
+    result: LLMCallResult,
+) -> None:
+    """Route one test role through a mocked full_cli worker result."""
+    profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "codex",
+        "invocation_contract": "codex",
+        "default": "codex_gpt_5_6_sol_medium_cli_oauth",
+    }
+    configs = {
+        "agent_model_profiles": {"modes": {"full_cli": {"tiers": {}}}},
+        "agent_registry": {"agents": {}},
+        "execution_policy": {
+            "execution_policy": {
+                "patch_application_policy": "patch_proposal_first",
+            },
+            "coder_policy": {"automatic_patch_application": False},
+        },
+    }
+    monkeypatch.setattr(
+        "agent_runner._resolve_cli_profile_for_agent",
+        lambda *a, **kw: (configs, "full_cli", role_key, dict(profile)),
+    )
+    monkeypatch.setattr(
+        "agent_runner._check_cli_role_binding",
+        lambda *a, **kw: (True, "test binding"),
+    )
+    monkeypatch.setattr(
+        "agent_runner.run_cli_agent",
+        lambda *a, **kw: result,
+    )
+    monkeypatch.setattr(
+        "operational_uploader.maybe_run_operational_agent",
+        lambda *a, **kw: None,
     )
 
 
@@ -849,7 +878,7 @@ def test_narrative_heavy_audit_cli_roles_receive_sealed_context(
     assert result.status == "completed"
     assert observed["sealed_messages"] == messages
     profile = observed["profile"]
-    assert profile["invocation_contract"] == "claude_narrative_audit"
+    assert profile["invocation_contract"] == "agy_reviewer"
     source_names = {
         Path(path).name for path in observed["outbound_source_paths"]
     }
@@ -1391,61 +1420,6 @@ agents:
     assert "01_REPO_MAP.md" not in verifier_source_names
 
 
-def test_pack_synthesis_direct_api_fallback_cannot_bypass_outbound_gate(
-    tmp_path: Path,
-) -> None:
-    from agent_runner import run_agent_model
-    from outbound_context import PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
-
-    plan = _make_plan(tmp_path)
-    plan.production_pack = {
-        "status": "synthesis_candidate",
-        "pack_id": "pack_synthesis_candidate",
-        "agents": SYNTHESIS_AGENTS,
-    }
-    run_dir = Path(plan.run_dir)
-    run_dir.mkdir(parents=True, exist_ok=True)
-    source = run_dir / "domain_research_brief.md"
-    source.write_text("# Domain research\n", encoding="utf-8")
-    settings = SimpleNamespace(provider="deepseek", model="deepseek-test")
-
-    with patch.dict(
-        "os.environ",
-        {PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME: "0"},
-        clear=False,
-    ), patch(
-        "operational_uploader.maybe_run_operational_agent", return_value=None
-    ), patch(
-        "agent_runner._resolve_cli_profile_for_agent",
-        return_value=({"agent_model_profiles": {}}, "full_api", "artifact_producer", None),
-    ), patch(
-        "agent_runner.resolve_agent_settings", return_value=(settings, {})
-    ), patch(
-        "agent_runner.compose_agent_messages",
-        return_value=[{"role": "user", "content": "Return candidate YAML."}],
-    ), patch(
-        "agent_runner.production_pack_context_source_files",
-        return_value=[source],
-    ), patch(
-        "agent_runner.generate_text"
-    ) as generate_text:
-        result = run_agent_model(
-            tmp_path,
-            plan,
-            "ArtifactProducer",
-            run_dir / "artifact_producer_report.md",
-        )
-
-    assert result.status == "blocked_user_decision"
-    assert result.error == "production_pack_outbound_context_gate_blocked"
-    generate_text.assert_not_called()
-    manifest_path = run_dir / "outbound_context_manifest_artifactproducer.yml"
-    assert manifest_path.exists()
-    assert PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME in manifest_path.read_text(
-        encoding="utf-8"
-    )
-
-
 def test_pack_synthesis_cli_unavailable_does_not_switch_to_direct_api(
     tmp_path: Path,
 ) -> None:
@@ -1635,55 +1609,12 @@ def test_coder_applies_run_local_candidate_artifact_blocks_when_policy_is_propos
         "allowed_overwrite_paths": [],
     }
 
-    monkeypatch.setattr(
-        "agent_runner._resolve_cli_profile_for_agent",
-        lambda *a, **kw: (
-            {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
-            "full_api",
-            "coder",
-            None,
-        ),
-    )
-    monkeypatch.setattr(
-        "operational_uploader.maybe_run_operational_agent",
-        lambda *a, **kw: None,
-    )
-    monkeypatch.setattr(
-        "agent_runner.resolve_agent_settings",
-        lambda *a, **kw: (
-            SimpleNamespace(
-                provider="qwen-coder",
-                provider_type="openai_compatible",
-                model="qwen3-coder-next",
-                base_url=None,
-                api_key_configured=True,
-                temperature=0.2,
-                top_p=1.0,
-                max_output_tokens=2000,
-                profile_name="",
-            ),
-            {
-                "execution_policy": {
-                    "execution_policy": {"patch_application_policy": "patch_proposal_first"},
-                    "coder_policy": {"automatic_patch_application": False},
-                },
-                "model_providers": {},
-            },
-        ),
-    )
-    monkeypatch.setattr(
-        "agent_runner.compose_agent_messages",
-        lambda *a, **kw: [{"role": "user", "content": "test"}],
-    )
-    monkeypatch.setattr(
-        "brain_governor.evaluate_token_status",
-        lambda *a, **kw: {},
-    )
-    monkeypatch.setattr(
-        "agent_runner.generate_text",
-        lambda *a, **kw: LLMCallResult(
-            provider="qwen-coder",
-            model="qwen3-coder-next",
+    _install_cli_result(
+        monkeypatch,
+        role_key="coder",
+        result=LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="codex",
             content="""# Coder Report
 
 <!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/web_ui/index.html -->
@@ -1727,55 +1658,12 @@ def test_artifact_producer_applies_run_local_candidate_artifact_blocks(
         "allowed_overwrite_paths": [],
     }
 
-    monkeypatch.setattr(
-        "agent_runner._resolve_cli_profile_for_agent",
-        lambda *a, **kw: (
-            {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
-            "full_api",
-            "artifact_producer",
-            None,
-        ),
-    )
-    monkeypatch.setattr(
-        "operational_uploader.maybe_run_operational_agent",
-        lambda *a, **kw: None,
-    )
-    monkeypatch.setattr(
-        "agent_runner.resolve_agent_settings",
-        lambda *a, **kw: (
-            SimpleNamespace(
-                provider="deepseek",
-                provider_type="openai_compatible",
-                model="deepseek-v4-flash",
-                base_url=None,
-                api_key_configured=True,
-                temperature=0.2,
-                top_p=1.0,
-                max_output_tokens=2000,
-                profile_name="",
-            ),
-            {
-                "execution_policy": {
-                    "execution_policy": {"patch_application_policy": "patch_proposal_first"},
-                    "coder_policy": {"automatic_patch_application": False},
-                },
-                "model_providers": {},
-            },
-        ),
-    )
-    monkeypatch.setattr(
-        "agent_runner.compose_agent_messages",
-        lambda *a, **kw: [{"role": "user", "content": "artifact producer test"}],
-    )
-    monkeypatch.setattr(
-        "brain_governor.evaluate_token_status",
-        lambda *a, **kw: {},
-    )
-    monkeypatch.setattr(
-        "agent_runner.generate_text",
-        lambda *a, **kw: LLMCallResult(
-            provider="deepseek",
-            model="deepseek-v4-flash",
+    _install_cli_result(
+        monkeypatch,
+        role_key="artifact_producer",
+        result=LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="codex",
             content="""# ArtifactProducer Report
 
 <!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/article_draft.md -->
@@ -1815,55 +1703,12 @@ def test_coder_does_not_partially_apply_when_edit_blocks_are_truncated(
         "allowed_overwrite_paths": [],
     }
 
-    monkeypatch.setattr(
-        "agent_runner._resolve_cli_profile_for_agent",
-        lambda *a, **kw: (
-            {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
-            "full_api",
-            "coder",
-            None,
-        ),
-    )
-    monkeypatch.setattr(
-        "operational_uploader.maybe_run_operational_agent",
-        lambda *a, **kw: None,
-    )
-    monkeypatch.setattr(
-        "agent_runner.resolve_agent_settings",
-        lambda *a, **kw: (
-            SimpleNamespace(
-                provider="qwen-coder",
-                provider_type="openai_compatible",
-                model="qwen3-coder-next",
-                base_url=None,
-                api_key_configured=True,
-                temperature=0.2,
-                top_p=1.0,
-                max_output_tokens=2000,
-                profile_name="",
-            ),
-            {
-                "execution_policy": {
-                    "execution_policy": {"patch_application_policy": "patch_proposal_first"},
-                    "coder_policy": {"automatic_patch_application": False},
-                },
-                "model_providers": {},
-            },
-        ),
-    )
-    monkeypatch.setattr(
-        "agent_runner.compose_agent_messages",
-        lambda *a, **kw: [{"role": "user", "content": "test"}],
-    )
-    monkeypatch.setattr(
-        "brain_governor.evaluate_token_status",
-        lambda *a, **kw: {},
-    )
-    monkeypatch.setattr(
-        "agent_runner.generate_text",
-        lambda *a, **kw: LLMCallResult(
-            provider="qwen-coder",
-            model="qwen3-coder-next",
+    _install_cli_result(
+        monkeypatch,
+        role_key="coder",
+        result=LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="codex",
             content="""# Coder Report
 
 <!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/web_ui/index.html -->
@@ -1903,13 +1748,15 @@ def test_writer_profile_keeps_full_delivery_output_budget() -> None:
             }
         },
         agent_model_profiles={
-            "default_mode": "full_api",
+            "default_mode": "full_cli",
             "modes": {
-                "full_api": {
+                "full_cli": {
                     "tiers": {
                         "performance": {
                             "writer": {
-                                "executor_type": "direct_api",
+                                "executor_type": "cli_agent",
+                                "cli_agent": "claude_code",
+                                "invocation_contract": "claude_writer",
                                 "default": "deepseek_v4_flash",
                             }
                         }
@@ -2396,81 +2243,46 @@ class TestAgentRunnerCliDispatch:
             assert result.raw_usage["provider_surface_changed"] is False
             assert result.raw_usage["direct_api_fallback_attempted"] is False
 
-    def test_no_cli_dispatch_for_direct_api_only_profile(self, tmp_path, monkeypatch):
-        """run_agent_model skips CLI dispatch when profile is direct_api_only."""
+    def test_retired_modes_block_non_artifact_roles_before_provider_dispatch(
+        self, tmp_path, monkeypatch
+    ):
+        """Retired backend modes cannot dispatch CLI or direct-API providers."""
         plan = _make_plan(tmp_path, budget_mode="balanced")
         run_dir = Path(plan.run_dir)
         run_dir.mkdir(parents=True)
-
-        monkeypatch.setattr(
-            "agent_runner.load_agentlab_configs",
-            lambda _: {
-                "agent_model_profiles": {
-                    "default_mode": "full_api",
-                    "modes": {
-                        "full_api": {
-                            "tiers": {
-                                "performance": {
-                                    "supervisor": {
-                                        "executor_type": "direct_api",
-                                        "default": "deepseek_v4_pro",
-                                    }
-                                }
-                            }
-                        }
-                    },
-                },
-                "agent_registry": {"agents": {}},
-                "model_providers": {"providers": {}, "defaults": {}},
-                "model_profiles": {"profiles": {}},
-                "model_catalog": {},
-            },
-        )
         monkeypatch.setattr(
             "operational_uploader.maybe_run_operational_agent",
             lambda *a, **kw: None,
         )
-        monkeypatch.setattr(
-            "agent_runner.resolve_agent_settings",
-            lambda *a, **kw: (
-                SimpleNamespace(
-                    provider="deepseek",
-                    provider_type="openai_compatible",
-                    model="deepseek_v4_pro",
-                    base_url=None,
-                    api_key_configured=False,
-                    temperature=0.2,
-                    top_p=1.0,
-                    max_output_tokens=2000,
-                    profile_name="",
-                ),
-                {},
-            ),
-        )
-        monkeypatch.setattr(
-            "agent_runner.compose_agent_messages",
-            lambda *a, **kw: [{"role": "user", "content": "test"}],
-        )
-        monkeypatch.setattr(
-            "brain_governor.evaluate_token_status",
-            lambda *a, **kw: {},
-        )
 
-        with patch(
-            "agent_runner.run_cli_agent",
-            return_value=_cli_success_result(),
-        ) as mock_cli, patch(
-            "agent_runner.generate_text",
-            return_value=_api_fallback_result(),
-        ) as mock_api:
-            from agent_runner import run_agent_model
+        for retired_mode in (
+            "qwen_token_plan_cli",
+            "full_api",
+            "hybrid_ide",
+            "trusted_headless_cli",
+        ):
+            monkeypatch.setenv("AGENTLAB_MODE", retired_mode)
+            with patch("agent_runner.run_cli_agent") as mock_cli, patch(
+                "agent_runner.resolve_agent_settings"
+            ) as mock_settings, patch("agent_runner.generate_text") as mock_api:
+                from agent_runner import run_agent_model
 
-            output = run_dir / "test_output.md"
-            result = run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
+                result = run_agent_model(
+                    ROOT,
+                    plan,
+                    "Supervisor",
+                    run_dir / f"{retired_mode}_output.md",
+                    apply_patches=False,
+                )
 
             mock_cli.assert_not_called()
-            mock_api.assert_called_once()
-            assert result.status == "completed"
+            mock_settings.assert_not_called()
+            mock_api.assert_not_called()
+            assert result.status == "blocked_user_decision"
+            assert result.error == "cli_profile_required_no_fallback"
+            assert result.raw_usage["resolved_mode"] == retired_mode
+            assert result.raw_usage["provider_surface_changed"] is False
+            assert result.raw_usage["direct_api_fallback_attempted"] is False
 
     def test_no_real_subprocess_in_tests(self):
         """Sanity: this test file never executes real subprocess calls."""
@@ -2780,42 +2592,21 @@ class TestConfigProfiles:
         assert cli_coders, "No profile has CLI-backed coder"
         print(f"CLI-backed coder profiles: {cli_coders}")
 
-    def test_has_direct_api_only_profile(self):
-        """At least one profile is entirely direct_api."""
+    def test_only_full_cli_mode_is_configured(self):
+        """The canonical profile matrix exposes only the governed CLI mode."""
         import yaml
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        direct_api_profiles = []
-        for name, profile in _iter_config_role_groups(data):
-            all_direct = all(
-                role.get("executor_type") == "direct_api"
-                for role in profile.values()
-                if isinstance(role, dict) and "executor_type" in role
-            )
-            if all_direct and profile:
-                direct_api_profiles.append(name)
-
-        assert direct_api_profiles, "No direct API-only profile found"
-        print(f"Direct API-only profiles: {direct_api_profiles}")
+        assert set(data["modes"]) == {"full_cli"}
 
     def test_required_execution_modes_exist(self):
-        """Config has the schema-v4 execution modes or legacy named profiles."""
+        """Config has only the canonical schema-v4 execution mode."""
         import yaml
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        if "modes" in data:
-            required = {"full_cli", "full_api", "hybrid_ide"}
-            missing = required - set((data.get("modes", {}) or {}).keys())
-            assert not missing, f"Missing modes: {missing}"
-            return
-
-        profiles = data.get("profiles", {})
-        required = {"balanced", "low_cost", "direct_api_only", "hybrid_agent_executor"}
-        missing = required - set(profiles.keys())
-        assert not missing, f"Missing profiles: {missing}"
-        print(f"All required profiles present: {sorted(required)}")
+        assert set((data.get("modes", {}) or {})) == {"full_cli"}
 
     def test_default_mode_is_full_cli(self):
         """Default execution uses the canonical local CLI company mode."""
@@ -2975,7 +2766,7 @@ class TestPromptEngineerMapping:
         )
         prom_role = full_tier["prompt_engineer"]
         assert prom_role.get("cli_agent") == "hermes"
-        assert prom_role.get("invocation_contract") == "hermes"
+        assert prom_role.get("invocation_contract") == "hermes_deepseek"
 
     def test_shared_role_key_normalizer_handles_compact_names(self):
         """Role aliases are owned by one shared normalizer, not agent_runner."""

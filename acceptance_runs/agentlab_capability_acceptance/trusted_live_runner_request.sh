@@ -12,7 +12,7 @@ STATUS_PATH="$ROOT/acceptance_runs/agentlab_capability_acceptance/trusted_live_r
 COLLECT_PATH="$ROOT/acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml"
 READINESS_PATH=acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
 PREFLIGHT_PATH="$ROOT/acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_preflight.yml"
-REQUEST_ID=trusted_live_20260718_pruned
+REQUEST_ID=trusted_live_20260724_131908
 LOG_DIR="$(dirname "$STATUS_PATH")/trusted_live_runner_logs"
 RUN_LOG="$LOG_DIR/${REQUEST_ID}_$(date -u +%Y%m%dT%H%M%SZ).log"
 mkdir -p "$LOG_DIR"
@@ -43,7 +43,7 @@ require_command() {
 }
 
 require_runtime_commands() {
-  require_command claude
+  require_command agy
   require_command hermes
 }
 
@@ -127,7 +127,7 @@ import yaml
 path = Path(sys.argv[1])
 item_id = sys.argv[2]
 required_by_item = {
-    "run_crown_internal_writer_eval": {"current_claude_writer_session_health"},
+    "run_crown_internal_writer_eval": {"current_agy_writer_session_health"},
     "run_crown_internal_media_smoke": {"current_grok_session_health"},
 }
 required = required_by_item.get(item_id)
@@ -202,7 +202,7 @@ should_run_session_health_command() {
   if [ "$RUN_ONLY" = "run_crown_internal_writer_eval" ] && [[ "$command_text" == *"grok-cli-smoke"* ]]; then
     return 1
   fi
-  if [ "$RUN_ONLY" = "run_crown_internal_media_smoke" ] && [[ "$command_text" == *"worker-invocation-probe --worker claude_writer"* ]]; then
+  if [ "$RUN_ONLY" = "run_crown_internal_media_smoke" ] && [[ "$command_text" == *"worker-invocation-probe --worker agy"* ]]; then
     return 1
   fi
   return 0
@@ -210,15 +210,15 @@ should_run_session_health_command() {
 
 run_session_health_checks() {
   echo "running non-private session health checks" | tee -a "$RUN_LOG"
-  if should_run_session_health_command './agentlab.sh worker-invocation-probe --worker claude_writer > acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml'; then
-    bash -lc './agentlab.sh worker-invocation-probe --worker claude_writer > acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml' >>"$RUN_LOG" 2>&1
+  if should_run_session_health_command './agentlab.sh worker-invocation-probe --worker agy > acceptance_runs/agentlab_capability_acceptance/agy_writer_session_probe.yml'; then
+    bash -lc './agentlab.sh worker-invocation-probe --worker agy > acceptance_runs/agentlab_capability_acceptance/agy_writer_session_probe.yml' >>"$RUN_LOG" 2>&1
     local code=$?
-    echo './agentlab.sh worker-invocation-probe --worker claude_writer > acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml' exit_code=$code | tee -a "$RUN_LOG"
+    echo './agentlab.sh worker-invocation-probe --worker agy > acceptance_runs/agentlab_capability_acceptance/agy_writer_session_probe.yml' exit_code=$code | tee -a "$RUN_LOG"
     if [ "$code" -ne 0 ]; then
       health_failures=$((health_failures + 1))
     fi
   else
-    echo './agentlab.sh worker-invocation-probe --worker claude_writer > acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml' skipped_for_selected_item=$RUN_ONLY | tee -a "$RUN_LOG"
+    echo './agentlab.sh worker-invocation-probe --worker agy > acceptance_runs/agentlab_capability_acceptance/agy_writer_session_probe.yml' skipped_for_selected_item=$RUN_ONLY | tee -a "$RUN_LOG"
   fi
   if should_run_session_health_command './agentlab.sh grok-cli-smoke --live --out acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml'; then
     bash -lc './agentlab.sh grok-cli-smoke --live --out acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml' >>"$RUN_LOG" 2>&1
@@ -313,16 +313,16 @@ should_run_item() {
 
 selected_item_ran=0
 
-# run_crown_internal_writer_eval -> Writer / claude_code
+# run_crown_internal_writer_eval -> Writer / agy
 if should_run_item run_crown_internal_writer_eval; then
   selected_item_ran=1
-  run_item run_crown_internal_writer_eval './agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp trusted_live_20260718_pruned_writer --writer-worker claude_code'
+  run_item run_crown_internal_writer_eval './agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp trusted_live_20260724_131908_writer --writer-worker agy'
 fi
 
 # run_crown_internal_media_smoke -> ArtifactProducer / grok
 if should_run_item run_crown_internal_media_smoke; then
   selected_item_ran=1
-  run_item run_crown_internal_media_smoke './agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_trusted_live_20260718_pruned_media'
+  run_item run_crown_internal_media_smoke './agentlab.sh media-backend-execute --contract acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_trusted_live_20260724_131908_media'
 fi
 
 if [ -n "$RUN_ONLY" ] && [ "$selected_item_ran" -ne 1 ]; then

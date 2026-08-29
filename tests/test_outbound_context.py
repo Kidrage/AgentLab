@@ -91,6 +91,35 @@ def test_outbound_manifest_distinguishes_pending_approval_from_unsafe_payload(
     assert report["authorization"]["approval_observed"] is False
 
 
+def test_outbound_manifest_persists_project_truth_approval_authority(
+    tmp_path: Path,
+) -> None:
+    authority = {
+        "mode": "project_truth_policy",
+        "policy_sha256": "a" * 64,
+        "truth_snapshot_id": "b" * 64,
+        "truth_authority_revision_id": "c" * 64,
+    }
+    report = build_outbound_context_manifest(
+        tmp_path,
+        item_id="task_writer",
+        role="Writer",
+        provider_surface="cli_agent:agy",
+        payload_kind="sealed_cli_role_session_packet",
+        payload_text="safe private chapter context",
+        private_context=True,
+        exact_payload=True,
+        sealed_context=True,
+        execution_workspace_isolated=True,
+        approval_required=True,
+        approval_granted=True,
+        approval_authority=authority,
+    )
+
+    assert report["status"] == "pass"
+    assert report["authorization"]["authority"] == authority
+
+
 def test_outbound_manifest_rejects_env_source_even_when_payload_is_clean(
     tmp_path: Path,
 ) -> None:

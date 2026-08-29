@@ -116,8 +116,15 @@ def resolve_profile_config(
         or agent_model_profiles.get("default_mode")
         or "full_cli"
     ).strip().lower()
+    configured_default_tier = str(
+        (agent_model_profiles.get("tier_policy", {}) or {}).get(
+            "default_tier", "performance"
+        )
+    )
     resolved_tier = budget_mode_to_tier(
-        budget_mode or os.getenv("AGENTLAB_BUDGET_MODE", "performance")
+        budget_mode
+        or os.getenv("AGENTLAB_BUDGET_MODE")
+        or configured_default_tier
     )
     role_key = normalize_role_key(agent_name)
     modes = agent_model_profiles.get("modes", {}) or {}

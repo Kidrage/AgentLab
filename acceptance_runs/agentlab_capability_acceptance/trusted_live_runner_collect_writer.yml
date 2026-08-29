@@ -3,7 +3,7 @@ report_type: agentlab_trusted_live_runner_collect
 root: .
 status: pending_returned_artifacts
 source_request: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
-request_id: trusted_live_20260718_pruned
+request_id: trusted_live_20260724_131908
 refreshed_reports:
   trusted_live_runner_status: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
   trusted_live_runner_operator_handoff: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml
@@ -31,13 +31,13 @@ pending_items:
   pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
   next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
   missing:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
   required_files_exist: false
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
@@ -46,28 +46,29 @@ pending_items:
   pending_reason: missing_candidate_artifacts
   next_action: run_trusted_live_command_and_collect_required_artifacts
   missing:
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
   required_files_exist: false
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
 acceptance_summary:
   capability_overall_status: fail
   capability_status_counts:
-    pass: 16
-    fail: 3
-    candidate: 9
+    retired: 7
+    pass: 10
+    candidate: 10
+    fail: 1
   objective_status: fail
   objective_status_counts:
-    pass: 8
+    fail: 5
+    pass: 4
     candidate: 2
-    fail: 1
   goal_status: fail
   goal_status_counts:
-    pass: 5
+    fail: 3
+    pass: 3
     candidate: 2
-    fail: 1
   acceptance_report_hygiene_status: pass
   acceptance_report_hygiene_canonical_text_artifact_count: 2
   acceptance_report_hygiene_canonical_text_issue_count: 0
@@ -104,13 +105,13 @@ selected_item_acceptance_blocker: missing_required_files
 selected_item_pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
 selected_item_next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
 selected_item_missing:
-- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-- acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+- acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
 selected_item_session_health_gate:
   id: current_agy_writer_session_health
   status: missing

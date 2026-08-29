@@ -3,9 +3,8 @@
 ## Overview
 
 `config/agent_model_profiles.yml` schema v4 uses `modes` → `tiers` → `role`
-layout. Each mode (e.g. `full_cli`, `qwen_token_plan_cli`, `full_api`,
-`hybrid_ide`) defines three
-tiers (`full`, `performance`, `low`), and each tier maps agent roles to their
+layout. `full_cli` is the only configured mode. It defines four tiers
+(`alter`, `full`, `performance`, `low`), and each tier maps agent roles to their
 executor configuration.
 
 ## Key Concepts
@@ -23,9 +22,8 @@ executor configuration.
   only through an explicit route in `model_capacity.yml`.
 - **AgentLab must not silently claim CLI usage when it fell back to API.**
   Transparent fallback recording is mandatory.
-- **Codex / Hermes / Claude Code** shell commands and their API model
-  configurations are separate concepts. The CLI executor runs the command; the
-  API resolver calls model providers directly.
+- **Codex / Hermes / Claude Code** shell commands and model-provider facts are
+  separate concepts. The CLI executor runs the configured worker contract.
 
 ## Resolution Chain
 
@@ -41,16 +39,12 @@ schema v4 config
     → return provider/model source as CLI executor result
 → if CLI binary unavailable or CLI execution explicitly fails:
     → stop and report, or use an explicitly approved same-role capacity route
-→ if executor_type == "direct_api":
-    → direct API resolver handles it
 → if executor_type == "special" or role config is "skip":
     → do not invoke CLI
 ```
 
-`qwen_token_plan_cli` is an explicit opt-in mode that preserves the older
-`full_cli` role allocation while routing Qwen model defaults through the
-`tokenplan-qwen` provider. It requires `QWEN_TOKEN_PLAN_API_KEY` and
-`QWEN_TOKEN_PLAN_BASE_URL`.
+Unknown or retired `AGENTLAB_MODE` values have no role matrix and therefore
+must resolve as unavailable rather than switching executor or provider.
 
 ## Execution Source Auditability
 
@@ -60,17 +54,11 @@ Results and reports must distinguish:
 |------|-------------|---------------|-------|
 | CLI executed successfully | `cli_agent` | `cli_agent` | `api_fallback_used: false` |
 | CLI configured but binary unavailable | `api_usage` | `cli_agent_fallback` | `fallback_reason` recorded |
-| Direct API selected by config | `api_usage` | `direct_api` | `api_fallback_used: false` |
 | Role skipped | `skipped` | `skip` | No execution occurred |
 
 ## Budget Mode → Tier Mapping
 
+- `alter`, `altered` → `alter` (default subscription-first tier)
 - `full`, `max_quality` → `full`
 - `performance`, `balanced`, `brain_allocated` → `performance`
 - `low`, `frugal`, `low_cost` → `low`
-
-## Safety Gate: `trusted_headless_cli`
-
-The `trusted_headless_cli` mode requires:
-- `AGENTLAB_ALLOW_DANGEROUS_CCS=1` environment variable set
-- Explicit opt-in (never activated by default or env fallback)

@@ -4,10 +4,10 @@ version: 2
 # 分层架构 (Model Tier Architecture) v3.0:
 #
 #   Agent backend 选择由 config/agent_model_profiles.yml 负责。
-#   full_cli 默认大脑层 Supervisor — Codex CLI OAuth / gpt-5.6-sol xhigh
-#   full_cli Observer — Agy Gemini/Claude OAuth 独立容量池
-#   full_cli Writer — Claude shell / DeepSeek V4
-#   full_cli Researcher/ArtifactProducer — Hermes Grok OAuth（独立合同）
+#   full_cli 默认大脑层 Supervisor — Hermes shell / Codex OAuth / gpt-5.6-sol xhigh
+#   full_cli Observer/Researcher — Agy / Gemini OAuth（Researcher 仅 Exa broker）
+#   full_cli Writer — Claude Code / DeepSeek V4 Pro；Flash 为分层降级路线
+#   ArtifactProducer — 文本 Codex；表格/演示 Qwen；媒体后端待本地适配器
 #   Gemini API key 路径 — gemini-2.5-flash-high，仅显式 fallback，不默认启用
 #   direct API 模式 — 使用本文件 provider defaults 与 model_catalog facts
 #
@@ -19,7 +19,7 @@ version: 2
 #  本地算力: Frugal 模式下优先使用本地 LLM (Ollama/vLLM)
 #  外部IDE窗口: external_ide_ai 只是可选 provider 事实。
 #  Coder 默认后端由 config/agent_model_profiles.yml 决定。
-#  需要外部 IDE 接管时，选择 hybrid_ide mode 或显式激活 handoff。
+#  需要外部 IDE 接管时，只能显式激活单角色 handoff。
 # ──────────────────────────────────────────────────────────────────────────
 
 defaults:
@@ -219,7 +219,7 @@ providers:
       source: qwen_token_plan
       metering: prepaid_token_plan
     notes:
-      - 用于 AGENTLAB_MODE=qwen_token_plan_cli。
+      - 保留为显式模型目录能力；当前没有 Agent backend mode 自动分配此 provider。
       - 需要用户提供 QWEN_TOKEN_PLAN_API_KEY。
       - 需要用户提供 QWEN_TOKEN_PLAN_BASE_URL；不要猜测或硬编码未知 endpoint。
       - fallback_provider 指向普通 DashScope qwen，仅在用户明确同意时使用。
@@ -251,11 +251,37 @@ providers:
       - xhigh is the strongest setting exposed by installed Hermes v0.17.0.
       - Never use `hermes status --all` as a probe; use `hermes auth status openai-codex`.
 
+  grok-cli-oauth:
+    availability: historical_only
+    selectable: false
+    type: oauth_cli
+    display_name: Native Grok CLI OAuth
+    command: grok
+    default_model: grok-4.5
+    auth: local_grok_oauth_session
+    billing:
+      source: grok_oauth
+      metering: subscription_or_oauth_quota
+      shared_pool_id: grok_cli_subscription
+    capacity_source: config/model_capacity.yml
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - subscription_exhausted
+      - provider_error
+    notes:
+      - Retained only for historical native-Grok receipt replay; runtime selection is blocked.
+      - "`grok models` confirms login and model availability but does not report a remaining percentage or reset time."
+
   xai-oauth:
+    availability: historical_only
+    selectable: false
     type: oauth_cli
     display_name: Hermes xAI OAuth
     command: hermes
-    default_model: grok-4.3
+    default_model: grok-4.6
     auth: local_hermes_oauth_session
     billing:
       source: xai_oauth
@@ -270,13 +296,15 @@ providers:
       - subscription_exhausted
       - provider_error
     notes:
-      - Grok Researcher and Grok media generation share this observed capacity pool.
+      - Historical Hermes/Grok receipts share this observed capacity pool; no current route may select it.
       - "`hermes auth status xai-oauth` is an auth/cooldown signal, not a weekly remaining percentage."
       - "Never use `hermes status --all`; its output is not safe for AgentLab logs."
 
   ark-agent-plan:
     type: oauth_cli
     display_name: Volcengine Ark Agent Plan via Hermes + Ark Skills
+    availability: unavailable_current_host
+    selectable: false
     command: hermes
     worker: hermes_ark
     invocation_contract: hermes_ark_artifact_producer
@@ -307,7 +335,7 @@ providers:
     type: oauth_cli
     display_name: Agy Gemini OAuth
     command: agy
-    default_model: gemini-3.5-flash-high
+    default_model: gemini-3.6-flash-high
     auth: local_oauth_session
     billing:
       source: agy_oauth
@@ -329,11 +357,13 @@ providers:
     notes:
       - AgentLab 默认 Observer 路径。Agy 接 Gemini 模型，走本地 OAuth 认证。
       - 不读取 GEMINI_API_KEY，不按本地 Gemini API key 计费。
-      - 默认模型为 gemini-3.5-flash-high。
+      - 默认模型为 gemini-3.6-flash-high。
       - Agy 不提供 quota/status 命令；remaining/reset 不得推测。
 
   # ── Agy / Antigravity Claude OAuth Observer 备用容量池 ─────────
   agy-claude-oauth:
+    availability: unavailable_current_host
+    selectable: false
     type: oauth_cli
     display_name: Agy Claude OAuth
     command: agy
@@ -400,7 +430,7 @@ providers:
     display_name: External IDE AI (Coder Window)
     default_model: External AI
     notes:
-      - Optional Coder provider for hybrid_ide or explicit handoff mode.
+      - Optional Coder provider for an explicit handoff; no Agent backend mode selects it.
       - This provider entry is not the default backend decision source.
       - AgentLab 大脑层完成所有规划后，生成完整 handoff prompt + 上下文包。
       - 外部 AI 只需执行编码，无需自行规划/分析架构/确定范围。

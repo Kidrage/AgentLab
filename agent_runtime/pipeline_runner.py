@@ -14,8 +14,8 @@ import subprocess
 from uuid import uuid4
 import yaml
 
-from atomic_io import atomic_write_yaml
-from lifecycle_graph import (
+from agent_runtime.atomic_io import atomic_write_yaml
+from agent_runtime.lifecycle_graph import (
     load_lifecycle, save_lifecycle, next_node, mark_node_started,
     mark_node_completed, mark_node_failed,
     LIFECYCLE_NODES, LIFECYCLE_NODE_OWNER, OPTIONAL_NODES,
@@ -23,17 +23,17 @@ from lifecycle_graph import (
     _production_pack_nodes,
     _skip_reason_for_node,
 )
-from fake_provider import fake_output_for_agent
-from artifact_contract import (
+from agent_runtime.fake_provider import fake_output_for_agent
+from agent_runtime.artifact_contract import (
     artifact_content_issues,
     validate_artifacts,
     write_artifact_manifest,
 )
-from command_runner import run_validation_commands_if_present
-from state_store import load_state, save_state
-from progress_tracker import create_progress, load_progress, save_progress
-from task_events import append_task_event, classify_blocked_status
-from feedback_manager import create_decision_card, write_feedback_status
+from agent_runtime.command_runner import run_validation_commands_if_present
+from agent_runtime.state_store import load_state, save_state
+from agent_runtime.progress_tracker import create_progress, load_progress, save_progress
+from agent_runtime.task_events import append_task_event, classify_blocked_status
+from agent_runtime.feedback_manager import create_decision_card, write_feedback_status
 
 try:
     from ingestion.github_reader import extract_github_urls, build_repo_manifest, parse_github_url
@@ -175,7 +175,7 @@ def ensure_repo_manifest_for_run(agentlab_root: Path, project: str, task_id: str
         else:
             manifests_dir.mkdir(parents=True, exist_ok=True)
             path = manifests_dir / f"{manifest.owner}__{manifest.repo}.json"
-            from atomic_io import atomic_write_json
+            from agent_runtime.atomic_io import atomic_write_json
             atomic_write_json(path, manifest.as_dict())
         manifest_paths.append(path)
 
@@ -592,10 +592,13 @@ def _execution_plan_for_run(
     budget_mode: str | None,
 ):
     if _is_activated_preflight_plan(workflow_plan_data):
-        from schemas import WorkflowPlan
+        from agent_runtime.schemas import WorkflowPlan
 
         return WorkflowPlan(**workflow_plan_data)
-    from workflow_plan import build_workflow_plan
+    try:  # Keep legacy monkeypatch/module authority when loaded top-level.
+        from workflow_plan import build_workflow_plan
+    except ModuleNotFoundError:
+        from agent_runtime.workflow_plan import build_workflow_plan
 
     return build_workflow_plan(
         agentlab_root,
@@ -1806,7 +1809,7 @@ def _append_dry_run_cost_entry(
     budget_mode: str | None,
     execution_mode: str,
 ) -> None:
-    from cost_tracker import append_cost_ledgers
+    from agent_runtime.cost_tracker import append_cost_ledgers
 
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -1833,7 +1836,7 @@ def _append_dry_run_cost_entry(
 
 
 def _record_dry_run_command(run_dir: Path, node_id: str, agent: str | None) -> str:
-    from execution_log import append_command_record
+    from agent_runtime.execution_log import append_command_record
 
     return append_command_record(run_dir, {
         "node": node_id,
@@ -2619,7 +2622,10 @@ def run_next_node(
 
     elif agent and not fake_provider:
         # ─── execute mode: call real LLM API via agent_runner ───
-        from agent_runner import run_agent_model, report_path_for_agent
+        try:  # Preserve legacy monkeypatch authority for top-level pipeline imports.
+            from agent_runner import run_agent_model, report_path_for_agent
+        except ModuleNotFoundError:
+            from agent_runtime.agent_runner import run_agent_model, report_path_for_agent
 
         plan = _execution_plan_for_run(
             agentlab_root,
@@ -2710,7 +2716,7 @@ def run_next_node(
                     report_path=report_path,
                 )
 
-            from cost_tracker import append_cost_ledgers, usage_entry
+            from agent_runtime.cost_tracker import append_cost_ledgers, usage_entry
 
             append_cost_ledgers(
                 agentlab_root / "projects" / project,
@@ -3165,7 +3171,7 @@ def run_next_node(
                     )
 
         # Record token usage to cost_ledger
-        from cost_tracker import append_cost_ledgers, usage_entry
+        from agent_runtime.cost_tracker import append_cost_ledgers, usage_entry
         raw_usage = result.raw_usage or {}
         append_cost_ledgers(
             agentlab_root / "projects" / project,

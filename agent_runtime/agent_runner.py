@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
 from typing import Any
@@ -11,13 +13,20 @@ from uuid import uuid4
 
 import yaml
 
-from cli_executor import CliAgentNotAvailable, resolve_cli_profile, run_cli_agent
-from config_loader import load_agentlab_configs
-from llm_provider import generate_text, resolve_env_value, resolve_llm_settings
-from policies import assert_path_allowed
-from repository_handoff import discover_handoff
-from role_keys import normalize_role_key
-from schemas import LLMCallResult, LLMSettings, WorkflowPlan
+try:  # Preserve one exception-class identity for legacy top-level imports.
+    from cli_executor import CliAgentNotAvailable, resolve_cli_profile, run_cli_agent
+except ModuleNotFoundError:  # Normal package import path.
+    from agent_runtime.cli_executor import (
+        CliAgentNotAvailable,
+        resolve_cli_profile,
+        run_cli_agent,
+    )
+from agent_runtime.config_loader import load_agentlab_configs
+from agent_runtime.llm_provider import generate_text, resolve_env_value, resolve_llm_settings
+from agent_runtime.policies import assert_path_allowed
+from agent_runtime.repository_handoff import discover_handoff
+from agent_runtime.role_keys import normalize_role_key
+from agent_runtime.schemas import LLMCallResult, LLMSettings, WorkflowPlan
 
 
 DEFAULT_REPORT_BY_AGENT = {
@@ -2400,25 +2409,8 @@ def _artifact_task_profile_for_plan(
         if isinstance(existing_selected, dict)
         else ""
     )
-    provider_type = "api" if execution_mode == "full_api" else "cli"
-    assigned_inputs_declared = bool(contract) and "assigned_inputs" in contract
-    assigned_inputs = contract.get("assigned_inputs") if assigned_inputs_declared else []
-    direct_api_has_inputs = execution_mode == "full_api" and (
-        (assigned_inputs_declared and not isinstance(assigned_inputs, list))
-        or bool(assigned_inputs)
-    )
-    if direct_api_has_inputs:
-        route = {
-            "artifact_type": artifact_type,
-            "output_format": output_format,
-            "provider_type": "api",
-            "required_capabilities": sorted(set(required)),
-            "selected": None,
-            "candidates": [],
-            "status": "capability_mismatch",
-            "mode_blocker": "full_api_assigned_inputs_unsupported",
-        }
-    elif execution_mode not in {"full_api", "full_cli"}:
+    provider_type = "cli"
+    if execution_mode != "full_cli":
         route = {
             "artifact_type": artifact_type,
             "output_format": output_format,
@@ -2430,11 +2422,20 @@ def _artifact_task_profile_for_plan(
             "mode_blocker": f"unsupported_artifact_execution_mode:{execution_mode}",
         }
     else:
+        requested_artifact_tier = {
+            "quality": "full",
+            "balanced": "performance",
+            "frugal": "low",
+            "max_quality": "full",
+        }.get(str(budget_mode).lower(), str(budget_mode).lower())
         route = route_artifact_provider(
             agentlab_root,
             artifact_type,
             required_capabilities=required,
-            preferred_provider=bound_provider or None,
+            preferred_provider=(
+                bound_provider
+                or ("hermes_grok" if requested_artifact_tier == "alter" else None)
+            ),
             provider_type=provider_type,
             output_format=output_format,
         )
@@ -2469,11 +2470,6 @@ def _artifact_task_profile_for_plan(
         "artifact_type": artifact_type,
         "_artifact_task_contract": contract,
     }
-    if direct_api_has_inputs:
-        profile["artifact_routing_reason"] = (
-            "full_api ArtifactProducer does not support assigned file inputs; "
-            "use the governed isolated CLI surface"
-        )
     if not isinstance(selected, dict):
         return profile
 
@@ -2485,30 +2481,8 @@ def _artifact_task_profile_for_plan(
     )
     provider_id = str(selected.get("provider_id") or "")
     provider_cfg = ((policy.get("providers") or {}).get(provider_id) or {})
-    if provider_type == "api":
-        if (
-            provider_cfg.get("runtime_activation") == "explicit_full_api_only"
-            and execution_mode != "full_api"
-        ):
-            profile["artifact_routing_status"] = "capability_mismatch"
-            profile["artifact_routing_reason"] = (
-                f"provider {provider_id} requires explicit full_api mode"
-            )
-            return profile
-        profile.update(
-            {
-                "executor_type": "direct_api",
-                "artifact_provider": provider_id,
-                "artifact_allowed_runtime_providers": list(
-                    provider_cfg.get("allowed_runtime_providers") or []
-                ),
-                "artifact_routing_status": "routed",
-                "artifact_routing_reason": str(selected.get("reason") or ""),
-            }
-        )
-        return profile
-
     tier = {
+        "altered": "alter",
         "quality": "full",
         "balanced": "performance",
         "frugal": "low",
@@ -2676,7 +2650,12 @@ def _check_cli_role_binding(agentlab_root: Path, agent_name: str, cli_role_profi
     except Exception:
         from protocols.enforcement import check_role_binding
 
-    return check_role_binding(agentlab_root, worker, agent_name)
+    return check_role_binding(
+        agentlab_root,
+        worker,
+        agent_name,
+        str(cli_role_profile.get("invocation_contract") or "") or None,
+    )
 
 
 def _blocked_role_binding_result(agent_name: str, worker: str, reason: str) -> LLMCallResult:
@@ -2969,7 +2948,7 @@ def run_agent_model(
     allow_cli_api_fallback: bool = False,
 ):
     diagnostics_interval_started = monotonic()
-    from operational_uploader import maybe_run_operational_agent
+    from agent_runtime.operational_uploader import maybe_run_operational_agent
 
     operational_result = maybe_run_operational_agent(plan, agent_name)
     if operational_result is not None:
@@ -3048,9 +3027,8 @@ def run_agent_model(
         )
 
     # ── CLI Agent dispatch (executor_type: cli_agent) ─────────────────────────
-    # Route this call through the configured local CLI surface. A configured
-    # CLI never falls through to direct API; only explicit full_api mode may
-    # enter the API path below.
+    # Route every role through the configured full_cli surface. Missing or
+    # retired modes stop here and never fall through to a provider API.
     configs_for_cli, cli_mode, agent_role_key, cli_role_profile = _resolve_cli_profile_for_agent(
         agentlab_root,
         plan,
@@ -3465,8 +3443,8 @@ def run_agent_model(
                 content=(
                     f"# {agent_name} CLI worker unavailable\n\n"
                     "The configured production-pack role worker is unavailable. "
-                    "AgentLab refused to switch provider surfaces or use a direct-API "
-                    "fallback without a separately planned and approved full_api run.\n"
+                    "AgentLab refused to switch provider surfaces. Use an approved "
+                    "same-role capacity route or restore the configured CLI worker.\n"
                 ),
                 status="blocked_user_decision",
                 error="production_pack_cli_unavailable_no_fallback",
@@ -3488,7 +3466,7 @@ def run_agent_model(
             content=(
                 f"# {agent_name} CLI worker unavailable\n\n"
                 "AgentLab refused to switch from the configured CLI worker to a direct-API provider. "
-                "Select an explicit full_api mode or an approved capacity route.\n"
+                "Use an approved same-role capacity route or restore the configured CLI worker.\n"
             ),
             status="blocked_user_decision",
             error="cli_unavailable_no_fallback",
@@ -3504,19 +3482,21 @@ def run_agent_model(
                 "direct_api_fallback_attempted": False,
             },
         )
-    if cli_role_profile is None and cli_mode != "full_api":
+    if cli_role_profile is None:
         return LLMCallResult(
             provider="agentlab-cli-executor",
             model="unconfigured_cli_worker",
             content=(
                 f"# {agent_name} CLI profile missing\n\n"
-                "AgentLab refused to use a direct-API provider outside explicit full_api mode.\n"
+                f"AgentLab mode {cli_mode!r} has no configured full_cli role profile. "
+                "Retired or unknown modes cannot switch to a direct-API provider.\n"
             ),
             status="blocked_user_decision",
             error="cli_profile_required_no_fallback",
             raw_usage={
                 "executor_type": "cli_agent",
                 "configured_cli_agent": None,
+                "resolved_mode": cli_mode,
                 "provider_surface_changed": False,
                 "direct_api_fallback_attempted": False,
             },
@@ -3547,7 +3527,7 @@ def run_agent_model(
             return _blocked_artifact_capability_result(blocked_profile)
 
     # ── Budget enforcement: block before model call if agent exceeds stop threshold ──
-    from brain_governor import evaluate_token_status
+    from agent_runtime.brain_governor import evaluate_token_status
     token_statuses = evaluate_token_status(plan, agentlab_root)
     agent_tokens = token_statuses.get(agent_name, {})
     if agent_tokens.get("state") == "ask_user":
@@ -3579,12 +3559,14 @@ def run_agent_model(
         except ModuleNotFoundError:  # pragma: no cover - direct script path
             from outbound_context import write_outbound_context_manifest
 
+        execution_policy = dict(
+            getattr(plan, "execution_policy", {}) or {}
+        )
+        external_context_approval = (
+            execution_policy.get("external_context_approval_required") is True
+        )
         approval_required = (
-            bool(
-                (getattr(plan, "execution_policy", {}) or {}).get(
-                    "external_context_approval_required"
-                )
-            )
+            external_context_approval
             or
             str(plan.task_id).startswith("task_narrative_eval_")
             or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
@@ -3592,6 +3574,72 @@ def run_agent_model(
         narrative_context_manifest_path = (
             Path(plan.run_dir) / "outbound_context_manifest_writer.yml"
         )
+        payload_text = json.dumps(
+            messages,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        explicit_approval_granted: bool | None = None
+        explicit_payload_sha256: str | None = None
+        explicit_scope_sha256: str | None = None
+        if external_context_approval:
+            from agent_runtime.approval_signature import (
+                narrative_outbound_approval_payload,
+                pinned_approval_public_key,
+                verify_detached_approval,
+            )
+
+            transfer = execution_policy.get("external_context_transfer")
+            transfer = transfer if isinstance(transfer, dict) else {}
+            expected_recipient = f"direct_api:{settings.provider}"
+            scope_sha256 = str(
+                execution_policy.get("external_context_scope_sha256") or ""
+            )
+            packet_sha256 = hashlib.sha256(
+                payload_text.encode("utf-8")
+            ).hexdigest()
+            signed_payload = narrative_outbound_approval_payload(
+                project=str(plan.project),
+                task_id=str(plan.task_id),
+                recipient=expected_recipient,
+                purpose=str(transfer.get("purpose") or ""),
+                packet_payload_sha256=packet_sha256,
+                scope_sha256=scope_sha256,
+                expires_at=str(transfer.get("expires_at") or ""),
+            )
+            try:
+                expiry = datetime.fromisoformat(
+                    signed_payload["expires_at"].replace("Z", "+00:00")
+                )
+                if (
+                    transfer.get("recipient") != expected_recipient
+                    or expiry.tzinfo is None
+                    or expiry <= datetime.now(timezone.utc)
+                ):
+                    raise ValueError("direct API approval route mismatch")
+                verify_detached_approval(
+                    signed_payload,
+                    signature_path=Path(
+                        str(
+                            execution_policy.get(
+                                "external_context_approval_signature_path"
+                            )
+                            or ""
+                        )
+                    ),
+                    public_key_path=pinned_approval_public_key(
+                        agentlab_root,
+                        section="external_context_approval_authority",
+                    ),
+                    forbidden_root=agentlab_root,
+                )
+            except (OSError, RuntimeError, ValueError):
+                explicit_approval_granted = False
+            else:
+                explicit_approval_granted = True
+                explicit_payload_sha256 = packet_sha256
+                explicit_scope_sha256 = scope_sha256
         manifest = write_outbound_context_manifest(
             agentlab_root,
             narrative_context_manifest_path,
@@ -3599,7 +3647,7 @@ def run_agent_model(
             role="Writer",
             provider_surface=f"direct_api:{settings.provider}",
             payload_kind="writer_direct_api_messages",
-            payload_text=json.dumps(messages, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            payload_text=payload_text,
             source_paths=(
                 live_writer_session.source_paths
                 if live_writer_session is not None
@@ -3610,6 +3658,17 @@ def run_agent_model(
             sealed_context=True,
             execution_workspace_isolated=True,
             approval_required=approval_required,
+            approval_granted=explicit_approval_granted,
+            approval_payload_sha256_required=external_context_approval,
+            approved_payload_sha256=explicit_payload_sha256,
+            approval_scope_sha256_required=external_context_approval,
+            approval_scope_contract_valid=bool(scope_sha256)
+            if external_context_approval
+            else True,
+            expected_scope_sha256=scope_sha256
+            if external_context_approval
+            else None,
+            approved_scope_sha256=explicit_scope_sha256,
         )
         if not manifest.get("execution_allowed"):
             return LLMCallResult(
@@ -3669,6 +3728,7 @@ def run_agent_model(
             sealed_context=True,
             execution_workspace_isolated=True,
             approval_required=True,
+            approval_granted=False,
             approval_env_name=PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME,
             provider_shell_or_browser_requested=agent_name == "Researcher",
             source_inventory_required=True,
@@ -3745,8 +3805,11 @@ def run_agent_model(
     )
 
     if agent_name == "Archivist" and result.status == "completed" and result.content:
-        from memory_writer import apply_archivist_memory_edits, format_memory_write_section
-        from patch_applicator import strip_edit_blocks_from_report
+        from agent_runtime.memory_writer import (
+            apply_archivist_memory_edits,
+            format_memory_write_section,
+        )
+        from agent_runtime.patch_applicator import strip_edit_blocks_from_report
 
         memory_summary = apply_archivist_memory_edits(
             agentlab_root=agentlab_root,
@@ -3806,8 +3869,11 @@ def _apply_agent_result_patches(
     ):
         return result
 
-    from patch_applicator import apply_all_patches, strip_edit_blocks_from_report
-    from artifact_contract import has_unclosed_structured_edit_block
+    from agent_runtime.patch_applicator import (
+        apply_all_patches,
+        strip_edit_blocks_from_report,
+    )
+    from agent_runtime.artifact_contract import has_unclosed_structured_edit_block
 
     if has_unclosed_structured_edit_block(result.content):
         result.raw_usage = {

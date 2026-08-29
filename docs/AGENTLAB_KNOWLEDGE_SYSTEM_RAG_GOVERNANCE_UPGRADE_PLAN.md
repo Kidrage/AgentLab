@@ -38,6 +38,22 @@ tombstoned, and a stale shard is skipped until a successful refresh; index failu
 never rolls back authoritative files. AgentLab repository changes are folded back into the global scaffold with
 `knowledge build --project AgentLab` at handoff.
 
+Current ingestion boundaries are deliberate:
+
+- Repository upgrades are indexed as the current governed source tree after a
+  rebuild. Git owns immutable patch history; superseded source hashes are
+  tombstoned instead of remaining parallel active truths.
+- Project changes enter retrieval only after an accepted promotion updates the
+  current artifact index or Project Truth. Drafts, attempts, archives, and
+  unaccepted Agent outputs do not become memory merely because a file exists.
+- Source collection is rooted inside AgentLab and `projects/`; arbitrary
+  external directories and escaping symlinks are rejected. Supporting an
+  external workspace requires a future explicit read-only root registry,
+  namespace, content-hash manifest, and refresh receipt.
+- The URL reader can extract a caller-supplied public HTTP(S) page under network
+  policy. It does not perform Web search or recursive crawling, and fetched
+  evidence requires citation review and governed promotion before RAG sync.
+
 Operational commands:
 
 - `./agentlab.sh knowledge build --all-projects`

@@ -48,16 +48,19 @@ def test_agent_role_chain_audit_covers_roles_workers_and_chains(tmp_path: Path) 
     ]
     artifact_profile = profile_contracts[("full_cli", "performance", "artifact_producer")]
     assert artifact_profile["status"] == "pass"
-    assert artifact_profile["cli_agent"] == "grok"
-    assert artifact_profile["default_model"] == "grok_4_3_hermes_oauth"
+    assert artifact_profile["cli_agent"] == "codex"
+    assert artifact_profile["default_model"] == "codex_gpt_5_6_sol_medium_cli_oauth"
     assert artifact_profile["default_model_catalog_status"] == "pass"
-    assert artifact_profile["invocation_contract"] == "grok_media"
-    assert artifact_profile["contract_worker"] == "grok"
+    assert artifact_profile["invocation_contract"] == "codex"
+    assert artifact_profile["contract_worker"] == "codex"
     assert artifact_profile["role_binding_status"] == "pass"
     assert "role_binding_issue" not in artifact_profile
     low_artifact_profile = profile_contracts[("full_cli", "low", "artifact_producer")]
-    assert low_artifact_profile["cli_agent"] == "grok"
-    assert low_artifact_profile["default_model"] == "grok_4_3_hermes_oauth"
+    assert low_artifact_profile["cli_agent"] == "codex"
+    assert (
+        low_artifact_profile["default_model"]
+        == "codex_gpt_5_6_sol_medium_cli_oauth"
+    )
     assert "fallback_model" not in low_artifact_profile
     assert all(
         item.get("role_binding_status") != "pass" or "role_binding_issue" not in item

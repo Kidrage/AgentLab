@@ -1,6 +1,14 @@
-enabled: false
+enabled: true
 
 mode: local
+
+frontdesk:
+  agent_id: openclaw
+  provider: deepseek
+  model_key: deepseek_v4_flash
+  model_id: deepseek-v4-flash
+  session_command: ./agentlab.sh frontdesk-session --agent openclaw
+  route_command: ./agentlab.sh frontdesk route --adapter openclaw --request "<verbatim-user-request>" --explain
 
 agentlab_invocation:
   preferred: cli

@@ -1,0 +1,70 @@
+schema_version: narrative-acceptance-ladder/v1
+ladder_id: longform-author-system
+stages:
+  P0:
+    description: Blueprint authority and rolling-window migration.
+    required_checks:
+      - authoritative_chapter_range_valid
+      - planning_window_single_current
+      - legacy_seal_superseded
+  P1:
+    description: Isolated professional Agent registration and governance.
+    required_checks:
+      - author_team_proposed
+      - author_team_atomically_registered
+      - private_knowledge_spaces_created
+      - role_dag_audited
+      - project_truth_audited
+  P2:
+    description: Three-chapter causality and knowledge-boundary trial.
+    required_checks:
+      - three_chapters_completed
+      - guesses_not_committed_as_facts
+      - abilities_have_sources
+      - knowledge_has_sources
+  P3:
+    description: Ten-chapter complete production loop.
+    required_checks:
+      - ten_chapters_completed
+      - context_planning_drafting_auditing_completed
+      - revision_and_blind_review_completed
+      - promotion_and_state_projection_completed
+  P4:
+    description: Thirty-chapter drift and overfitting review.
+    required_checks:
+      - thirty_chapters_completed
+      - character_convergence_checked
+      - template_repetition_checked
+      - relationship_progression_checked
+      - promise_resolution_checked
+      - summary_loss_checked
+      - preference_overfitting_checked
+  P5:
+    description: Long-horizon stress, recovery, rollback, and real-model arc.
+    required_checks:
+      - pseudoprose_100_to_600_chapter_stress_completed
+      - recovery_completed
+      - rollback_completed
+      - real_model_complete_arc_completed
+release_metrics:
+  hard_continuity_errors:
+    operator: eq
+    threshold: 0
+  planted_fact_and_promise_recall:
+    operator: gte
+    threshold: 0.95
+  state_and_retrieval_traceability:
+    operator: eq
+    threshold: 1.0
+  cross_project_knowledge_leaks:
+    operator: eq
+    threshold: 0
+  due_promise_resolution_rate:
+    operator: eq
+    threshold: 1.0
+  blind_preference_rate:
+    operator: gte
+    threshold: 0.65
+  consecutive_windows_without_core_regression:
+    operator: gte
+    threshold: 2

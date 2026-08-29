@@ -49,3 +49,4 @@ def test_create_crown_cli_exposes_parent_and_rag_cadence_contract() -> None:
     assert "--parent-task-id" in stdout
     assert "--continuity-checkpoint-cadence" in stdout
     assert "--knowledge-contract-required" in stdout
+    assert "--audit-budget" in stdout

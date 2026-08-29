@@ -74,6 +74,12 @@ def _sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
 
 
+def _canonical_value(value: Any) -> Any:
+    """Round-trip a value through canonical JSON before durable storage."""
+
+    return json.loads(_canonical_json(value))
+
+
 def _logical_change_set_sha256(change_set: ChangeSet) -> str:
     document = change_set.to_dict()
     document.pop("expected_snapshot_id", None)
@@ -234,12 +240,13 @@ class ProjectTruthStore:
             for key in change_set.remove_fact_keys:
                 facts.pop(key, None)
             for change in change_set.resources:
-                content_sha256 = self._write_content_object(change.content)
+                content = _canonical_value(change.content)
+                content_sha256 = self._write_content_object(content)
                 previous = resources.get(change.key)
                 revision_data = {
                     "key": change.key,
                     "content_sha256": content_sha256,
-                    "content": change.content,
+                    "content": content,
                     "media_type": change.media_type,
                     "previous_revision_id": (
                         previous.revision_id if previous is not None else None
@@ -251,12 +258,13 @@ class ProjectTruthStore:
                 resources[change.key] = ResourceRevision.from_dict(revision_data)
 
             for change in change_set.facts:
-                value_sha256 = self._write_content_object(change.value)
+                value = _canonical_value(change.value)
+                value_sha256 = self._write_content_object(value)
                 previous = facts.get(change.key)
                 revision_data = {
                     "key": change.key,
                     "value_sha256": value_sha256,
-                    "value": change.value,
+                    "value": value,
                     "owner": change.owner,
                     "previous_revision_id": (
                         previous.revision_id if previous is not None else None

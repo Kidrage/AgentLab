@@ -386,9 +386,12 @@ class ModelCapacity:
         if not isinstance(raw_command, list) or not all(isinstance(part, str) for part in raw_command):
             raise UnsafeCapacityProbeError(f"capacity pool {pool_id!r} has no safe probe")
         command = tuple(raw_command)
-        if command == ("agy", "models"):
+        if command in {("agy", "models"), ("grok", "models")}:
             return command
-        if command == ("codex", "--version"):
+        if command in {
+            ("codex", "--version"),
+            ("codex", "login", "status"),
+        }:
             return command
         if (
             len(command) == 4
@@ -397,7 +400,8 @@ class ModelCapacity:
         ):
             return command
         raise UnsafeCapacityProbeError(
-            "forbidden capacity probe; only 'agy models', 'codex --version', and "
+            "forbidden capacity probe; only 'agy models', 'grok models', 'codex login status', "
+            "'codex --version', and "
             "'hermes auth status <provider>' are allowed (never 'hermes status --all')"
         )
 
@@ -611,6 +615,21 @@ class ModelCapacity:
 
         def evaluate_candidate(candidate_id: str, path: list[str]) -> dict[str, Any]:
             candidate = routes[candidate_id]
+            if (
+                candidate.get("selectable") is False
+                or str(candidate.get("availability") or "").strip()
+                == "historical_only"
+            ):
+                return {
+                    "status": "blocked",
+                    "route_id": None,
+                    "route_chain": list(path),
+                    "pool_id": candidate.get("pool"),
+                    "capacity_status": "blocked",
+                    "failure_class": "route_not_selectable",
+                    "reset_at": None,
+                    "attempt_id": attempt_id,
+                }
             if candidate_id in failed_this_attempt:
                 return {
                     "status": "blocked",

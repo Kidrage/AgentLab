@@ -28,6 +28,34 @@ workers:
       - handoff_interpretation
       - diff_conflict_risk
     confidence: medium
+  hermes:
+    fixed_startup_cost: {raw_prompt_tokens: 7000, cacheable_prompt_tokens: 5000, expected_cache_hit_rate: 0.75, effective_prompt_tokens: 2000, estimated_cached_input_discount: medium, estimated_latency_s: 4.0, operator_friction: low}
+    cache_profile: {stable_prefix_hash: null, skill_context_hash: null, mcp_manifest_hash: null, last_cache_hit_observed: unknown, cache_confidence: medium}
+    variable_cost: {task_specific_context_tokens: 2500, context_tokens_per_kb: 180, output_tokens_expected: 1800, dollars_per_call: unknown}
+    non_token_costs: {coordination_cost: medium, permission_risk: medium, state_mutation_risk: medium}
+    hidden_costs: [context_duplication, handoff_interpretation]
+    confidence: medium
+  codex:
+    fixed_startup_cost: {raw_prompt_tokens: 9000, cacheable_prompt_tokens: 7000, expected_cache_hit_rate: 0.75, effective_prompt_tokens: 2200, estimated_cached_input_discount: medium, estimated_latency_s: 6.0, operator_friction: low}
+    cache_profile: {stable_prefix_hash: null, skill_context_hash: null, mcp_manifest_hash: null, last_cache_hit_observed: unknown, cache_confidence: medium}
+    variable_cost: {task_specific_context_tokens: 2500, context_tokens_per_kb: 180, output_tokens_expected: 1800, dollars_per_call: unknown}
+    non_token_costs: {coordination_cost: medium, permission_risk: high, state_mutation_risk: high}
+    hidden_costs: [context_duplication, handoff_interpretation]
+    confidence: medium
+  agy:
+    fixed_startup_cost: {raw_prompt_tokens: 6000, cacheable_prompt_tokens: 4000, expected_cache_hit_rate: 0.75, effective_prompt_tokens: 1800, estimated_cached_input_discount: medium, estimated_latency_s: 4.0, operator_friction: low}
+    cache_profile: {stable_prefix_hash: null, skill_context_hash: null, mcp_manifest_hash: null, last_cache_hit_observed: unknown, cache_confidence: medium}
+    variable_cost: {task_specific_context_tokens: 2500, context_tokens_per_kb: 180, output_tokens_expected: 1800, dollars_per_call: unknown}
+    non_token_costs: {coordination_cost: medium, permission_risk: medium, state_mutation_risk: low}
+    hidden_costs: [context_duplication, handoff_interpretation]
+    confidence: medium
+  qwen:
+    fixed_startup_cost: {raw_prompt_tokens: 6000, cacheable_prompt_tokens: 4000, expected_cache_hit_rate: 0.75, effective_prompt_tokens: 1800, estimated_cached_input_discount: medium, estimated_latency_s: 4.0, operator_friction: low}
+    cache_profile: {stable_prefix_hash: null, skill_context_hash: null, mcp_manifest_hash: null, last_cache_hit_observed: unknown, cache_confidence: medium}
+    variable_cost: {task_specific_context_tokens: 2500, context_tokens_per_kb: 180, output_tokens_expected: 1800, dollars_per_call: unknown}
+    non_token_costs: {coordination_cost: medium, permission_risk: medium, state_mutation_risk: medium}
+    hidden_costs: [context_duplication, handoff_interpretation]
+    confidence: medium
   rg:
     fixed_startup_cost:
       raw_prompt_tokens: 0

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from atomic_io import atomic_write_yaml, safe_read_yaml
+from agent_runtime.atomic_io import atomic_write_yaml, safe_read_yaml
 
 
 def utc_now() -> str:

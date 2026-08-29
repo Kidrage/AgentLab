@@ -10,8 +10,8 @@ keys:
     required: true
     ui_group: routing
     ui_label: Default Budget Mode
-    description: Default budget mode for task-to-agent routing (frugal, balanced, max_quality)
-    allowed_values: [frugal, balanced, max_quality]
+    description: Default budget mode for task-to-agent routing (alter, frugal, balanced, max_quality)
+    allowed_values: [alter, frugal, balanced, max_quality]
 
   routing_policy.allow_automatic_fallback:
     type: bool
@@ -27,8 +27,8 @@ keys:
     required: true
     ui_group: execution
     ui_label: Default Budget Mode
-    description: Default budget mode for execution policy (frugal, balanced, max_quality)
-    allowed_values: [frugal, balanced, max_quality]
+    description: Default budget mode for execution policy (alter, frugal, balanced, max_quality)
+    allowed_values: [alter, frugal, balanced, max_quality]
 
   execution_policy.execution_policy.execution_tier:
     type: str
@@ -67,11 +67,11 @@ keys:
   agent_model_profiles.default_budget_mode:
     type: str
     required: false
-    default: balanced
+    default: alter
     ui_group: model
     ui_label: Default Budget Mode
-    description: Budget mode that selects model tier (frugal, balanced, max_quality)
-    allowed_values: [frugal, balanced, max_quality]
+    description: Budget mode that selects model tier (alter, frugal, balanced, max_quality)
+    allowed_values: [alter, frugal, balanced, max_quality]
 
   # ── API Keys (secret) ──
   model_providers.deepseek_api_key:

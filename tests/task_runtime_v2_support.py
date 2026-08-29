@@ -25,6 +25,22 @@ _ROLES = {
         "provider": "deepseek",
         "model_id": "deepseek-test-writer",
     },
+    "Reviewer": {
+        "profile_key": "reviewer",
+        "worker": "codex",
+        "invocation_contract": "codex_reviewer",
+        "model_key": "reviewer-model",
+        "provider": "codex-cli",
+        "model_id": "gpt-test-reviewer",
+    },
+    "Verifier": {
+        "profile_key": "verifier",
+        "worker": "codex",
+        "invocation_contract": "codex_verifier",
+        "model_key": "verifier-model",
+        "provider": "codex-cli",
+        "model_id": "gpt-test-verifier",
+    },
 }
 
 
@@ -37,6 +53,7 @@ def execute_role_with_output(
     attempt_id: str,
     role: str,
     output: dict,
+    project: str = "Demo",
 ) -> dict:
     role_config = _ROLES[role]
     _write_role_config(tmp_path)
@@ -91,13 +108,18 @@ def execute_role_with_output(
         )
 
     result = RoleAttemptExecutor(
-        tmp_path, project="Demo", cli_runner=fake_cli
+        tmp_path, project=project, cli_runner=fake_cli
     ).execute(
         task_id=task_id,
         work_item_id=work_item_id,
         attempt_id=attempt_id,
         role=role,
         messages=[{"role": "user", "content": "Execute the governed test role."}],
+        external_context_request={
+            "purpose": "Execute one bounded governed test role.",
+            "minimal_fragment": "Execute the governed test role.",
+            "expires_at": "2999-01-01T00:00:00Z",
+        },
         idempotency_key=attempt_id,
     )
     return result["projection"]["attempts"][attempt_id]["outcome"]
@@ -115,11 +137,40 @@ def _write_role_config(tmp_path: Path) -> None:
         }
         for role in _ROLES.values()
     }
+    profiles["canon_timeline_steward"] = dict(profiles["reviewer"])
     (config / "agent_model_profiles.yml").write_text(
         yaml.safe_dump(
             {
+                "professional_role_profiles": {
+                    "canon_timeline_steward": {
+                        "execution_kind": "cli_agent",
+                        "base_role_key": "reviewer",
+                        "execution_tier": "performance",
+                        "capacity_route": "TestReviewerStrict",
+                    }
+                },
                 "modes": {
                     "full_cli": {"tiers": {"performance": profiles}}
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    reviewer = _ROLES["Reviewer"]
+    (config / "model_capacity.yml").write_text(
+        yaml.safe_dump(
+            {
+                "routes": {
+                    "TestReviewerStrict": {
+                        "role": "reviewer",
+                        "worker": reviewer["worker"],
+                        "invocation_contract": reviewer["invocation_contract"],
+                        "model_key": reviewer["model_key"],
+                        "pool": "test",
+                        "approved_fallbacks": [],
+                        "fallback_on": [],
+                    }
                 }
             },
             sort_keys=False,
@@ -136,6 +187,49 @@ def _write_role_config(tmp_path: Path) -> None:
                     }
                     for role in _ROLES.values()
                 }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    role["invocation_contract"]: {
+                        "worker_id": role["worker"],
+                        "availability": "test_fixture_only",
+                        "selectable": True,
+                    }
+                    for role in _ROLES.values()
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    worker_roles: dict[str, list[str]] = {}
+    for role_name, role in _ROLES.items():
+        worker_roles.setdefault(role["worker"], []).append(role_name)
+    (config / "agent_role_bindings.yml").write_text(
+        yaml.safe_dump(
+            {
+                "roles": {
+                    role_name: {"allowed_workers": [role["worker"]]}
+                    for role_name, role in _ROLES.items()
+                },
+                "workers": {
+                    worker: {
+                        "worker_capable": True,
+                        "worker_capabilities": [
+                            "role_worker",
+                            "candidate_artifact_worker",
+                        ],
+                        "allowed_roles": roles,
+                        "forbidden_roles": [],
+                    }
+                    for worker, roles in worker_roles.items()
+                },
             },
             sort_keys=False,
         ),

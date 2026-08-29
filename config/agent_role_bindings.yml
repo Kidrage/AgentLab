@@ -20,49 +20,51 @@ capability_profiles:
   core_config_editor: reserved for confirmed AgentLab config commands; no worker owns it by default
 roles:
   Supervisor:
-    allowed_workers: [codex, hermes, qwen, claude_code]
+    allowed_workers: [grok, codex, hermes, qwen]
     required_session: true
   Observer:
     allowed_workers: [agy]
     required_session: true
   RepoScout:
-    allowed_workers: [rg, claude_code, codex]
+    allowed_workers: [grok, rg, codex, hermes]
     required_session: true
   Researcher:
-    allowed_workers: [grok, bl, claude_code, qwen, hermes]
+    allowed_workers: [agy, bl, qwen, hermes, grok]
     required_session: true
   InterfaceMapper:
-    allowed_workers: [ast_grep, claude_code, codex]
+    allowed_workers: [grok, ast_grep, codex, hermes]
     required_session: true
   PromptEngineer:
-    allowed_workers: [hermes, claude_code, qwen]
+    allowed_workers: [grok, hermes, qwen]
     required_session: true
   Coder:
-    allowed_workers: [claude_code, codex, aider, hermes]
+    allowed_workers: [grok, codex, aider, hermes]
     required_session: true
   ArtifactProducer:
-    allowed_workers: [grok, codex, qwen, hermes_ark, claude_ark]
+    allowed_workers: [grok, codex, qwen, hermes, hermes_ark, claude_ark]
     required_session: true
   NarrativePlanner:
-    allowed_workers: [claude_code, agy]
+    allowed_workers: [agy]
     required_session: true
   Writer:
     allowed_workers: [agy, claude_code]
     required_session: true
   Reviewer:
     allowed_workers: [agy, qwen, claude_code]
+    contract_bound_workers:
+      hermes: [hermes_deepseek_narrative_audit]
     required_session: true
   Scribe:
-    allowed_workers: [qwen, claude_code, codex]
+    allowed_workers: [agy, qwen, codex]
     required_session: true
   TesterAuditor:
-    allowed_workers: [pytest, claude_code, codex, hermes]
+    allowed_workers: [grok, pytest, codex, hermes]
     required_session: true
   Verifier:
-    allowed_workers: [ruff, mypy, eslint, claude_code, codex, hermes]
+    allowed_workers: [grok, ruff, mypy, eslint, codex, hermes]
     required_session: true
   Archivist:
-    allowed_workers: [git, claude_code, hermes]
+    allowed_workers: [grok, git, hermes]
     required_session: true
 workers:
   agy:
@@ -70,21 +72,27 @@ workers:
     worker_capable: true
     worker_capabilities: [frontdesk_gateway, role_worker, workflow_shell]
     frontdesk_profiles: [local_chat_gateway]
-    allowed_roles: [Observer, Reviewer, NarrativePlanner, Writer]
-    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Scribe, TesterAuditor, Verifier, Archivist]
+    allowed_roles: [Observer, Researcher, Reviewer, NarrativePlanner, Writer, Scribe]
+    forbidden_roles: [Supervisor, RepoScout, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, TesterAuditor, Verifier, Archivist]
   grok:
+    availability: historical_only
+    selectable: false
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
-    allowed_roles: [Researcher, ArtifactProducer]
-    forbidden_roles: [Supervisor, Observer, RepoScout, InterfaceMapper, PromptEngineer, Coder, NarrativePlanner, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
+    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: [Observer, NarrativePlanner, Writer, Reviewer, Scribe]
   hermes_ark:
+    availability: unavailable_current_host
+    selectable: false
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
     allowed_roles: [ArtifactProducer]
     forbidden_roles: [Supervisor, Observer, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, NarrativePlanner, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
   claude_ark:
+    availability: unavailable_current_host
+    selectable: false
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
@@ -104,18 +112,22 @@ workers:
     allowed_roles: [Supervisor, RepoScout, InterfaceMapper, Coder, ArtifactProducer, Scribe, TesterAuditor, Verifier]
     forbidden_roles: [Observer, Researcher, PromptEngineer, NarrativePlanner, Writer, Reviewer, Archivist]
   claude_code:
+    availability: verified_current_host
+    selectable: true
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker, workflow_shell]
-    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, NarrativePlanner, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
-    forbidden_roles: [Observer, ArtifactProducer]
+    allowed_roles: [Writer, Reviewer]
+    forbidden_roles: [Supervisor, Observer, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, NarrativePlanner, Scribe, TesterAuditor, Verifier, Archivist]
   hermes:
     frontdesk_capable: true
     worker_capable: true
-    worker_capabilities: [frontdesk_gateway, role_worker, workflow_shell]
+    worker_capabilities: [frontdesk_gateway, candidate_artifact_worker, role_worker, workflow_shell]
     frontdesk_profiles: [internal_cli_gateway]
-    allowed_roles: [Supervisor, Researcher, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
-    forbidden_roles: [Observer, RepoScout, InterfaceMapper, ArtifactProducer, NarrativePlanner, Writer, Reviewer, Scribe]
+    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, TesterAuditor, Verifier, Archivist]
+    contract_bound_roles:
+      Reviewer: [hermes_deepseek_narrative_audit]
+    forbidden_roles: [Observer, NarrativePlanner, Writer, Reviewer, Scribe]
   qwen:
     frontdesk_capable: true
     worker_capable: true

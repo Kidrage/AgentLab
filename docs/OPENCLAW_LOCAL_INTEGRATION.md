@@ -110,3 +110,12 @@ mapping without executing the CLI.
 For Cline local STDIO MCP setup, see `docs/CLINE_MCP_SETUP.md` and the
 copyable examples under `examples/cline/`. This does not add a remote HTTP/SSE
 MCP server or any public AgentLab MCP gateway.
+
+## DeepSeek V4 Flash Attention Contract
+
+OpenClaw is the canonical Frontdesk and DeepSeek V4 Flash is its configured
+backend on 250. The generated `frontdesk-session` prompt is intentionally
+compact and repeats the Frontdesk-only role lock at both ends. Every user turn
+must preserve the original request, select one Frontdesk phase, route with the
+deterministic compiler, and cite search/report evidence. The model must not use
+chat memory as proof of repository contents or task completion.

@@ -1,4 +1,4 @@
-"""Audit Crown of Ash 1500-chapter governance-scale evidence."""
+"""Audit the canonical Crown of Ash governance-scale evidence."""
 
 from __future__ import annotations
 
@@ -17,9 +17,10 @@ DEFAULT_SCALE_DIR = (
     Path("acceptance_runs")
     / "narrative_eval"
     / "Crown_of_Ash"
-    / "crown_scale_probe_20260707"
-    / "crown_scale_1500_20260707"
+    / "crown_unique_blueprint_authority_audit_20260724"
+    / "sealed_v5_user_policy_override_final"
 )
+CANONICAL_TARGET_CHAPTERS = 1980
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -47,7 +48,10 @@ def build_crown_scale_governance_audit(root: Path, scale_dir: Path | None = None
     checks = [
         {
             "id": "target_chapter_count",
-            "status": "pass" if simulation.get("target_total_chapters") == 1500 and simulation.get("chapter_count") == 1500 else "fail",
+            "status": "pass"
+            if simulation.get("target_total_chapters") == CANONICAL_TARGET_CHAPTERS
+            and simulation.get("chapter_count") == CANONICAL_TARGET_CHAPTERS
+            else "fail",
             "summary": f"target={simulation.get('target_total_chapters')}; simulated={simulation.get('chapter_count')}",
         },
         {
@@ -110,7 +114,7 @@ def build_crown_scale_governance_audit(root: Path, scale_dir: Path | None = None
         "evidence": [str(path) for path in required_files],
         "notes": [
             "This audit proves governance-scale capacity, not generated manuscript quality.",
-            "1500-chapter prose acceptance still requires approved live generation and promotion gates.",
+            "1980-chapter prose acceptance still requires approved live generation and promotion gates.",
         ],
     }
 
