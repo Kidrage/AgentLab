@@ -21,6 +21,7 @@ from agent_runtime.narrative.author_team import (
     select_author_team,
 )
 from agent_runtime.narrative.visual_detail_cards import (
+    PACK_SCHEMA,
     compile_visual_detail_card_pack,
     load_visual_detail_spec,
     validate_visual_detail_card_pack,
@@ -444,13 +445,11 @@ class ProductionProtocolRunner:
             raise InvalidTransition(
                 f"compiled WorkItem is not executable: {work_item['status']}"
             )
-        reopen_history = projection["work_items"][work_item_id].get(
-            "reopen_history"
-        ) or []
+        reopen_history = (
+            projection["work_items"][work_item_id].get("reopen_history") or []
+        )
         last_reopened_at = (
-            str(reopen_history[-1].get("recorded_at") or "")
-            if reopen_history
-            else ""
+            str(reopen_history[-1].get("recorded_at") or "") if reopen_history else ""
         )
         successful_attempts = [
             (existing_id, existing)
@@ -557,7 +556,9 @@ class ProductionProtocolRunner:
                     "task_id": task_id,
                     "work_item_id": work_item_id,
                     "attempt_id": resolved_attempt_id,
-                    "output_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
+                    "output_sha256": hashlib.sha256(
+                        output_path.read_bytes()
+                    ).hexdigest(),
                     "issues": validation_issues,
                 },
             )
@@ -611,8 +612,7 @@ class ProductionProtocolRunner:
 
         if (
             compiled.get("protocol_ref") == "narrative.visual.v1"
-            and "visual_detail_cards_hash_verified"
-            not in projection["protocol_gates"]
+            and "visual_detail_cards_hash_verified" not in projection["protocol_gates"]
         ):
             visual_versions = [
                 (version_id, artifact)
@@ -701,11 +701,7 @@ class ProductionProtocolRunner:
                 ]
             )
             source_candidate = next(
-                (
-                    candidate
-                    for candidate in candidates
-                    if candidate.exists()
-                ),
+                (candidate for candidate in candidates if candidate.exists()),
                 None,
             )
             if source_candidate is None:
@@ -733,9 +729,7 @@ class ProductionProtocolRunner:
                     "compiled protocol source fact is outside the AgentLab root: "
                     f"{fact_name}"
                 )
-            expected_source_hash = str(
-                facts.get(f"{fact_name}_sha256") or ""
-            )
+            expected_source_hash = str(facts.get(f"{fact_name}_sha256") or "")
             if expected_source_hash and (
                 not source_root.is_file()
                 or not re.fullmatch(r"[0-9a-f]{64}", expected_source_hash)
@@ -810,9 +804,7 @@ class ProductionProtocolRunner:
             if dependency_artifacts:
                 governed.extend(dependency_artifacts)
             else:
-                governed.append(
-                    task_root / "attempt_logs" / attempt_id / "output.md"
-                )
+                governed.append(task_root / "attempt_logs" / attempt_id / "output.md")
         gate_subject_types = {
             str(artifact_type)
             for gate in compiled.get("promotion_gate_bindings") or []
@@ -853,9 +845,7 @@ class ProductionProtocolRunner:
         except (EntityNotFound, LedgerIntegrityError) as exc:
             raise InvalidTransition("source visual Task is unavailable") from exc
         artifact = visual["artifacts"].get(version_id)
-        gate = visual["protocol_gates"].get(
-            "visual_detail_cards_hash_verified"
-        )
+        gate = visual["protocol_gates"].get("visual_detail_cards_hash_verified")
         if (
             visual["task"].get("protocol_ref") != "narrative.visual.v1"
             or not isinstance(artifact, Mapping)
@@ -873,26 +863,32 @@ class ProductionProtocolRunner:
         artifact_path = task_root / str(artifact.get("path") or "")
         declared = Path(str(facts.get("source_visual_detail_pack") or ""))
         declared_path = (
-            declared
-            if declared.is_absolute()
-            else self.agentlab_root / declared
+            declared if declared.is_absolute() else self.agentlab_root / declared
         )
         try:
             artifact_bytes = artifact_path.read_bytes()
             declared_resolved = declared_path.resolve(strict=True)
         except OSError as exc:
-            raise InvalidTransition("source visual ArtifactVersion is unavailable") from exc
-        if (
-            declared_resolved != artifact_path.resolve(strict=True)
-            or hashlib.sha256(artifact_bytes).hexdigest() != artifact.get("sha256")
-        ):
-            raise InvalidTransition("source visual ArtifactVersion hash or path drifted")
+            raise InvalidTransition(
+                "source visual ArtifactVersion is unavailable"
+            ) from exc
+        if declared_resolved != artifact_path.resolve(strict=True) or hashlib.sha256(
+            artifact_bytes
+        ).hexdigest() != artifact.get("sha256"):
+            raise InvalidTransition(
+                "source visual ArtifactVersion hash or path drifted"
+            )
         try:
             pack = yaml.safe_load(artifact_bytes.decode("utf-8")) or {}
         except (UnicodeError, yaml.YAMLError) as exc:
-            raise InvalidTransition("source visual ArtifactVersion is unreadable") from exc
+            raise InvalidTransition(
+                "source visual ArtifactVersion is unreadable"
+            ) from exc
         pack_validation = validate_visual_detail_card_pack(pack)
-        if pack_validation["status"] != "pass":
+        if (
+            pack.get("schema_version") != PACK_SCHEMA
+            or pack_validation["status"] != "pass"
+        ):
             raise InvalidTransition("source visual ArtifactVersion is invalid")
 
     def _deterministic_preflight(
@@ -905,10 +901,9 @@ class ProductionProtocolRunner:
     ) -> dict[str, Any] | None:
         """Compile deterministic inputs before any Task or Attempt starts."""
 
-        if (
-            projection["task"].get("protocol_ref") != "narrative.visual.v1"
-            or not self._is_deterministic_binding(binding)
-        ):
+        if projection["task"].get(
+            "protocol_ref"
+        ) != "narrative.visual.v1" or not self._is_deterministic_binding(binding):
             return None
         facts = projection["task"].get("input_profile") or {}
         raw_source = Path(str(facts.get("source_visual_detail_spec") or ""))
@@ -942,10 +937,10 @@ class ProductionProtocolRunner:
             output_document = compile_visual_detail_card_pack(spec)
         except (OSError, ValueError) as exc:
             raise InvalidTransition(f"visual detail spec is invalid: {exc}") from exc
-        if sealed_sources[0]["sha256"] != facts.get(
-            "source_visual_detail_spec_sha256"
-        ):
-            raise InvalidTransition("visual detail spec no longer matches its Task fact hash")
+        if sealed_sources[0]["sha256"] != facts.get("source_visual_detail_spec_sha256"):
+            raise InvalidTransition(
+                "visual detail spec no longer matches its Task fact hash"
+            )
         validation = validate_visual_detail_card_pack(output_document)
         if validation["status"] != "pass":
             raise InvalidTransition(
@@ -960,14 +955,10 @@ class ProductionProtocolRunner:
             blueprint_projection = self.runtime.load_task(blueprint_task_id)
         except (EntityNotFound, LedgerIntegrityError) as exc:
             raise InvalidTransition("source blueprint Task is unavailable") from exc
-        blueprint_artifact = blueprint_projection["artifacts"].get(
-            blueprint_version_id
-        )
+        blueprint_artifact = blueprint_projection["artifacts"].get(blueprint_version_id)
         if (
-            blueprint_projection["task"].get("protocol_ref")
-            != "narrative.blueprint.v1"
-            or
-            not isinstance(blueprint_artifact, Mapping)
+            blueprint_projection["task"].get("protocol_ref") != "narrative.blueprint.v1"
+            or not isinstance(blueprint_artifact, Mapping)
             or blueprint_artifact.get("artifact_id") != "story_blueprint"
             or blueprint_artifact.get("disposition", "eligible") != "eligible"
             or blueprint_artifact.get("sha256")
@@ -976,14 +967,15 @@ class ProductionProtocolRunner:
             raise InvalidTransition(
                 "source blueprint ArtifactVersion does not match the Task facts"
             )
-        blueprint_path = (
-            self.runtime._task_dir(blueprint_task_id)
-            / str(blueprint_artifact.get("path") or "")
+        blueprint_path = self.runtime._task_dir(blueprint_task_id) / str(
+            blueprint_artifact.get("path") or ""
         )
         try:
             blueprint_bytes = blueprint_path.read_bytes()
         except OSError as exc:
-            raise InvalidTransition("source blueprint ArtifactVersion is unavailable") from exc
+            raise InvalidTransition(
+                "source blueprint ArtifactVersion is unavailable"
+            ) from exc
         blueprint_sha256 = hashlib.sha256(blueprint_bytes).hexdigest()
         if blueprint_sha256 != blueprint_artifact.get("sha256"):
             raise InvalidTransition("source blueprint ArtifactVersion hash drifted")
@@ -1021,15 +1013,21 @@ class ProductionProtocolRunner:
             != task_root.resolve(strict=True) / "inputs" / "snapshots"
         ):
             raise InvalidTransition("visual preflight snapshot path escapes its Task")
-        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(
-            os,
-            "O_NOFOLLOW",
-            0,
+        directory_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(
+                os,
+                "O_NOFOLLOW",
+                0,
+            )
         )
         try:
             snapshot_dir_fd = os.open(snapshot_root, directory_flags)
         except OSError as exc:
-            raise InvalidTransition("visual preflight snapshot directory is unsafe") from exc
+            raise InvalidTransition(
+                "visual preflight snapshot directory is unsafe"
+            ) from exc
         snapshots: list[dict[str, str]] = []
         unique_sources: list[dict[str, str]] = []
         seen_sources: dict[str, str] = {}
@@ -1038,7 +1036,9 @@ class ProductionProtocolRunner:
             digest = str(source.get("sha256") or "")
             previous = seen_sources.get(path_value)
             if previous is not None and previous != digest:
-                raise InvalidTransition("visual preflight source path has conflicting hashes")
+                raise InvalidTransition(
+                    "visual preflight source path has conflicting hashes"
+                )
             if previous is None:
                 seen_sources[path_value] = digest
                 unique_sources.append(source)
@@ -1106,9 +1106,7 @@ class ProductionProtocolRunner:
                         pass
                 snapshots.append(
                     {
-                        "path": destination.relative_to(
-                            self.agentlab_root
-                        ).as_posix(),
+                        "path": destination.relative_to(self.agentlab_root).as_posix(),
                         "sha256": digest,
                     }
                 )
@@ -1207,9 +1205,9 @@ class ProductionProtocolRunner:
                     "accepted_chapter_count": 0,
                     "next_chapter": 1,
                     "target_total_chapters": int(
-                        (
-                            projection["task"].get("input_profile") or {}
-                        ).get("target_count")
+                        (projection["task"].get("input_profile") or {}).get(
+                            "target_count"
+                        )
                         or 0
                     ),
                 },

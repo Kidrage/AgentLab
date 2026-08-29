@@ -20,6 +20,7 @@ from PIL import Image, UnidentifiedImageError
 import yaml
 
 from agent_runtime.narrative.visual_detail_cards import (
+    require_current_visual_detail_card_pack,
     resolve_visual_stage_contracts,
     validate_managed_imagegen_attestation,
     validate_visual_pack_runtime_provenance,
@@ -93,7 +94,9 @@ def _image_media_type(content: bytes) -> tuple[str, str]:
         or width * height > 100_000_000
         or frames != 1
     ):
-        raise ValueError("managed imagegen result must be one bounded PNG, JPEG, or WebP")
+        raise ValueError(
+            "managed imagegen result must be one bounded PNG, JPEG, or WebP"
+        )
     return formats[image_format]
 
 
@@ -460,9 +463,7 @@ class _AnchoredTaskRuntime(TaskRuntime):
                 "task_id": projection["task"]["task_id"],
                 "user_goal": projection["task"]["user_goal"],
                 "status": projection["task"]["status"],
-                "selected_artifact_version": projection[
-                    "selected_artifact_version"
-                ],
+                "selected_artifact_version": projection["selected_artifact_version"],
                 "input_tier": (
                     projection["task"].get("input_classification") or {}
                 ).get("tier"),
@@ -501,9 +502,7 @@ class _AnchoredTaskRuntime(TaskRuntime):
         try:
             for part in parts[:-1]:
                 if not _SAFE_ID.fullmatch(part) or ".." in part:
-                    raise InvalidTransition(
-                        "managed imagegen evidence path is invalid"
-                    )
+                    raise InvalidTransition("managed imagegen evidence path is invalid")
                 child = os.open(part, flags, dir_fd=descriptor)
                 os.close(descriptor)
                 descriptor = child
@@ -562,19 +561,15 @@ class _AnchoredTaskRuntime(TaskRuntime):
             != hashlib.sha256(receipt_bytes).hexdigest()
             or not isinstance(receipt, dict)
             or any(
-                receipt.get(field) != value
-                for field, value in expected_receipt.items()
+                receipt.get(field) != value for field, value in expected_receipt.items()
             )
             or receipt.get("sealed_sources") != []
         ):
             raise InvalidTransition("managed imagegen Attempt receipt binding drifted")
-        output_bytes = self._read_task_file(
-            ("attempt_logs", attempt_id, "output.md")
-        )
+        output_bytes = self._read_task_file(("attempt_logs", attempt_id, "output.md"))
         output_sha256 = hashlib.sha256(output_bytes).hexdigest()
         if (
-            receipt.get("output_path")
-            != f"attempt_logs/{attempt_id}/output.md"
+            receipt.get("output_path") != f"attempt_logs/{attempt_id}/output.md"
             or receipt.get("output_sha256") != output_sha256
             or outcome.get("output_sha256") != output_sha256
         ):
@@ -599,16 +594,14 @@ class _AnchoredTaskRuntime(TaskRuntime):
         if (
             model_execution.get("path")
             != f"attempt_logs/{attempt_id}/model_execution_receipt.yml"
-            or model_execution.get("sha256")
-            != hashlib.sha256(model_bytes).hexdigest()
+            or model_execution.get("sha256") != hashlib.sha256(model_bytes).hexdigest()
             or any(
                 model_execution.get(field) != value
                 for field, value in expected_model.items()
             )
             or model.get("status") != "pass"
             or model.get("worker") != attempt.get("worker")
-            or model.get("invocation_contract")
-            != contract.get("invocation_contract")
+            or model.get("invocation_contract") != contract.get("invocation_contract")
             or model.get("selected_provider") != contract.get("runtime_provider")
             or model.get("selected_model_id") != contract.get("model_id")
             or model.get("profile_binding_verified") is not True
@@ -669,9 +662,7 @@ class _AnchoredTaskRuntime(TaskRuntime):
         payload = {
             "status": normalized_status,
             "issues": normalized_issues,
-            "receipt_path": (
-                f"attempt_logs/{attempt_id}/artifact_validation.yml"
-            ),
+            "receipt_path": (f"attempt_logs/{attempt_id}/artifact_validation.yml"),
             "receipt_sha256": hashlib.sha256(receipt_bytes).hexdigest(),
             "output_sha256": str(receipt.get("output_sha256") or ""),
         }
@@ -684,16 +675,15 @@ class _AnchoredTaskRuntime(TaskRuntime):
                 )
             if attempt.get("output_validation") is not None:
                 raise InvalidTransition("Attempt output is already validated")
-            if payload["output_sha256"] != (
-                attempt.get("outcome") or {}
-            ).get("output_sha256"):
+            if payload["output_sha256"] != (attempt.get("outcome") or {}).get(
+                "output_sha256"
+            ):
                 raise InvalidTransition(
                     "output validation is not bound to the Attempt output"
                 )
             if any(
                 (
-                    receipt.get("schema_version")
-                    != "protocol-artifact-validation/v1",
+                    receipt.get("schema_version") != "protocol-artifact-validation/v1",
                     receipt.get("status") != normalized_status,
                     receipt.get("task_id") != task_id,
                     receipt.get("attempt_id") != attempt_id,
@@ -829,6 +819,7 @@ def ingest_managed_visual_identity_reference(
     """Import one signed Codex image result through a real Runtime-v2 Attempt."""
 
     root = Path(agentlab_root).resolve(strict=True)
+    require_current_visual_detail_card_pack(pack, operation="managed imagegen ingest")
     provenance = validate_visual_pack_runtime_provenance(root, pack, pack_path)
     card = next(
         (
@@ -854,9 +845,12 @@ def ingest_managed_visual_identity_reference(
     if raw_attestation.is_symlink():
         raise ValueError("managed imagegen attestation may not be a symlink")
     try:
-        attestation = yaml.safe_load(
-            raw_attestation.resolve(strict=True).read_text(encoding="utf-8")
-        ) or {}
+        attestation = (
+            yaml.safe_load(
+                raw_attestation.resolve(strict=True).read_text(encoding="utf-8")
+            )
+            or {}
+        )
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise ValueError("managed imagegen attestation is unreadable") from exc
     signed_payload = (
@@ -1036,26 +1030,26 @@ def ingest_managed_visual_identity_reference(
     )
     model_receipt = attempt_root / "model_execution_receipt.yml"
     model_document = {
-            "status": "pass",
-            "role": "ArtifactProducer",
-            "worker": generation_profile["worker"],
-            "invocation_contract": generation_profile["invocation_contract"],
-            "selected_provider": expected_payload["selected_provider"],
-            "selected_model_key": generation_profile["model_key"],
-            "selected_model_id": expected_payload["selected_model_id"],
-            "session_id": expected_payload["session_id"],
-            "profile_binding_verified": True,
-            "command_binding_verified": True,
-            "provider_model_binding_verified": True,
-            "provider_process_started": True,
-            "fallback_detected": False,
-            "exit_code": 0,
-            "issues": [],
-            "execution_surface": "codex_managed_imagegen",
-            "managed_tool": "image_gen.imagegen",
-            "generated_asset_sha256": image_sha256,
-            "managed_tool_attestation": dict(attestation),
-        }
+        "status": "pass",
+        "role": "ArtifactProducer",
+        "worker": generation_profile["worker"],
+        "invocation_contract": generation_profile["invocation_contract"],
+        "selected_provider": expected_payload["selected_provider"],
+        "selected_model_key": generation_profile["model_key"],
+        "selected_model_id": expected_payload["selected_model_id"],
+        "session_id": expected_payload["session_id"],
+        "profile_binding_verified": True,
+        "command_binding_verified": True,
+        "provider_model_binding_verified": True,
+        "provider_process_started": True,
+        "fallback_detected": False,
+        "exit_code": 0,
+        "issues": [],
+        "execution_surface": "codex_managed_imagegen",
+        "managed_tool": "image_gen.imagegen",
+        "generated_asset_sha256": image_sha256,
+        "managed_tool_attestation": dict(attestation),
+    }
     _write_task_file(
         task_descriptor,
         ("attempt_logs", attempt_id),
@@ -1069,30 +1063,30 @@ def ingest_managed_visual_identity_reference(
     ).hexdigest()
     attempt_receipt = attempt_root / "attempt_receipt.yml"
     attempt_document = {
-            "schema_version": "task-runtime-role-attempt-receipt/v1",
-            "project": project,
-            "task_id": reference_task_id,
-            "work_item_id": "generation",
-            "attempt_id": attempt_id,
-            "role": "ArtifactProducer",
-            "worker": generation_profile["worker"],
-            "provider": expected_payload["selected_provider"],
-            "status": "pass",
-            "output_path": output.relative_to(task_root).as_posix(),
-            "output_sha256": hashlib.sha256(
-                runtime._read_task_file(("attempt_logs", attempt_id, "output.md"))
-            ).hexdigest(),
-            "sealed_sources": [],
-            "model_execution": {
-                "path": model_receipt.relative_to(task_root).as_posix(),
-                "sha256": model_sha256,
-                "cli_agent": generation_profile["worker"],
-                "model_key": generation_profile["model_key"],
-                "model_id": expected_payload["selected_model_id"],
-                "runtime_provider": expected_payload["selected_provider"],
-                "executor_provider": "agentlab-cli-executor",
-            },
-        }
+        "schema_version": "task-runtime-role-attempt-receipt/v1",
+        "project": project,
+        "task_id": reference_task_id,
+        "work_item_id": "generation",
+        "attempt_id": attempt_id,
+        "role": "ArtifactProducer",
+        "worker": generation_profile["worker"],
+        "provider": expected_payload["selected_provider"],
+        "status": "pass",
+        "output_path": output.relative_to(task_root).as_posix(),
+        "output_sha256": hashlib.sha256(
+            runtime._read_task_file(("attempt_logs", attempt_id, "output.md"))
+        ).hexdigest(),
+        "sealed_sources": [],
+        "model_execution": {
+            "path": model_receipt.relative_to(task_root).as_posix(),
+            "sha256": model_sha256,
+            "cli_agent": generation_profile["worker"],
+            "model_key": generation_profile["model_key"],
+            "model_id": expected_payload["selected_model_id"],
+            "runtime_provider": expected_payload["selected_provider"],
+            "executor_provider": "agentlab-cli-executor",
+        },
+    }
     _write_task_file(
         task_descriptor,
         ("attempt_logs", attempt_id),
@@ -1100,9 +1094,7 @@ def ingest_managed_visual_identity_reference(
         _yaml_bytes(attempt_document),
     )
     attempt_receipt_sha256 = hashlib.sha256(
-        runtime._read_task_file(
-            ("attempt_logs", attempt_id, "attempt_receipt.yml")
-        )
+        runtime._read_task_file(("attempt_logs", attempt_id, "attempt_receipt.yml"))
     ).hexdigest()
     if attempt["status"] == "running":
         projection = runtime._transition_executed_attempt(
@@ -1114,9 +1106,7 @@ def ingest_managed_visual_identity_reference(
                 "receipt_path": attempt_receipt.relative_to(task_root).as_posix(),
                 "receipt_sha256": attempt_receipt_sha256,
                 "output_sha256": hashlib.sha256(
-                    runtime._read_task_file(
-                        ("attempt_logs", attempt_id, "output.md")
-                    )
+                    runtime._read_task_file(("attempt_logs", attempt_id, "output.md"))
                 ).hexdigest(),
             },
             idempotency_key="complete-managed-visual-generation",
@@ -1126,15 +1116,15 @@ def ingest_managed_visual_identity_reference(
         projection = runtime.load_task(reference_task_id)
     validation_receipt = attempt_root / "artifact_validation.yml"
     validation_document = {
-            "schema_version": "protocol-artifact-validation/v1",
-            "status": "pass",
-            "task_id": reference_task_id,
-            "attempt_id": attempt_id,
-            "output_sha256": hashlib.sha256(
-                runtime._read_task_file(("attempt_logs", attempt_id, "output.md"))
-            ).hexdigest(),
-            "issues": [],
-        }
+        "schema_version": "protocol-artifact-validation/v1",
+        "status": "pass",
+        "task_id": reference_task_id,
+        "attempt_id": attempt_id,
+        "output_sha256": hashlib.sha256(
+            runtime._read_task_file(("attempt_logs", attempt_id, "output.md"))
+        ).hexdigest(),
+        "issues": [],
+    }
     _write_task_file(
         task_descriptor,
         ("attempt_logs", attempt_id),
@@ -1150,7 +1140,9 @@ def ingest_managed_visual_identity_reference(
             issues=[],
             idempotency_key="validate-managed-visual-generation",
         )
-    elif projection["attempts"][attempt_id]["output_validation"].get("status") != "pass":
+    elif (
+        projection["attempts"][attempt_id]["output_validation"].get("status") != "pass"
+    ):
         raise InvalidTransition("managed imagegen output validation did not pass")
     staging = task_root / "artifacts" / "staging" / f"{version_id}{suffix}"
     existing = projection["artifacts"].get(version_id)

@@ -1612,7 +1612,7 @@ def test_rejects_all_male_nail_detail_fields_and_text() -> None:
 
 def test_rejects_male_uncontracted_fields_that_can_smuggle_nail_detail() -> None:
     card = _character_card()
-    card["variants"][0]["digit_grooming"] = "十枚指端角质硬片均修短磨平，边缘洁净"
+    card["variants"][0]["digit_grooming"] = "uncontracted detail"
 
     with pytest.raises(ValueError, match="unsupported fields"):
         compile_visual_detail_card_pack(_spec(card))
@@ -1626,6 +1626,37 @@ def test_rejects_singular_english_nail_detail_in_allowed_male_field() -> None:
         ValueError, match="male character must not contain nail details"
     ):
         compile_visual_detail_card_pack(_spec(card))
+
+
+@pytest.mark.parametrize(
+    ("field", "detail"),
+    [
+        ("hands", "十枚指端角质硬片均修短磨平，边缘洁净；掌心有茧"),
+        ("hands", "手指修长，甲床宽阔且修剪整齐"),
+        ("signature_details", "left brow scar and broken_nail"),
+    ],
+)
+def test_rejects_male_nail_detail_circumlocutions_in_allowed_fields(
+    field: str,
+    detail: str,
+) -> None:
+    card = _character_card()
+    card["invariant"][field] = detail
+
+    with pytest.raises(
+        ValueError, match="male character must not contain nail details"
+    ):
+        compile_visual_detail_card_pack(_spec(card))
+
+
+def test_male_armor_terms_remain_allowed() -> None:
+    card = _character_card()
+    card["invariant"]["signature_details"] = "左眉断疤，肩后旧铁甲片磨痕"
+    card["variants"][0]["wardrobe"]["layers"] += "、旧皮甲"
+
+    pack = compile_visual_detail_card_pack(_spec(card))
+
+    assert validate_visual_detail_card_pack(pack)["status"] == "pass"
 
 
 def test_rejects_novel_visual_pack_without_exact_character_roster() -> None:
@@ -1654,6 +1685,33 @@ def test_v2_pack_validation_rejects_missing_creative_policy_after_rehash() -> No
     assert any("creative_policy" in issue for issue in result["issues"])
 
 
+@pytest.mark.parametrize("missing_field", ["source_spec_sha256", "source_refs"])
+def test_v2_pack_validation_rejects_missing_source_evidence_after_rehash(
+    missing_field: str,
+) -> None:
+    pack = compile_visual_detail_card_pack(_spec())
+    del pack[missing_field]
+    pack["pack_sha256"] = visual_detail_cards._pack_sha256(pack)
+
+    result = validate_visual_detail_card_pack(pack)
+
+    assert result["status"] == "blocked"
+    assert any(missing_field in issue for issue in result["issues"])
+
+
+def test_v2_pack_validation_rejects_rewritten_source_evidence() -> None:
+    pack = compile_visual_detail_card_pack(_spec())
+    pack["source_refs"] = [
+        {"path": "projects/ShanHeYouJia/fabricated.yml", "sha256": "0" * 64}
+    ]
+    pack["pack_sha256"] = visual_detail_cards._pack_sha256(pack)
+
+    result = validate_visual_detail_card_pack(pack)
+
+    assert result["status"] == "blocked"
+    assert "source_spec_sha256 does not match the compiled source" in result["issues"]
+
+
 def test_v1_pack_remains_read_only_validatable_for_task_recovery() -> None:
     current = compile_visual_detail_card_pack(_spec())
     legacy_card = visual_detail_cards._compile_legacy_card(_prop_card())
@@ -1672,6 +1730,19 @@ def test_v1_pack_remains_read_only_validatable_for_task_recovery() -> None:
     pack["pack_sha256"] = visual_detail_cards._pack_sha256(pack)
 
     assert validate_visual_detail_card_pack(pack)["status"] == "pass"
+
+    with pytest.raises(ValueError, match="requires a current"):
+        compile_visual_generation_batch(
+            pack,
+            card_id="prop-qinglong-seal",
+            agentlab_root=Path("/unneeded-for-v1-rejection"),
+            pack_path=Path("historical-pack.yml"),
+            accepted_reference_receipt_paths=[],
+        )
+
+    acceptance = validate_identity_reference_acceptance(Path("."), pack, {})
+    assert acceptance["status"] == "blocked"
+    assert any("current v2 pack" in issue for issue in acceptance["issues"])
 
 
 def test_rejects_female_character_without_leg_and_foot_identity_locks() -> None:

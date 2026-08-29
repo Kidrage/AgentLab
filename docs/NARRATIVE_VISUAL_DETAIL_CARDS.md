@@ -16,8 +16,12 @@ The spec contains a `creative_policy` with the work title and an explicit
 `female_modern_nail_art_allowed` boolean, plus one or more cards with globally
 unique `card_id` values. Version 1 inputs and packs are historical evidence:
 their sealed packs retain a read-only rebuild validator so an already-ledgered
-Task remains auditable and recoverable, but the compiler never creates a new
-version 1 pack. New compilation uses version 2.
+Task remains auditable, but they cannot release image jobs, accept a new
+identity reference, or satisfy the prose prerequisite. The compiler never
+creates a new version 1 pack; production requires version 2. A version 2 pack
+also reconstructs and verifies its canonical source-spec hash and source-ref
+manifest, while the runtime recompiles the Task-declared spec before releasing
+production work.
 Supported kinds are:
 
 - `character`: branches on an explicit `gender` value. Both branches lock

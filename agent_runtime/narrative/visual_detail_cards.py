@@ -342,6 +342,29 @@ _MALE_NAIL_DETAIL_TERMS = (
     "toenail",
     "fingernail",
 )
+_MALE_NAIL_DETAIL_PATTERNS = (
+    re.compile(
+        r"(?:手指|脚趾|指端|趾端).{0,16}(?:角质|硬片|硬质|薄层|覆盖层|边缘|涂层|上色|着色|修剪|修短|磨平|抛光)"
+    ),
+    re.compile(r"(?:十枚|十个).{0,12}(?:指端|趾端|角质硬片)"),
+    re.compile(
+        r"(?:角质硬片|指端硬片|趾端硬片).{0,16}(?:边缘|洁净|整齐|颜色|光泽|形状)"
+    ),
+)
+_MALE_ALLOWED_ARMOR_TERMS = (
+    "甲胄",
+    "铠甲",
+    "甲片",
+    "护甲",
+    "铁甲",
+    "皮甲",
+    "软甲",
+    "鳞甲",
+    "重甲",
+    "轻甲",
+    "甲衣",
+    "甲叶",
+)
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -455,8 +478,15 @@ def _require_fields(value: Mapping[str, Any], fields: list[str], locator: str) -
 def _reject_male_nail_details(card: Mapping[str, Any], card_id: str) -> None:
     serialized = _render(card).lower()
     present = [term for term in _MALE_NAIL_DETAIL_TERMS if term in serialized]
-    if re.search(r"\bnails?\b", serialized):
+    if re.search(r"(?<![a-z])nails?(?![a-z])", serialized):
         present.append("nail")
+    if any(pattern.search(serialized) for pattern in _MALE_NAIL_DETAIL_PATTERNS):
+        present.append("circumlocution")
+    remaining_chinese = serialized
+    for armor_term in _MALE_ALLOWED_ARMOR_TERMS:
+        remaining_chinese = remaining_chinese.replace(armor_term, "")
+    if "甲" in remaining_chinese:
+        present.append("unclassified-甲")
     if present:
         raise ValueError(
             f"cards.{card_id} male character must not contain nail details: "
@@ -856,7 +886,21 @@ def _compile_card(
 def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
     """Compile one structured candidate spec into deterministic prompt cards."""
 
-    document = _require_mapping(spec, "spec")
+    document = deepcopy(dict(_require_mapping(spec, "spec")))
+    document.setdefault("source_refs", [])
+    _reject_unsupported_fields(
+        document,
+        allowed_fields={
+            "schema_version",
+            "project",
+            "task_id",
+            "creative_policy",
+            "character_roster",
+            "cards",
+            "source_refs",
+        },
+        locator="spec",
+    )
     _require_fields(
         document,
         [
@@ -932,6 +976,45 @@ def _pack_sha256(pack: Mapping[str, Any]) -> str:
     return _sha256(_canonical_bytes(payload))
 
 
+def _v2_source_document_from_pack(pack: Mapping[str, Any]) -> dict[str, Any]:
+    cards = pack.get("cards")
+    if not isinstance(cards, list):
+        raise ValueError("pack.cards must be a list")
+    return {
+        "schema_version": SPEC_SCHEMA,
+        "project": pack.get("project"),
+        "task_id": pack.get("task_id"),
+        "creative_policy": deepcopy(pack.get("creative_policy")),
+        "character_roster": deepcopy(pack.get("character_roster")),
+        "cards": [
+            {
+                "card_id": card.get("card_id"),
+                "kind": card.get("kind"),
+                "display_name": card.get("display_name"),
+                "invariant": deepcopy(card.get("invariant")),
+                "variants": deepcopy(card.get("variants")),
+            }
+            for card in cards
+            if isinstance(card, Mapping)
+        ],
+        "source_refs": deepcopy(pack.get("source_refs")),
+    }
+
+
+def require_current_visual_detail_card_pack(
+    pack: Mapping[str, Any],
+    *,
+    operation: str,
+) -> None:
+    """Keep historical v1 validation strictly outside production execution."""
+
+    if pack.get("schema_version") != PACK_SCHEMA:
+        raise ValueError(f"{operation} requires a current {PACK_SCHEMA} pack")
+    validation = validate_visual_detail_card_pack(pack)
+    if validation["status"] != "pass":
+        raise ValueError(f"{operation} requires a valid current visual card pack")
+
+
 def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
     """Validate hashes, ownership, shot coverage, and identity reuse."""
 
@@ -962,6 +1045,46 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
             )
         except (KeyError, TypeError, ValueError) as exc:
             issues.append(f"creative_policy is invalid: {exc}")
+        source_spec_sha256 = pack.get("source_spec_sha256")
+        if not isinstance(source_spec_sha256, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", source_spec_sha256
+        ):
+            issues.append("source_spec_sha256 must be lowercase 64-hex")
+        source_refs = pack.get("source_refs")
+        if not isinstance(source_refs, list):
+            issues.append("source_refs must be a list")
+        else:
+            seen_source_paths: set[str] = set()
+            for ref_index, ref in enumerate(source_refs):
+                if not isinstance(ref, Mapping):
+                    issues.append(f"source_refs[{ref_index}] must be a mapping")
+                    continue
+                path = str(ref.get("path") or "")
+                digest = ref.get("sha256")
+                relative = Path(path)
+                if (
+                    not path
+                    or relative.is_absolute()
+                    or ".." in relative.parts
+                    or path in seen_source_paths
+                ):
+                    issues.append(f"source_refs[{ref_index}].path is invalid")
+                seen_source_paths.add(path)
+                if not isinstance(digest, str) or not re.fullmatch(
+                    r"[0-9a-f]{64}", digest
+                ):
+                    issues.append(
+                        f"source_refs[{ref_index}].sha256 must be lowercase 64-hex"
+                    )
+        try:
+            reconstructed_source_sha256 = _sha256(
+                _canonical_bytes(_v2_source_document_from_pack(pack))
+            )
+        except (TypeError, ValueError) as exc:
+            issues.append(f"source spec reconstruction failed: {exc}")
+        else:
+            if reconstructed_source_sha256 != source_spec_sha256:
+                issues.append("source_spec_sha256 does not match the compiled source")
     cards = pack.get("cards")
     if not isinstance(cards, list) or not cards:
         issues.append("cards must be a non-empty list")
@@ -1239,6 +1362,7 @@ def _validate_pack_runtime_provenance(
 ) -> dict[str, str]:
     """Bind one generation batch to the selected visual Task ArtifactVersion."""
 
+    require_current_visual_detail_card_pack(pack, operation="visual production")
     root = agentlab_root.resolve(strict=True)
     project = _safe_identifier(str(pack.get("project") or ""), label="project")
     task_id = _safe_identifier(str(pack.get("task_id") or ""), label="task_id")
@@ -1293,6 +1417,35 @@ def _validate_pack_runtime_provenance(
     ):
         raise ValueError("visual detail card pack has no exact deterministic hash gate")
     facts = projection["task"].get("input_profile") or {}
+    raw_source = Path(str(facts.get("source_visual_detail_spec") or ""))
+    source_candidates = (
+        [raw_source]
+        if raw_source.is_absolute()
+        else [root / raw_source, project_root / raw_source]
+    )
+    declared_source = next(
+        (candidate for candidate in source_candidates if candidate.exists()),
+        None,
+    )
+    if declared_source is None:
+        raise ValueError("visual detail source spec is unavailable")
+    try:
+        source_spec, sealed_sources = load_visual_detail_spec(
+            root,
+            project=project,
+            task_id=task_id,
+            source_path=declared_source,
+        )
+        expected_pack = compile_visual_detail_card_pack(source_spec)
+    except (OSError, ValueError) as exc:
+        raise ValueError("visual detail source spec is invalid") from exc
+    if (
+        not sealed_sources
+        or sealed_sources[0].get("sha256")
+        != facts.get("source_visual_detail_spec_sha256")
+        or expected_pack != pack
+    ):
+        raise ValueError("visual detail pack does not match its Task source spec")
     blueprint_task_id = str(facts.get("source_blueprint_task_id") or "")
     blueprint_version_id = str(facts.get("source_blueprint_artifact_version_id") or "")
     try:
@@ -1420,6 +1573,8 @@ def validate_identity_reference_acceptance(
     """Verify one accepted identity image before it may condition later shots."""
 
     issues: list[str] = []
+    if pack.get("schema_version") != PACK_SCHEMA:
+        issues.append("identity reference acceptance requires a current v2 pack")
     pack_validation = validate_visual_detail_card_pack(pack)
     if pack_validation["status"] != "pass":
         issues.append("visual detail card pack is invalid")
@@ -1929,9 +2084,7 @@ def compile_visual_generation_batch(
 ) -> dict:
     """Compile reference-first Codex jobs from concrete acceptance receipts."""
 
-    validation = validate_visual_detail_card_pack(pack)
-    if validation["status"] != "pass":
-        raise ValueError("cannot compile generation batch from an invalid pack")
+    require_current_visual_detail_card_pack(pack, operation="visual generation")
     pack_provenance = _validate_pack_runtime_provenance(
         agentlab_root,
         pack,
