@@ -1749,18 +1749,25 @@ def test_male_action_uses_governed_hand_pose_instead_of_free_prose() -> None:
 @pytest.mark.parametrize(
     "state",
     [
-        "双拳紧握，准备迎敌",
-        "右拳抵住心口郑重起誓",
-        "握剑遥望来敌",
+        "双拳攥紧，准备迎敌",
+        "执刀守在门前",
+        "写下账目后封存",
+        "作揖致礼",
+        "勒住缰绳停马",
+        "伸手取酒，神色沉静",
+        "双手捧起透明琉璃酒盏，表面光泽温润，神色沉静",
     ],
 )
-def test_male_free_action_must_match_governed_hand_pose(state: str) -> None:
+def test_male_free_action_prose_is_not_misclassified_as_nail_detail(
+    state: str,
+) -> None:
     card = _character_card()
     card["variants"][0]["state"] = state
     card["variants"][0]["hand_pose"] = "ledger_writing"
 
-    with pytest.raises(ValueError, match="conflicts with governed hand_pose"):
-        compile_visual_detail_card_pack(_spec(card))
+    pack = compile_visual_detail_card_pack(_spec(card))
+
+    assert validate_visual_detail_card_pack(pack)["status"] == "pass"
 
 
 def test_male_martial_merchant_and_political_terms_are_not_nail_details() -> None:

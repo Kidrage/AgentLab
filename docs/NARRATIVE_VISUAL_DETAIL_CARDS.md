@@ -43,15 +43,16 @@ Supported kinds are:
   dominant hand, and optional governed hand armor are selected from versioned
   values and expanded by the compiler. Free-form male hand prose and explicit
   nail/manicure/pedicure language elsewhere in the card are rejected. Hand
-  actions use a separate governed `hand_pose`; a bounded cross-field semantic
-  guard rejects nail-like combinations of digit/quantity, keratinous material,
-  trimming, finish, and colour while allowing ordinary martial, merchant, and
-  political prose such as pointing, `掌门`, `掌柜`, `高手`, and `铁腕`. Pointing,
-  writing, weapon handling, and segmented iron hand armor remain explicitly
-  representable through governed values. If free state prose also names a
-  hand action such as pointing, gripping a weapon, saluting, writing, holding
-  reins, making fists, or swearing an oath, it must resolve to the same
-  `hand_pose`; a contradictory pose is rejected.
+  reference poses use a separate governed `hand_pose`; a bounded cross-field
+  semantic guard rejects nail-like combinations of digit/quantity, keratinous
+  material, trimming, finish, and colour while allowing ordinary martial,
+  merchant, and political prose such as pointing, `掌门`, `掌柜`, `高手`, and
+  `铁腕`. Pointing, writing, weapon handling, and segmented iron hand armor
+  remain explicitly representable through governed values. `hand_pose`
+  controls the visual reference pose; ordinary narrative state/action prose
+  remains descriptive and is not treated as a deterministic action classifier.
+  Downstream shot planning selects the appropriate governed pose instead of
+  inferring one from an open-ended prose vocabulary.
 - `map`: locks orientation, scale, geography, terrain, water, settlements,
   routes/borders, labels, palette, and prohibited topology drift.
 - `location`: locks architecture, terrain/layout, materials, lighting,
