@@ -1653,6 +1653,7 @@ def test_male_armor_terms_remain_allowed() -> None:
     card = _character_card()
     card["invariant"]["signature_details"] = "左眉断疤，肩后旧铁甲片磨痕"
     card["variants"][0]["wardrobe"]["layers"] += "、旧皮甲"
+    card["variants"][0]["state"] = "雨夜站在船首甲板，警觉而疲惫"
 
     pack = compile_visual_detail_card_pack(_spec(card))
 

@@ -341,29 +341,24 @@ _MALE_NAIL_DETAIL_TERMS = (
     "nails",
     "toenail",
     "fingernail",
+    "甲床",
+    "甲缘",
+    "甲面",
+    "甲根",
+    "甲沟",
+    "甲油",
+    "甲色",
+    "甲型",
+    "甲长",
 )
 _MALE_NAIL_DETAIL_PATTERNS = (
     re.compile(
-        r"(?:手指|脚趾|指端|趾端).{0,16}(?:角质|硬片|硬质|薄层|覆盖层|边缘|涂层|上色|着色|修剪|修短|磨平|抛光)"
+        r"(?:手指|脚趾|指端|趾端).{0,16}(?:角质|硬片|硬质|薄层|覆盖层|甲片|边缘|涂层|上色|着色|修剪|修短|磨平|抛光)"
     ),
     re.compile(r"(?:十枚|十个).{0,12}(?:指端|趾端|角质硬片)"),
     re.compile(
         r"(?:角质硬片|指端硬片|趾端硬片).{0,16}(?:边缘|洁净|整齐|颜色|光泽|形状)"
     ),
-)
-_MALE_ALLOWED_ARMOR_TERMS = (
-    "甲胄",
-    "铠甲",
-    "甲片",
-    "护甲",
-    "铁甲",
-    "皮甲",
-    "软甲",
-    "鳞甲",
-    "重甲",
-    "轻甲",
-    "甲衣",
-    "甲叶",
 )
 
 
@@ -482,11 +477,6 @@ def _reject_male_nail_details(card: Mapping[str, Any], card_id: str) -> None:
         present.append("nail")
     if any(pattern.search(serialized) for pattern in _MALE_NAIL_DETAIL_PATTERNS):
         present.append("circumlocution")
-    remaining_chinese = serialized
-    for armor_term in _MALE_ALLOWED_ARMOR_TERMS:
-        remaining_chinese = remaining_chinese.replace(armor_term, "")
-    if "甲" in remaining_chinese:
-        present.append("unclassified-甲")
     if present:
         raise ValueError(
             f"cards.{card_id} male character must not contain nail details: "
