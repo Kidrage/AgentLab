@@ -205,6 +205,12 @@ def register_task_runtime_commands(
         retries_per_volume: int = typer.Option(
             2, "--retries-per-volume", min=1, max=5
         ),
+        chapters_per_generation: int | None = typer.Option(
+            None,
+            "--chapters-per-generation",
+            min=1,
+            help="Bound each Writer call while preserving final volume boundaries.",
+        ),
         revision: int = typer.Option(1, "--revision", min=1),
         revision_guidance_path: Path | None = typer.Option(
             None, "--revision-guidance"
@@ -241,6 +247,7 @@ def register_task_runtime_commands(
                 external_context_request_path=external_context_request_path,
                 timeout=timeout,
                 retries_per_volume=retries_per_volume,
+                chapters_per_generation=chapters_per_generation,
                 revision=revision,
                 revision_guidance_path=revision_guidance_path,
                 volume_ids=volume_ids,

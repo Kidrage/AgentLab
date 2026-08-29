@@ -6,9 +6,11 @@ import yaml
 
 from agent_runtime.narrative.blueprint_shards import (
     assemble_blueprint_shards,
+    assemble_blueprint_volume_segments,
     build_blueprint_shard_plan,
     find_reusable_blueprint_shard_attempt,
     run_blueprint_shard_workflow,
+    split_blueprint_shard,
     validate_blueprint_shard_semantics,
     validate_blueprint_shard,
 )
@@ -182,6 +184,41 @@ def test_blueprint_shard_plan_covers_600_chapters_as_15_volumes_of_40() -> None:
     assert [chapter for item in plan for chapter in item.chapters] == list(
         range(1, 601)
     )
+
+
+def test_volume_shard_can_be_split_for_bounded_generation_without_changing_volume() -> None:
+    shard = build_blueprint_shard_plan(total_chapters=600, volume_count=15)[11]
+
+    segments = split_blueprint_shard(shard, max_chapters=20)
+
+    assert [(item.volume_id, item.start_chapter, item.end_chapter) for item in segments] == [
+        ("V12", 441, 460),
+        ("V12", 461, 480),
+    ]
+    assert [chapter for item in segments for chapter in item.chapters] == list(
+        shard.chapters
+    )
+    assert split_blueprint_shard(shard, max_chapters=40) == (shard,)
+
+
+def test_bounded_generation_segments_reassemble_as_one_valid_volume() -> None:
+    volume = build_blueprint_shard_plan(total_chapters=40, volume_count=1)[0]
+    segments = split_blueprint_shard(volume, max_chapters=20)
+
+    assembled = assemble_blueprint_volume_segments(
+        volume,
+        segments,
+        {
+            (segment.start_chapter, segment.end_chapter): _render_shard(
+                segment.start_chapter, segment.end_chapter
+            )
+            for segment in segments
+        },
+    )
+
+    assert assembled.count("## C") == 40
+    assert assembled.index("## C001") < assembled.index("## C040")
+    assert validate_blueprint_shard(volume, assembled) == ()
 
 
 def _render_shard(start: int, end: int) -> str:
@@ -363,6 +400,37 @@ def test_assembly_strips_real_chevron_agent_edit_delimiters(
 
     assert assembled.count("\n## C") == 1
     assert closer not in assembled
+    assert "provider diagnostic" not in assembled
+
+
+def test_assembly_normalizes_redundant_identity_fields_from_candidate_envelope() -> None:
+    plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
+    wrapped = "\n".join(
+        [
+            "<<<<<<< AGENTLAB_EDIT candidate",
+            "## C001 正名",
+            "- chapter_id: C999",
+            "- title: 人物名",
+            "- volume: 1",
+            "- objective: 目标",
+            ">>>>>>> AGENTLAB_EDIT candidate",
+            "## stderr",
+            "provider diagnostic",
+        ]
+    )
+
+    assembled = assemble_blueprint_shards(
+        plan,
+        {"V01": wrapped},
+        title="山河有约",
+        protocol_ref="narrative.blueprint.v1",
+        required_fields=("chapter_id", "title", "volume", "objective"),
+    )
+
+    assert "- chapter_id: C001" in assembled
+    assert "- title: 正名" in assembled
+    assert "- volume: V01" in assembled
+    assert "AGENTLAB_EDIT" not in assembled
     assert "provider diagnostic" not in assembled
 
 
@@ -693,3 +761,19 @@ def test_shard_semantic_contract_scopes_rules_to_exact_chapters() -> None:
         "C002 missing required phrase: 十六文用于买药与藏身",
         "C002 contains forbidden phrase: 起章已经身无分文",
     )
+
+
+def test_segment_semantics_ignore_chapter_rules_outside_the_segment() -> None:
+    segment = split_blueprint_shard(
+        build_blueprint_shard_plan(total_chapters=40, volume_count=1)[0],
+        max_chapters=20,
+    )[0]
+    text = _render_shard(1, 20).replace("- objective: 目标", "- objective: 近段契约", 1)
+    contract = {
+        "chapter_rules": {
+            "C001": {"required_phrases": ["近段契约"]},
+            "C040": {"required_phrases": ["远段契约"]},
+        }
+    }
+
+    assert validate_blueprint_shard_semantics(segment, text, contract) == ()

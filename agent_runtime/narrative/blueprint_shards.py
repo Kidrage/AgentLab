@@ -23,7 +23,7 @@ _SHARD_CHEVRON_START = re.compile(
     r"(?P<meta>[^<>\r\n]*?)(?P<right>>{3,8})?[ \t]*$"
 )
 _SHARD_CHEVRON_METADATA = re.compile(
-    r"(?:|:[ \t]*[A-Za-z0-9_.-]+|"
+    r"(?:|candidate|:[ \t]*[A-Za-z0-9_.-]+|"
     r"(?:(?:candidate|candidate_id|artifact_id|target_id)(?:=|:[ \t]*)"
     r"[A-Za-z0-9_.-]+)"
     r"(?:[ \t]+(?:candidate|candidate_id|artifact_id|target_id)(?:=|:[ \t]*)"
@@ -73,6 +73,23 @@ def build_blueprint_shard_plan(
             end_chapter=volume * chapters_per_volume,
         )
         for volume in range(1, volume_count + 1)
+    )
+
+
+def split_blueprint_shard(
+    shard: BlueprintShard, *, max_chapters: int
+) -> tuple[BlueprintShard, ...]:
+    """Split one volume into bounded generation segments without changing its identity."""
+
+    if max_chapters <= 0:
+        raise ValueError("max chapters per generation must be positive")
+    return tuple(
+        BlueprintShard(
+            volume_id=shard.volume_id,
+            start_chapter=start,
+            end_chapter=min(start + max_chapters - 1, shard.end_chapter),
+        )
+        for start in range(shard.start_chapter, shard.end_chapter + 1, max_chapters)
     )
 
 
@@ -188,6 +205,7 @@ def extract_blueprint_shard_cards(
         for pattern in (
             rf"(?m)^>{{{left_width}}}[ \t]*$",
             rf"(?m)^>{{{left_width}}}[ \t]*AGENTLAB_EDIT[ \t]*$",
+            rf"(?m)^>{{{left_width}}}[ \t]*AGENTLAB_EDIT[ \t]+candidate[ \t]*$",
             rf"(?m)^<{{{left_width}}}[ \t]*END_AGENTLAB_EDIT[ \t]*>{{{right_width}}}[ \t]*$",
             rf"(?m)^>{{{left_width}}}[ \t]*END_AGENTLAB_EDIT[ \t]*>{{{right_width}}}[ \t]*$",
         ):
@@ -218,7 +236,21 @@ def extract_blueprint_shard_cards(
     end = trailer.start() if trailer is not None else len(text)
     payload = text[start:end].strip()
     normalized_lines: list[str] = []
+    current_chapter_id = ""
+    current_title = ""
     for line in payload.splitlines():
+        heading = _CHAPTER_HEADING.fullmatch(line)
+        if heading is not None:
+            current_chapter_id = f"C{int(heading.group(1)):03d}"
+            current_title = (heading.group(2) or "").strip()
+            normalized_lines.append(line)
+            continue
+        if line.startswith("- chapter_id:") and current_chapter_id:
+            normalized_lines.append(f"- chapter_id: {current_chapter_id}")
+            continue
+        if line.startswith("- title:") and current_chapter_id:
+            normalized_lines.append(f"- title: {current_title}")
+            continue
         if line.startswith("- volume:"):
             normalized_lines.append(f"- volume: {shard.volume_id}")
             continue
@@ -235,6 +267,55 @@ def extract_blueprint_shard_cards(
             f"invalid blueprint shard {shard.volume_id}: {'; '.join(issues)}"
         )
     return normalized
+
+
+def assemble_blueprint_volume_segments(
+    volume: BlueprintShard,
+    segments: Sequence[BlueprintShard],
+    outputs: Mapping[tuple[int, int], str],
+    *,
+    required_fields: Sequence[str] = _REQUIRED_CARD_FIELDS,
+    semantic_contract: Mapping[str, object] | None = None,
+) -> str:
+    """Reassemble bounded generation segments as one validated volume shard."""
+
+    ordered = tuple(segments)
+    observed_chapters = [chapter for segment in ordered for chapter in segment.chapters]
+    if (
+        not ordered
+        or any(segment.volume_id != volume.volume_id for segment in ordered)
+        or observed_chapters != list(volume.chapters)
+    ):
+        raise ValueError(f"generation segments do not exactly cover {volume.volume_id}")
+    payloads: list[str] = []
+    for segment in ordered:
+        key = (segment.start_chapter, segment.end_chapter)
+        if key not in outputs:
+            raise ValueError(
+                f"missing generation segment C{segment.start_chapter:03d}-"
+                f"C{segment.end_chapter:03d}"
+            )
+        payloads.append(
+            extract_blueprint_shard_cards(
+                segment, outputs[key], required_fields=required_fields
+            ).strip()
+        )
+    assembled = "\n\n".join(payloads).strip() + "\n"
+    issues = validate_blueprint_shard(
+        volume,
+        assembled,
+        required_fields=required_fields,
+        strict_fields=True,
+    )
+    issues += validate_blueprint_shard_semantics(
+        volume, assembled, semantic_contract or {}
+    )
+    if issues:
+        raise ValueError(
+            f"invalid assembled blueprint volume {volume.volume_id}: "
+            + "; ".join(issues)
+        )
+    return assembled
 
 
 def assemble_blueprint_shards(
@@ -310,6 +391,9 @@ def validate_blueprint_shard_semantics(
         cards[f"C{int(match.group(1)):03d}"] = text[match.start() : end]
     for raw_chapter_id, raw_rule in chapter_rules.items():
         chapter_id = str(raw_chapter_id).strip()
+        chapter_match = re.fullmatch(r"C(\d{3})", chapter_id)
+        if chapter_match and int(chapter_match.group(1)) not in shard.chapters:
+            continue
         if chapter_id not in cards:
             issues.append(
                 f"{shard.volume_id} chapter rule target missing: {chapter_id}"
@@ -333,6 +417,25 @@ def validate_blueprint_shard_semantics(
             if normalized and normalized in card_text:
                 issues.append(f"{chapter_id} contains forbidden phrase: {normalized}")
     return tuple(issues)
+
+
+def _segment_semantic_contract(
+    segment: BlueprintShard, contract: Mapping[str, object]
+) -> dict[str, object]:
+    """Return only rules that can be decided from one bounded generation segment."""
+
+    scoped = dict(contract)
+    scoped.pop("required_phrases", None)
+    chapter_rules = contract.get("chapter_rules") or {}
+    if isinstance(chapter_rules, Mapping):
+        scoped["chapter_rules"] = {
+            str(chapter_id): dict(rule)
+            for chapter_id, rule in chapter_rules.items()
+            if isinstance(rule, Mapping)
+            and (match := re.fullmatch(r"C(\d{3})", str(chapter_id).strip()))
+            and int(match.group(1)) in segment.chapters
+        }
+    return scoped
 
 
 def find_reusable_blueprint_shard_attempt(
@@ -413,6 +516,7 @@ def run_blueprint_shard_workflow(
     external_context_request_path: Path,
     timeout: int = 600,
     retries_per_volume: int = 2,
+    chapters_per_generation: int | None = None,
     revision: int = 1,
     revision_guidance_path: Path | None = None,
     volume_ids: Sequence[str] = (),
@@ -524,6 +628,10 @@ def run_blueprint_shard_workflow(
         total_chapters=total_chapters, volume_count=volume_count
     )
     chapters_per_volume = total_chapters // volume_count
+    if chapters_per_generation is None:
+        chapters_per_generation = chapters_per_volume
+    if chapters_per_generation <= 0:
+        raise ValueError("chapters per generation must be positive")
     known_volume_ids = {item.volume_id for item in plan}
     requested_volume_ids = {str(item).upper() for item in volume_ids}
     unknown_volume_ids = sorted(requested_volume_ids - known_volume_ids)
@@ -682,218 +790,305 @@ def run_blueprint_shard_workflow(
     accepted_children: list[str] = []
     outputs: dict[str, str] = {}
     previous_handoff_path: Path | None = None
-    for shard in plan:
-        accepted_attempt: str | None = None
-        semantic_contract = semantic_contracts.get(shard.volume_id, {})
+
+    def validated_attempt_output(
+        attempt_id: str,
+        target: BlueprintShard,
+        contract: Mapping[str, object],
+    ) -> str | None:
+        attempt = (runtime.load_task(task_id).get("attempts") or {}).get(attempt_id)
+        output_path = task_root / "attempt_logs" / attempt_id / "output.md"
+        if (
+            not isinstance(attempt, Mapping)
+            or attempt.get("status") != "succeeded"
+            or (attempt.get("output_validation") or {}).get("status") != "pass"
+            or not output_path.is_file()
+        ):
+            return None
+        try:
+            candidate = extract_blueprint_shard_cards(
+                target,
+                output_path.read_text(encoding="utf-8"),
+                required_fields=required_fields,
+            )
+        except ValueError:
+            return None
+        if validate_blueprint_shard_semantics(target, candidate, contract):
+            return None
+        return candidate
+
+    def write_handoff(text: str, suffix: str) -> Path:
+        matches = list(_CHAPTER_HEADING.finditer(text))
+        handoff_start = matches[-3].start() if len(matches) >= 3 else 0
+        path = (
+            task_root
+            / "inputs"
+            / f"writer-shard-handoff-v{revision:03d}-{suffix}.md"
+        )
+        atomic_write_text(path, text[handoff_start:].strip() + "\n")
+        return path
+
+    for volume_shard in plan:
+        semantic_contract = semantic_contracts.get(volume_shard.volume_id, {})
+        accepted_volume_attempts: list[str] = []
+        volume_text: str | None = None
         if assembly_only_baseline or (
-            requested_volume_ids and shard.volume_id not in requested_volume_ids
+            requested_volume_ids and volume_shard.volume_id not in requested_volume_ids
         ):
             accepted_attempt = find_reusable_blueprint_shard_attempt(
                 task_root=task_root,
                 attempts=(runtime.load_task(task_id).get("attempts") or {}),
-                shard=shard,
+                shard=volume_shard,
                 baseline_revision=int(baseline_revision),
                 required_fields=required_fields,
                 semantic_contract=semantic_contract,
             )
             if accepted_attempt is None:
                 raise ValueError(
-                    f"no reusable validated baseline output for {shard.volume_id}"
+                    "no reusable validated baseline output for "
+                    f"{volume_shard.volume_id}"
                 )
-        for retry in range(1, retries_per_volume + 1):
-            if accepted_attempt is not None:
-                break
+            volume_text = validated_attempt_output(
+                accepted_attempt, volume_shard, semantic_contract
+            )
+            if volume_text is None:
+                raise ValueError(
+                    f"reusable baseline output drifted for {volume_shard.volume_id}"
+                )
+            accepted_volume_attempts.append(accepted_attempt)
+        else:
             prefix = "" if revision == 1 else f"rev{revision}-"
-            child_id = (
-                f"attempt-writer-{prefix}{shard.volume_id.lower()}-r{retry:02d}"
-            )
-            current = runtime.load_task(task_id)
-            existing = (current.get("attempts") or {}).get(child_id)
-            output_path = task_root / "attempt_logs" / child_id / "output.md"
-            if existing is not None:
-                if (
-                    existing.get("status") == "succeeded"
-                    and (existing.get("output_validation") or {}).get("status") == "pass"
-                    and output_path.is_file()
-                ):
-                    try:
-                        existing_text = extract_blueprint_shard_cards(
-                            shard,
-                            output_path.read_text(encoding="utf-8"),
-                            required_fields=required_fields,
+            for retry in range(1, retries_per_volume + 1):
+                whole_attempt_id = (
+                    f"attempt-writer-{prefix}{volume_shard.volume_id.lower()}-"
+                    f"r{retry:02d}"
+                )
+                existing_text = validated_attempt_output(
+                    whole_attempt_id, volume_shard, semantic_contract
+                )
+                if existing_text is not None:
+                    volume_text = existing_text
+                    accepted_volume_attempts.append(whole_attempt_id)
+                    break
+
+            if volume_text is None:
+                segments = split_blueprint_shard(
+                    volume_shard, max_chapters=chapters_per_generation
+                )
+                segment_outputs: dict[tuple[int, int], str] = {}
+                for segment in segments:
+                    segment_contract = _segment_semantic_contract(
+                        segment, semantic_contract
+                    )
+                    segment_token = volume_shard.volume_id.lower()
+                    if len(segments) > 1:
+                        segment_token += (
+                            f"-c{segment.start_chapter:03d}-c{segment.end_chapter:03d}"
                         )
-                    except ValueError:
-                        existing_text = ""
-                    if existing_text and not validate_blueprint_shard_semantics(
-                        shard,
-                        existing_text,
-                        semantic_contract,
-                    ):
-                        accepted_attempt = child_id
-                        break
-                continue
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        f"你是《{blueprint_title}》{total_chapters}章蓝本的 Writer。"
-                        f"只生成本卷恰好{chapters_per_volume}张章节卡。"
-                        "以下本卷确定性语义门优先于所有其他上下文；必含词至少在实质叙事字段出现一次，"
-                        "禁含词不得出现在任何输出字段；语义合同只供校验，禁止摘抄到输出：\n"
-                        f"{yaml.safe_dump(dict(semantic_contract), allow_unicode=True, sort_keys=True)}"
-                        "每章标题严格为 ## Cnnn 章名，随后严格写这些非空字段且每字段独占一行："
-                        + "、".join(f"- {field}:" for field in required_fields)
-                        + "。"
-                        "每个字段写具体人物、行动、资源或代价，禁止空泛概括；"
-                        "章节标题必须严格覆盖指定起止范围且无额外标题。"
-                        "forbidden_early_payoffs 只能写故事内尚不可兑现的事件。"
-                        "题材、节奏、人物和叙事要求只服从哈希密封的 writer instruction。"
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"context_manifest_sha256={context_manifest_sha256}\n"
-                        f"生成 {shard.volume_id}，范围 C{shard.start_chapter:03d}-"
-                        f"C{shard.end_chapter:03d}。严格执行密封的写作指令与语义合同。\n"
-                        "候选上下文、修订合同与前卷连续性交接均在哈希密封来源中；"
-                        "只取与本卷相关的信息，不要复述原文。"
-                        "\n\n本卷确定性语义门（违反任何一项都会拒绝本分片）：\n"
-                        f"{yaml.safe_dump(dict(semantic_contract), allow_unicode=True, sort_keys=True)}"
-                    ),
-                },
-            ]
-            shard_source_paths = [*context_source_paths, instruction_path]
-            if guidance_path is not None:
-                shard_source_paths.append(guidance_path)
-            if semantic_contract_path is not None:
-                volume_contract_path = (
-                    task_root
-                    / "inputs"
-                    / (
-                        f"writer-semantic-contract-v{revision:03d}-"
-                        f"{shard.volume_id.lower()}.yml"
+                    accepted_attempt: str | None = None
+                    candidate_text: str | None = None
+                    for retry in range(1, retries_per_volume + 1):
+                        child_id = (
+                            f"attempt-writer-{prefix}{segment_token}-r{retry:02d}"
+                        )
+                        candidate_text = validated_attempt_output(
+                            child_id, segment, segment_contract
+                        )
+                        if candidate_text is not None:
+                            accepted_attempt = child_id
+                            break
+                        current = runtime.load_task(task_id)
+                        existing = (current.get("attempts") or {}).get(child_id)
+                        if existing is not None:
+                            continue
+                        messages = [
+                            {
+                                "role": "system",
+                                "content": (
+                                    f"你是《{blueprint_title}》{total_chapters}章蓝本的 Writer。"
+                                    f"只生成本次连续章段恰好{len(segment.chapters)}张章节卡。"
+                                    "以下确定性语义门优先于所有其他上下文；必含词至少在实质叙事字段出现一次，"
+                                    "禁含词不得出现在任何输出字段；语义合同只供校验，禁止摘抄到输出：\n"
+                                    f"{yaml.safe_dump(segment_contract, allow_unicode=True, sort_keys=True)}"
+                                    "每章标题严格为 ## Cnnn 章名，随后严格写这些非空字段且每字段独占一行："
+                                    + "、".join(f"- {field}:" for field in required_fields)
+                                    + "。"
+                                    "每个字段写具体人物、行动、资源或代价，禁止空泛概括；"
+                                    "章节标题必须严格覆盖指定起止范围且无额外标题。"
+                                    "forbidden_early_payoffs 只能写故事内尚不可兑现的事件。"
+                                    "题材、节奏、人物和叙事要求只服从哈希密封的 writer instruction。"
+                                ),
+                            },
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"context_manifest_sha256={context_manifest_sha256}\n"
+                                    f"生成 {volume_shard.volume_id} 的连续章段，范围 "
+                                    f"C{segment.start_chapter:03d}-C{segment.end_chapter:03d}。"
+                                    "严格执行密封的写作指令与语义合同。\n"
+                                    "候选上下文、修订合同与前段连续性交接均在哈希密封来源中；"
+                                    "只取与本章段相关的信息，不要复述原文。"
+                                    "\n\n本章段确定性语义门（违反任何一项都会拒绝）：\n"
+                                    f"{yaml.safe_dump(segment_contract, allow_unicode=True, sort_keys=True)}"
+                                ),
+                            },
+                        ]
+                        shard_source_paths = [*context_source_paths, instruction_path]
+                        if guidance_path is not None:
+                            shard_source_paths.append(guidance_path)
+                        if semantic_contract_path is not None:
+                            volume_contract_path = (
+                                task_root
+                                / "inputs"
+                                / (
+                                    f"writer-semantic-contract-v{revision:03d}-"
+                                    f"{segment_token}.yml"
+                                )
+                            )
+                            atomic_write_yaml(
+                                volume_contract_path,
+                                {
+                                    "schema_version": "narrative-blueprint-semantic-contract/v1",
+                                    "source_contract_sha256": context_manifest[
+                                        "semantic_contract"
+                                    ]["sha256"],
+                                    "volumes": {
+                                        volume_shard.volume_id: segment_contract
+                                    },
+                                },
+                            )
+                            shard_source_paths.append(volume_contract_path)
+                        if previous_handoff_path is not None:
+                            shard_source_paths.append(previous_handoff_path)
+                        governed_source_manifest_path = (
+                            task_root
+                            / "inputs"
+                            / (
+                                f"writer-governed-sources-v{revision:03d}-"
+                                f"{segment_token}.yml"
+                            )
+                        )
+                        atomic_write_yaml(
+                            governed_source_manifest_path,
+                            {
+                                "schema_version": "task-runtime-governed-source-manifest/v1",
+                                "task_id": task_id,
+                                "work_item_id": writer_work_item_id,
+                                "sources": [
+                                    {
+                                        "path": path.relative_to(task_root).as_posix(),
+                                        "sha256": hashlib.sha256(
+                                            path.read_bytes()
+                                        ).hexdigest(),
+                                    }
+                                    for path in shard_source_paths
+                                ],
+                            },
+                        )
+                        result = executor.execute(
+                            task_id=task_id,
+                            work_item_id=writer_work_item_id,
+                            attempt_id=child_id,
+                            role="Writer",
+                            messages=messages,
+                            source_paths=shard_source_paths,
+                            governed_source_manifest_path=governed_source_manifest_path,
+                            external_context_request=external_request,
+                            idempotency_key=(
+                                f"{task_id}-rev{revision}-{segment_token}-"
+                                f"r{retry:02d}"
+                            ),
+                            timeout=timeout,
+                        )
+                        current = result["projection"]
+                        attempt = current["attempts"][child_id]
+                        if (
+                            attempt.get("status") != "succeeded"
+                            or result.get("output_path") is None
+                        ):
+                            continue
+                        output_path = Path(str(result["output_path"])).resolve(
+                            strict=True
+                        )
+                        text = output_path.read_text(encoding="utf-8")
+                        try:
+                            candidate_text = extract_blueprint_shard_cards(
+                                segment,
+                                text,
+                                required_fields=required_fields,
+                            )
+                            issues = list(
+                                validate_blueprint_shard_semantics(
+                                    segment, candidate_text, segment_contract
+                                )
+                            )
+                        except ValueError as exc:
+                            issues = [str(exc)]
+                            candidate_text = None
+                        validation_path = (
+                            output_path.parent / "artifact_validation_receipt.yml"
+                        )
+                        atomic_write_yaml(
+                            validation_path,
+                            {
+                                "schema_version": "protocol-artifact-validation/v1",
+                                "status": "fail" if issues else "pass",
+                                "task_id": task_id,
+                                "work_item_id": writer_work_item_id,
+                                "attempt_id": child_id,
+                                "artifact_type": f"{story_artifact_type}_shard",
+                                "volume_id": volume_shard.volume_id,
+                                "chapter_range": [
+                                    segment.start_chapter,
+                                    segment.end_chapter,
+                                ],
+                                "context_manifest_sha256": context_manifest_sha256,
+                                "output_sha256": hashlib.sha256(
+                                    output_path.read_bytes()
+                                ).hexdigest(),
+                                "issues": issues,
+                            },
+                        )
+                        runtime.record_attempt_output_validation(
+                            task_id,
+                            attempt_id=child_id,
+                            status="fail" if issues else "pass",
+                            validation_receipt_path=validation_path,
+                            issues=issues,
+                            idempotency_key=(
+                                f"{task_id}-rev{revision}-{segment_token}-"
+                                f"r{retry:02d}-validate"
+                            ),
+                        )
+                        if not issues:
+                            accepted_attempt = child_id
+                            break
+                    if accepted_attempt is None or candidate_text is None:
+                        raise ValueError(
+                            "no valid Writer output for "
+                            f"{volume_shard.volume_id} "
+                            f"C{segment.start_chapter:03d}-C{segment.end_chapter:03d}"
+                        )
+                    accepted_volume_attempts.append(accepted_attempt)
+                    segment_outputs[
+                        (segment.start_chapter, segment.end_chapter)
+                    ] = candidate_text
+                    previous_handoff_path = write_handoff(
+                        candidate_text, segment_token
                     )
-                )
-                atomic_write_yaml(
-                    volume_contract_path,
-                    {
-                        "schema_version": "narrative-blueprint-semantic-contract/v1",
-                        "source_contract_sha256": context_manifest["semantic_contract"][
-                            "sha256"
-                        ],
-                        "volumes": {shard.volume_id: dict(semantic_contract)},
-                    },
-                )
-                shard_source_paths.append(volume_contract_path)
-            if previous_handoff_path is not None:
-                shard_source_paths.append(previous_handoff_path)
-            governed_source_manifest_path = (
-                task_root
-                / "inputs"
-                / (
-                    f"writer-governed-sources-v{revision:03d}-"
-                    f"{shard.volume_id.lower()}.yml"
-                )
-            )
-            atomic_write_yaml(
-                governed_source_manifest_path,
-                {
-                    "schema_version": "task-runtime-governed-source-manifest/v1",
-                    "task_id": task_id,
-                    "work_item_id": writer_work_item_id,
-                    "sources": [
-                        {
-                            "path": path.relative_to(task_root).as_posix(),
-                            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                        }
-                        for path in shard_source_paths
-                    ],
-                },
-            )
-            result = executor.execute(
-                task_id=task_id,
-                work_item_id=writer_work_item_id,
-                attempt_id=child_id,
-                role="Writer",
-                messages=messages,
-                source_paths=shard_source_paths,
-                governed_source_manifest_path=governed_source_manifest_path,
-                external_context_request=external_request,
-                idempotency_key=(
-                    f"{task_id}-rev{revision}-{shard.volume_id.lower()}-r{retry:02d}"
-                ),
-                timeout=timeout,
-            )
-            current = result["projection"]
-            attempt = current["attempts"][child_id]
-            if attempt.get("status") != "succeeded" or result.get("output_path") is None:
-                continue
-            output_path = Path(str(result["output_path"])).resolve(strict=True)
-            text = output_path.read_text(encoding="utf-8")
-            try:
-                candidate_text = extract_blueprint_shard_cards(
-                    shard,
-                    text,
+                volume_text = assemble_blueprint_volume_segments(
+                    volume_shard,
+                    segments,
+                    segment_outputs,
                     required_fields=required_fields,
+                    semantic_contract=semantic_contract,
                 )
-                issues = list(
-                    validate_blueprint_shard_semantics(
-                        shard, candidate_text, semantic_contract
-                    )
-                )
-            except ValueError as exc:
-                issues = [str(exc)]
-            validation_path = output_path.parent / "artifact_validation_receipt.yml"
-            atomic_write_yaml(
-                validation_path,
-                {
-                    "schema_version": "protocol-artifact-validation/v1",
-                    "status": "fail" if issues else "pass",
-                    "task_id": task_id,
-                    "work_item_id": writer_work_item_id,
-                    "attempt_id": child_id,
-                    "artifact_type": f"{story_artifact_type}_shard",
-                    "volume_id": shard.volume_id,
-                    "chapter_range": [shard.start_chapter, shard.end_chapter],
-                    "context_manifest_sha256": context_manifest_sha256,
-                    "output_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
-                    "issues": issues,
-                },
-            )
-            runtime.record_attempt_output_validation(
-                task_id,
-                attempt_id=child_id,
-                status="fail" if issues else "pass",
-                validation_receipt_path=validation_path,
-                issues=issues,
-                idempotency_key=(
-                    f"{task_id}-rev{revision}-{shard.volume_id.lower()}-"
-                    f"r{retry:02d}-validate"
-                ),
-            )
-            if not issues:
-                accepted_attempt = child_id
-                break
-        if accepted_attempt is None:
-            raise ValueError(f"no valid Writer output for {shard.volume_id}")
-        accepted_children.append(accepted_attempt)
-        shard_text = (
-            task_root / "attempt_logs" / accepted_attempt / "output.md"
-        ).read_text(encoding="utf-8")
-        shard_text = extract_blueprint_shard_cards(
-            shard, shard_text, required_fields=required_fields
-        )
-        outputs[shard.volume_id] = shard_text
-        matches = list(_CHAPTER_HEADING.finditer(shard_text))
-        handoff_start = matches[-3].start() if len(matches) >= 3 else 0
-        previous_handoff_path = (
-            task_root
-            / "inputs"
-            / f"writer-shard-handoff-v{revision:03d}-{shard.volume_id.lower()}.md"
-        )
-        atomic_write_text(
-            previous_handoff_path, shard_text[handoff_start:].strip() + "\n"
+        if volume_text is None:
+            raise ValueError(f"no valid Writer output for {volume_shard.volume_id}")
+        accepted_children.extend(accepted_volume_attempts)
+        outputs[volume_shard.volume_id] = volume_text
+        previous_handoff_path = write_handoff(
+            volume_text, volume_shard.volume_id.lower()
         )
     assembled = assemble_blueprint_shards(
         plan,
