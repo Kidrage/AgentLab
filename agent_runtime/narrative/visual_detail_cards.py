@@ -372,7 +372,7 @@ _VISUAL_STAGE_PROFILES = {
     "verifier": ("Verifier", "verifier"),
 }
 
-_MALE_NAIL_DETAIL_TERMS = (
+_V2_MALE_NAIL_DETAIL_TERMS = (
     "指甲",
     "趾甲",
     "美甲",
@@ -399,12 +399,51 @@ _MALE_NAIL_DETAIL_TERMS = (
     "甲型",
     "甲长",
 )
+_V2_MALE_NAIL_CIRCUMLOCUTION_PATTERNS = (
+    re.compile(
+        r"(?:十指|手指|脚趾|指尖|趾尖|指端|趾端|十指末端).{0,32}"
+        r"(?:角质|半透明|硬层|硬片|硬质|薄层|覆盖层|甲片).{0,32}"
+        r"(?:边缘|表面|剪|修|磨|圆|方|尖|光泽|颜色|涂层|上色|着色|抛光)"
+    ),
+    re.compile(
+        r"(?:十指|手指|脚趾|指尖|趾尖|指端|趾端|十指末端).{0,16}"
+        r"(?:甲床|甲缘|甲面|甲根|甲沟|甲油|甲色|甲型|甲长|甲片)"
+    ),
+    re.compile(r"(?:十枚|十个).{0,12}(?:指端|趾端|角质硬片)"),
+    re.compile(
+        r"(?:角质硬片|指端硬片|趾端硬片).{0,16}"
+        r"(?:边缘|洁净|整齐|颜色|光泽|形状)"
+    ),
+)
+_MALE_NAIL_DETAIL_TERMS = (*_V2_MALE_NAIL_DETAIL_TERMS,)
 _MALE_NAIL_CIRCUMLOCUTION_PATTERNS = (
     re.compile(
         r"(?:十根?指头|十指|手指|脚趾|指头|指尖|趾尖|指端|趾端|手部末端|足部末端)"
         r".{0,40}(?:角质|半透明|硬壳|硬层|硬片|硬质|薄层|覆盖层|甲片)"
         r".{0,40}(?:边缘|表面|剪|修|磨|圆|方|尖|色泽|光泽|颜色|涂层|上色|着色|抛光)"
     ),
+)
+_MALE_HAND_FACT_TERMS = (
+    "手指",
+    "十指",
+    "各指",
+    "指头",
+    "指尖",
+    "指端",
+    "指节",
+    "指腹",
+    "指根",
+    "指侧",
+    "脚趾",
+    "趾尖",
+    "趾端",
+    "趾节",
+    "趾腹",
+    "趾根",
+    "手部末端",
+    "手部末梢",
+    "足部末端",
+    "足部末梢",
 )
 
 
@@ -516,15 +555,37 @@ def _require_fields(value: Mapping[str, Any], fields: list[str], locator: str) -
             raise ValueError(f"{locator}.{field} must be non-empty")
 
 
-def _reject_male_nail_details(card: Mapping[str, Any], card_id: str) -> None:
+def _reject_male_nail_details(
+    card: Mapping[str, Any],
+    card_id: str,
+    *,
+    legacy_v2: bool,
+) -> None:
     serialized = _render(card).lower()
-    present = [term for term in _MALE_NAIL_DETAIL_TERMS if term in serialized]
+    terms = _V2_MALE_NAIL_DETAIL_TERMS if legacy_v2 else _MALE_NAIL_DETAIL_TERMS
+    semantic_patterns = (
+        _V2_MALE_NAIL_CIRCUMLOCUTION_PATTERNS
+        if legacy_v2
+        else _MALE_NAIL_CIRCUMLOCUTION_PATTERNS
+    )
+    present = [term for term in terms if term in serialized]
     if re.search(r"(?<![a-z])nails?(?![a-z])", serialized):
         present.append("nail")
-    if any(
-        pattern.search(serialized) for pattern in _MALE_NAIL_CIRCUMLOCUTION_PATTERNS
-    ):
+    if any(pattern.search(serialized) for pattern in semantic_patterns):
         present.append("free-form digit material prose")
+    if not legacy_v2:
+        outside_profile = deepcopy(dict(card))
+        outside_invariant = deepcopy(
+            dict(_require_mapping(outside_profile.get("invariant"), "card.invariant"))
+        )
+        outside_invariant.pop("hands", None)
+        outside_profile["invariant"] = outside_invariant
+        outside_serialized = _render(outside_profile)
+        misplaced = [
+            term for term in _MALE_HAND_FACT_TERMS if term in outside_serialized
+        ]
+        if misplaced:
+            present.append("male hand facts outside governed hands profile")
     if present:
         raise ValueError(
             f"cards.{card_id} male character must not contain nail details: "
@@ -813,7 +874,11 @@ def _compile_card(
                 allowed_fields=set(contract["required_invariant_fields"]),
                 locator=f"cards.{card_id}.invariant",
             )
-            _reject_male_nail_details(card, card_id)
+            _reject_male_nail_details(
+                card,
+                card_id,
+                legacy_v2=not structured_male_hands,
+            )
         else:
             _require_detail_mappings(
                 invariant,

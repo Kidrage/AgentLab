@@ -1707,6 +1707,18 @@ def test_male_card_rejects_cross_field_nail_circumlocution(field: str) -> None:
         compile_visual_detail_card_pack(_spec(card))
 
 
+def test_male_card_rejects_hand_facts_outside_structured_profile() -> None:
+    card = _character_card()
+    card["invariant"]["signature_details"] = (
+        "右锁骨旧伤；双手各指末梢的透明角层均已削齐，泛着温润色泽"
+    )
+
+    with pytest.raises(
+        ValueError, match="male character must not contain nail details"
+    ):
+        compile_visual_detail_card_pack(_spec(card))
+
+
 def test_rejects_novel_visual_pack_without_exact_character_roster() -> None:
     spec = _spec(_map_card(), _location_card(), _prop_card())
 
@@ -1798,7 +1810,7 @@ def test_v1_pack_remains_read_only_validatable_for_task_recovery() -> None:
 
 def test_v2_string_hands_pack_remains_read_only_validatable() -> None:
     card = _character_card()
-    card["invariant"]["hands"] = "修长有剑茧的手，虎口旧伤，惯用右手"
+    card["invariant"]["hands"] = "十根指头末梢外覆铁质硬壳甲片，边缘磨圆以免碍剑"
     source = _spec(card)
     source["schema_version"] = "narrative-visual-detail-spec/v2"
     compiled_card = visual_detail_cards._compile_card(
