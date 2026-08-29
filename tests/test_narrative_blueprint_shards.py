@@ -5,9 +5,13 @@ import pytest
 import yaml
 
 from agent_runtime.narrative.blueprint_shards import (
+    BlueprintShard,
+    _materialize_content_addressed_yaml,
     assemble_blueprint_shards,
     assemble_blueprint_volume_segments,
+    blueprint_composite_matches,
     build_blueprint_shard_plan,
+    build_blueprint_generation_contract_sha256,
     build_blueprint_segment_context_projection,
     find_reusable_blueprint_shard_attempt,
     find_reusable_blueprint_shard_attempts,
@@ -15,6 +19,7 @@ from agent_runtime.narrative.blueprint_shards import (
     split_blueprint_shard,
     validate_blueprint_shard_semantics,
     validate_blueprint_shard,
+    validated_blueprint_attempt_output,
 )
 from agent_runtime.task_runtime_v2 import TaskRuntime
 
@@ -76,9 +81,10 @@ def test_expired_external_request_cannot_prepare_or_mutate_a_cold_task(
         )
 
     assert hashlib.sha256(ledger_path.read_bytes()).hexdigest() == before
-    assert runtime.load_task("task-cold-blueprint")["task"].get(
-        "compiled_protocol"
-    ) is None
+    assert (
+        runtime.load_task("task-cold-blueprint")["task"].get("compiled_protocol")
+        is None
+    )
 
     sensitive_root = task_root / "inputs" / ".env-private"
     sensitive_root.mkdir()
@@ -188,12 +194,16 @@ def test_blueprint_shard_plan_covers_600_chapters_as_15_volumes_of_40() -> None:
     )
 
 
-def test_volume_shard_can_be_split_for_bounded_generation_without_changing_volume() -> None:
+def test_volume_shard_can_be_split_for_bounded_generation_without_changing_volume() -> (
+    None
+):
     shard = build_blueprint_shard_plan(total_chapters=600, volume_count=15)[11]
 
     segments = split_blueprint_shard(shard, max_chapters=20)
 
-    assert [(item.volume_id, item.start_chapter, item.end_chapter) for item in segments] == [
+    assert [
+        (item.volume_id, item.start_chapter, item.end_chapter) for item in segments
+    ] == [
         ("V12", 441, 460),
         ("V12", 461, 480),
     ]
@@ -241,6 +251,40 @@ def _render_shard(start: int, end: int) -> str:
     return "\n\n".join(cards) + "\n"
 
 
+def _write_validated_attempt(
+    task_root: Path,
+    attempt_id: str,
+    text: str,
+    *,
+    receipt_extra: dict[str, object] | None = None,
+) -> dict[str, object]:
+    attempt_root = task_root / "attempt_logs" / attempt_id
+    attempt_root.mkdir(parents=True, exist_ok=True)
+    output_path = attempt_root / "output.md"
+    output_path.write_text(text, encoding="utf-8")
+    output_sha256 = hashlib.sha256(output_path.read_bytes()).hexdigest()
+    receipt = {
+        "schema_version": "protocol-artifact-validation/v1",
+        "status": "pass",
+        "attempt_id": attempt_id,
+        "output_sha256": output_sha256,
+        "issues": [],
+        **(receipt_extra or {}),
+    }
+    receipt_path = attempt_root / "artifact_validation_receipt.yml"
+    receipt_path.write_text(yaml.safe_dump(receipt), encoding="utf-8")
+    return {
+        "status": "succeeded",
+        "outcome": {"output_sha256": output_sha256},
+        "output_validation": {
+            "status": "pass",
+            "output_sha256": output_sha256,
+            "receipt_path": receipt_path.relative_to(task_root).as_posix(),
+            "receipt_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+        },
+    }
+
+
 def test_shard_validation_requires_every_card_and_field() -> None:
     shard = build_blueprint_shard_plan(total_chapters=600, volume_count=15)[0]
     valid = _render_shard(1, 40)
@@ -284,7 +328,10 @@ def test_shard_validation_binds_chapter_identity_to_heading() -> None:
 
 def test_assembly_is_ordered_complete_and_rejects_invalid_shards() -> None:
     plan = build_blueprint_shard_plan(total_chapters=600, volume_count=15)
-    outputs = {item.volume_id: _render_shard(*item.chapters[:: len(item.chapters) - 1]) for item in plan}
+    outputs = {
+        item.volume_id: _render_shard(*item.chapters[:: len(item.chapters) - 1])
+        for item in plan
+    }
 
     assembled = assemble_blueprint_shards(
         plan, outputs, title="山河有约", protocol_ref="narrative.blueprint.v1"
@@ -307,7 +354,7 @@ def test_assembly_strips_writer_report_envelopes_from_valid_shards() -> None:
     shard = _render_shard(1, 2).replace(
         "- promise: 伏笔",
         "- promise: 伏笔\n"
-        "- volume: 1\n"
+        "- volume: V01\n"
         "- forbidden_early_payoffs: C002前不得揭露父辈暗账。",
     )
     wrapped = "\n".join(
@@ -405,7 +452,9 @@ def test_assembly_strips_real_chevron_agent_edit_delimiters(
     assert "provider diagnostic" not in assembled
 
 
-def test_assembly_normalizes_redundant_identity_fields_from_candidate_envelope() -> None:
+def test_assembly_rejects_contradictory_identity_fields_from_candidate_envelope() -> (
+    None
+):
     plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
     wrapped = "\n".join(
         [
@@ -421,19 +470,14 @@ def test_assembly_normalizes_redundant_identity_fields_from_candidate_envelope()
         ]
     )
 
-    assembled = assemble_blueprint_shards(
-        plan,
-        {"V01": wrapped},
-        title="山河有约",
-        protocol_ref="narrative.blueprint.v1",
-        required_fields=("chapter_id", "title", "volume", "objective"),
-    )
-
-    assert "- chapter_id: C001" in assembled
-    assert "- title: 正名" in assembled
-    assert "- volume: V01" in assembled
-    assert "AGENTLAB_EDIT" not in assembled
-    assert "provider diagnostic" not in assembled
+    with pytest.raises(ValueError, match="chapter_id mismatch|title mismatch"):
+        assemble_blueprint_shards(
+            plan,
+            {"V01": wrapped},
+            title="山河有约",
+            protocol_ref="narrative.blueprint.v1",
+            required_fields=("chapter_id", "title", "volume", "objective"),
+        )
 
 
 @pytest.mark.parametrize("near_miss", (">>>", ">>>>", ">>>>>", ">>>>>>>"))
@@ -635,7 +679,9 @@ def test_assembly_rejects_undeclared_chapter_card_fields(
     plan = build_blueprint_shard_plan(total_chapters=1, volume_count=1)
     raw = f"## C001 章名\n- objective: 目标\n{leaked_content}\n"
 
-    with pytest.raises(ValueError, match="undeclared card content|field contract mismatch"):
+    with pytest.raises(
+        ValueError, match="undeclared card content|field contract mismatch"
+    ):
         assemble_blueprint_shards(
             plan,
             {"V01": raw},
@@ -649,22 +695,11 @@ def test_selective_revision_reuses_only_a_validated_baseline_shard(tmp_path) -> 
     shard = build_blueprint_shard_plan(total_chapters=600, volume_count=15)[0]
     valid_id = "attempt-writer-rev3-v01-r04"
     invalid_id = "attempt-writer-rev3-v01-r05"
-    for attempt_id, text in (
-        (valid_id, _render_shard(1, 40)),
-        (invalid_id, _render_shard(1, 39)),
-    ):
-        attempt_dir = tmp_path / "attempt_logs" / attempt_id
-        attempt_dir.mkdir(parents=True)
-        (attempt_dir / "output.md").write_text(text, encoding="utf-8")
     attempts = {
-        valid_id: {
-            "status": "succeeded",
-            "output_validation": {"status": "pass"},
-        },
-        invalid_id: {
-            "status": "succeeded",
-            "output_validation": {"status": "pass"},
-        },
+        valid_id: _write_validated_attempt(tmp_path, valid_id, _render_shard(1, 40)),
+        invalid_id: _write_validated_attempt(
+            tmp_path, invalid_id, _render_shard(1, 39)
+        ),
     }
 
     # A successful child is not reusable until a validated baseline composite
@@ -725,16 +760,11 @@ def test_selective_revision_reuses_a_segmented_validated_baseline(tmp_path) -> N
             f"c{segment.start_chapter:03d}-c{segment.end_chapter:03d}-r01"
         )
         attempt_ids.append(attempt_id)
-        attempt_dir = tmp_path / "attempt_logs" / attempt_id
-        attempt_dir.mkdir(parents=True)
-        (attempt_dir / "output.md").write_text(
+        attempts[attempt_id] = _write_validated_attempt(
+            tmp_path,
+            attempt_id,
             _render_shard(segment.start_chapter, segment.end_chapter),
-            encoding="utf-8",
         )
-        attempts[attempt_id] = {
-            "status": "succeeded",
-            "output_validation": {"status": "pass"},
-        }
     attempts["attempt-writer-assembled-003"] = {
         "status": "succeeded",
         "output_validation": {"status": "pass"},
@@ -747,6 +777,92 @@ def test_selective_revision_reuses_a_segmented_validated_baseline(tmp_path) -> N
         shard=volume,
         baseline_revision=3,
     ) == tuple(attempt_ids)
+
+
+def test_segmented_baseline_accepts_volume_phrase_from_any_segment(tmp_path) -> None:
+    volume = build_blueprint_shard_plan(total_chapters=40, volume_count=1)[0]
+    segments = split_blueprint_shard(volume, max_chapters=20)
+    attempt_ids: list[str] = []
+    attempts: dict[str, object] = {}
+    for index, segment in enumerate(segments):
+        attempt_id = (
+            "attempt-writer-rev3-v01-"
+            f"c{segment.start_chapter:03d}-c{segment.end_chapter:03d}-r01"
+        )
+        attempt_ids.append(attempt_id)
+        text = _render_shard(segment.start_chapter, segment.end_chapter)
+        if index == 0:
+            text = text.replace("- objective: 目标", "- objective: 山河旧约", 1)
+        attempts[attempt_id] = _write_validated_attempt(tmp_path, attempt_id, text)
+    attempts["attempt-writer-assembled-003"] = {
+        "status": "succeeded",
+        "output_validation": {"status": "pass"},
+        "outcome": {"composite_child_attempt_ids": attempt_ids},
+    }
+
+    assert find_reusable_blueprint_shard_attempts(
+        task_root=tmp_path,
+        attempts=attempts,
+        shard=volume,
+        baseline_revision=3,
+        semantic_contract={"required_phrases": ["山河旧约"]},
+    ) == tuple(attempt_ids)
+
+
+@pytest.mark.parametrize(("volume_id", "numeric"), (("V01", "1"), ("V10", "10")))
+def test_validated_historical_baseline_explicitly_accepts_numeric_volume_only(
+    tmp_path: Path, volume_id: str, numeric: str
+) -> None:
+    volume_number = int(volume_id[1:])
+    volume = build_blueprint_shard_plan(total_chapters=400, volume_count=10)[
+        volume_number - 1
+    ]
+    attempt_id = f"attempt-writer-rev3-{volume_id.lower()}-r01"
+    output = _render_shard(volume.start_chapter, volume.end_chapter).replace(
+        "- promise: 伏笔", f"- promise: 伏笔\n- volume: {numeric}"
+    )
+    attempts = {
+        attempt_id: _write_validated_attempt(tmp_path, attempt_id, output),
+        "attempt-writer-assembled-003": {
+            "status": "succeeded",
+            "output_validation": {"status": "pass"},
+            "outcome": {"composite_child_attempt_ids": [attempt_id]},
+        },
+    }
+
+    assert find_reusable_blueprint_shard_attempts(
+        task_root=tmp_path,
+        attempts=attempts,
+        shard=volume,
+        baseline_revision=3,
+        required_fields=(
+            "objective",
+            "conflict",
+            "turn",
+            "consequence",
+            "promise",
+            "volume",
+        ),
+    ) == (attempt_id,)
+    attempts[attempt_id]["outcome"] = {}
+    attempts[attempt_id]["output_validation"].pop("output_sha256")
+    assert (
+        find_reusable_blueprint_shard_attempts(
+            task_root=tmp_path,
+            attempts=attempts,
+            shard=volume,
+            baseline_revision=3,
+            required_fields=(
+                "objective",
+                "conflict",
+                "turn",
+                "consequence",
+                "promise",
+                "volume",
+            ),
+        )
+        is None
+    )
 
 
 def test_shard_semantic_contract_rejects_missing_and_forbidden_text() -> None:
@@ -852,3 +968,212 @@ def test_segment_context_projection_is_relevant_hash_bound_and_bounded() -> None
     assert projection["sources"][0]["source_sha256"] == "a" * 64
     assert "C010 exact beat" in projection["sources"][0]["excerpt"]
     assert all(item["excerpt_size_bytes"] <= 1024 for item in projection["sources"])
+
+
+def test_current_segment_reuse_requires_exact_generation_contract_receipt(
+    tmp_path: Path,
+) -> None:
+    segment = BlueprintShard("V01", 1, 1)
+    attempt_id = "attempt-writer-rev4-v01-c001-c001-r01"
+    attempt_root = tmp_path / "attempt_logs" / attempt_id
+    attempt_root.mkdir(parents=True)
+    output = _render_shard(1, 1).encode("utf-8")
+    output_sha256 = hashlib.sha256(output).hexdigest()
+    (attempt_root / "output.md").write_bytes(output)
+    generation_sha256 = build_blueprint_generation_contract_sha256(
+        task_id="task-blueprint",
+        revision=4,
+        segment=segment,
+        context_manifest_sha256="a" * 64,
+        segment_context_sha256="b" * 64,
+        governed_source_manifest_sha256="c" * 64,
+        semantic_contract={},
+        required_fields=("objective", "conflict", "turn", "consequence", "promise"),
+    )
+    receipt_path = attempt_root / "artifact_validation_receipt.yml"
+    receipt = {
+        "schema_version": "protocol-artifact-validation/v1",
+        "status": "pass",
+        "attempt_id": attempt_id,
+        "context_manifest_sha256": "a" * 64,
+        "generation_contract_sha256": generation_sha256,
+        "output_sha256": output_sha256,
+        "issues": [],
+    }
+    receipt_path.write_text(yaml.safe_dump(receipt), encoding="utf-8")
+    attempts = {
+        attempt_id: {
+            "status": "succeeded",
+            "outcome": {"output_sha256": output_sha256},
+            "output_validation": {
+                "status": "pass",
+                "output_sha256": output_sha256,
+                "receipt_path": receipt_path.relative_to(tmp_path).as_posix(),
+                "receipt_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+            },
+        }
+    }
+
+    assert (
+        validated_blueprint_attempt_output(
+            task_root=tmp_path,
+            attempts=attempts,
+            attempt_id=attempt_id,
+            target=segment,
+            expected_context_manifest_sha256="a" * 64,
+            expected_generation_contract_sha256=generation_sha256,
+        )
+        is not None
+    )
+    assert (
+        validated_blueprint_attempt_output(
+            task_root=tmp_path,
+            attempts=attempts,
+            attempt_id=attempt_id,
+            target=segment,
+            expected_context_manifest_sha256="a" * 64,
+            expected_generation_contract_sha256="d" * 64,
+        )
+        is None
+    )
+
+
+def test_existing_composite_must_match_children_output_and_context(
+    tmp_path: Path,
+) -> None:
+    attempt_id = "attempt-writer-assembled-004"
+    attempt_root = tmp_path / "attempt_logs" / attempt_id
+    attempt_root.mkdir(parents=True)
+    output = b"assembled blueprint\n"
+    output_sha256 = hashlib.sha256(output).hexdigest()
+    (attempt_root / "output.md").write_bytes(output)
+    receipt_path = attempt_root / "artifact_validation_receipt.yml"
+    receipt = {
+        "schema_version": "protocol-artifact-validation/v1",
+        "status": "pass",
+        "attempt_id": attempt_id,
+        "context_manifest_sha256": "a" * 64,
+        "child_attempt_ids": ["child-1", "child-2"],
+        "output_sha256": output_sha256,
+    }
+    receipt_path.write_text(yaml.safe_dump(receipt), encoding="utf-8")
+    attempt = {
+        "status": "succeeded",
+        "outcome": {
+            "composite_child_attempt_ids": ["child-1", "child-2"],
+            "output_sha256": output_sha256,
+        },
+        "output_validation": {
+            "status": "pass",
+            "receipt_path": receipt_path.relative_to(tmp_path).as_posix(),
+            "receipt_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+        },
+    }
+
+    assert blueprint_composite_matches(
+        task_root=tmp_path,
+        attempt_id=attempt_id,
+        attempt=attempt,
+        expected_child_attempt_ids=["child-1", "child-2"],
+        expected_output_sha256=output_sha256,
+        expected_context_manifest_sha256="a" * 64,
+    )
+    assert not blueprint_composite_matches(
+        task_root=tmp_path,
+        attempt_id=attempt_id,
+        attempt=attempt,
+        expected_child_attempt_ids=["child-2", "child-1"],
+        expected_output_sha256=output_sha256,
+        expected_context_manifest_sha256="a" * 64,
+    )
+    assert not blueprint_composite_matches(
+        task_root=tmp_path,
+        attempt_id=attempt_id,
+        attempt=attempt,
+        expected_child_attempt_ids=["child-1", "child-2"],
+        expected_output_sha256=output_sha256,
+        expected_context_manifest_sha256="b" * 64,
+    )
+    without_validation = dict(attempt)
+    without_validation.pop("output_validation")
+    assert not blueprint_composite_matches(
+        task_root=tmp_path,
+        attempt_id=attempt_id,
+        attempt=without_validation,
+        expected_child_attempt_ids=["child-1", "child-2"],
+        expected_output_sha256=output_sha256,
+        expected_context_manifest_sha256="a" * 64,
+    )
+    outside = tmp_path.parent / f"{tmp_path.name}-composite-outside"
+    attempt_root.rename(outside)
+    attempt_root.symlink_to(outside, target_is_directory=True)
+    assert not blueprint_composite_matches(
+        task_root=tmp_path,
+        attempt_id=attempt_id,
+        attempt=attempt,
+        expected_child_attempt_ids=["child-1", "child-2"],
+        expected_output_sha256=output_sha256,
+        expected_context_manifest_sha256="a" * 64,
+    )
+
+
+def test_attempt_evidence_rejects_symlinked_attempt_ancestor(tmp_path: Path) -> None:
+    segment = BlueprintShard("V01", 1, 1)
+    attempt_id = "attempt-writer-rev4-v01-r01"
+    attempt_root = tmp_path / "attempt_logs" / attempt_id
+    attempt_root.mkdir(parents=True)
+    output = _render_shard(1, 1).encode("utf-8")
+    output_sha256 = hashlib.sha256(output).hexdigest()
+    (attempt_root / "output.md").write_bytes(output)
+    attempts = {
+        attempt_id: {
+            "status": "succeeded",
+            "outcome": {"output_sha256": output_sha256},
+            "output_validation": {"status": "pass"},
+        }
+    }
+    outside = tmp_path.parent / f"{tmp_path.name}-attempt-outside"
+    attempt_root.rename(outside)
+    attempt_root.symlink_to(outside, target_is_directory=True)
+
+    assert (
+        validated_blueprint_attempt_output(
+            task_root=tmp_path,
+            attempts=attempts,
+            attempt_id=attempt_id,
+            target=segment,
+        )
+        is None
+    )
+
+
+def test_content_addressed_inputs_never_overwrite_prior_payload(tmp_path: Path) -> None:
+    first_path, first_sha = _materialize_content_addressed_yaml(
+        tmp_path, stem="segment-context", payload={"revision": 1, "value": "A"}
+    )
+    second_path, second_sha = _materialize_content_addressed_yaml(
+        tmp_path, stem="segment-context", payload={"revision": 1, "value": "B"}
+    )
+
+    assert first_path != second_path
+    assert first_sha != second_sha
+    assert yaml.safe_load(first_path.read_text(encoding="utf-8"))["value"] == "A"
+    assert yaml.safe_load(second_path.read_text(encoding="utf-8"))["value"] == "B"
+
+
+def test_content_addressed_inputs_reject_symlinked_directory(tmp_path: Path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-immutable-outside"
+    outside.mkdir()
+    immutable = tmp_path / "inputs" / "blueprint_immutable"
+    immutable.parent.mkdir()
+    immutable.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink|invalid directory"):
+        _materialize_content_addressed_yaml(
+            immutable,
+            stem="segment-context",
+            payload={"value": "must-not-escape"},
+            boundary=tmp_path,
+        )
+
+    assert list(outside.iterdir()) == []
