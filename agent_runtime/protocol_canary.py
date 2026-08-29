@@ -350,6 +350,7 @@ def _prepare_visual_canary_prerequisite(
                         {
                             "variant_id": "night-watch",
                             "state": "夜间守塔，清醒克制",
+                            "hand_pose": "neutral_relaxed",
                             "wardrobe": "深灰交领衣、旧斗篷与软底靴",
                             "grooming": "面部洁净，鬓角受海风略乱",
                             "hairstyle": {

@@ -44,9 +44,11 @@ Supported kinds are:
   values and expanded by the compiler. Free-form male hand prose and explicit
   nail/manicure/pedicure language elsewhere in the card are rejected. Male
   digit-anatomy facts are owned exclusively by the structured hand profile and
-  are rejected in signature, body, state, grooming, wardrobe, and other
-  free-text fields. This prevents cross-field synonym smuggling while segmented
-  iron hand armor remains representable through the governed armor value.
+  hand actions are selected through a separate governed `hand_pose`; both are
+  rejected in signature, body, state, grooming, wardrobe, and other free-text
+  fields. This prevents cross-field synonym smuggling while pointing, writing,
+  weapon handling, and segmented iron hand armor remain representable through
+  governed values.
 - `map`: locks orientation, scale, geography, terrain, water, settlements,
   routes/borders, labels, palette, and prohibited topology drift.
 - `location`: locks architecture, terrain/layout, materials, lighting,

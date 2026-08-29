@@ -87,12 +87,13 @@ def _character_card() -> dict:
                 "hand_armor": "none",
             },
             "signature_details": "右锁骨下旧箭伤，腰侧青布钱囊",
-            "negative_constraints": "不得改变脸型、眼距、断眉、肤色、身高比例与惯用手",
+            "negative_constraints": "不得改变脸型、眼距、断眉、肤色、身高比例与主侧使用习惯",
         },
         "variants": [
             {
                 "variant_id": "wanderer",
                 "state": "初入江湖，克制疲惫，无明显外伤",
+                "hand_pose": "sword_grip",
                 "wardrobe": {
                     "silhouette": "窄袖交领短褐配便于骑行的下裳",
                     "layers": "麻布中衣、靛灰短褐、旧黑斗篷",
@@ -119,7 +120,8 @@ def _character_card() -> dict:
             },
             {
                 "variant_id": "merchant",
-                "state": "掌柜身份，沉静自信，无伤",
+                "state": "商号主事身份，沉静自信，无伤",
+                "hand_pose": "ledger_writing",
                 "wardrobe": {
                     "silhouette": "修身圆领袍外罩深青半臂",
                     "layers": "白绢中衣、玄青袍、暗纹半臂",
@@ -1707,12 +1709,35 @@ def test_male_card_rejects_cross_field_nail_circumlocution(field: str) -> None:
         compile_visual_detail_card_pack(_spec(card))
 
 
-def test_male_card_rejects_hand_facts_outside_structured_profile() -> None:
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "双手各指末梢的透明角层均已削齐，泛着温润色泽",
+        "双手末梢的十枚透明角层均削齐，呈健康光泽",
+    ],
+)
+def test_male_card_rejects_hand_facts_outside_structured_profile(
+    detail: str,
+) -> None:
     card = _character_card()
-    card["invariant"]["signature_details"] = (
-        "右锁骨旧伤；双手各指末梢的透明角层均已削齐，泛着温润色泽"
-    )
+    card["invariant"]["signature_details"] = f"右锁骨旧伤；{detail}"
 
+    with pytest.raises(
+        ValueError, match="male character must not contain nail details"
+    ):
+        compile_visual_detail_card_pack(_spec(card))
+
+
+def test_male_action_uses_governed_hand_pose_instead_of_free_prose() -> None:
+    card = _character_card()
+    card["variants"][0]["state"] = "登高远望，神色警觉"
+    card["variants"][0]["hand_pose"] = "pointing_distant"
+
+    pack = compile_visual_detail_card_pack(_spec(card))
+
+    assert "抬起右臂指向远方" in pack["cards"][0]["prompt_set"][0]["prompt"]
+
+    card["variants"][0]["state"] = "抬手指向远山，神色警觉"
     with pytest.raises(
         ValueError, match="male character must not contain nail details"
     ):
@@ -1811,6 +1836,8 @@ def test_v1_pack_remains_read_only_validatable_for_task_recovery() -> None:
 def test_v2_string_hands_pack_remains_read_only_validatable() -> None:
     card = _character_card()
     card["invariant"]["hands"] = "十根指头末梢外覆铁质硬壳甲片，边缘磨圆以免碍剑"
+    for variant in card["variants"]:
+        variant.pop("hand_pose")
     source = _spec(card)
     source["schema_version"] = "narrative-visual-detail-spec/v2"
     compiled_card = visual_detail_cards._compile_card(

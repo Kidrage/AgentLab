@@ -223,12 +223,22 @@ _MALE_HAND_PROFILE_OPTIONS = {
         "leather_bracer_glove": "佩戴熟皮护腕连半掌手套，保留关节活动",
     },
 }
+_MALE_HAND_POSE_OPTIONS = {
+    "neutral_relaxed": "双臂自然下垂，手部放松",
+    "sword_grip": "惯用侧稳定握剑，另一侧保持警戒",
+    "pointing_distant": "抬起右臂指向远方，姿态明确但不夸张",
+    "holding_reins": "双臂前伸稳定控缰，肩腕自然",
+    "ledger_writing": "一侧执笔记录，另一侧压住账页",
+    "cupped_salute": "双臂在胸前完成克制的抱拳礼",
+    "hands_behind_back": "双臂收于身后，站姿沉静",
+}
 _MALE_CHARACTER_DETAIL_CONTRACT = {
     "hands": {
         field: list(choices) for field, choices in _MALE_HAND_PROFILE_OPTIONS.items()
     },
     "free_form_hand_prose_allowed": False,
     "nail_detail_allowed": False,
+    "hand_pose": list(_MALE_HAND_POSE_OPTIONS),
 }
 
 _FEMALE_INVARIANT_FIELDS = ["makeup_identity", "legs", "feet"]
@@ -423,28 +433,7 @@ _MALE_NAIL_CIRCUMLOCUTION_PATTERNS = (
         r".{0,40}(?:边缘|表面|剪|修|磨|圆|方|尖|色泽|光泽|颜色|涂层|上色|着色|抛光)"
     ),
 )
-_MALE_HAND_FACT_TERMS = (
-    "手指",
-    "十指",
-    "各指",
-    "指头",
-    "指尖",
-    "指端",
-    "指节",
-    "指腹",
-    "指根",
-    "指侧",
-    "脚趾",
-    "趾尖",
-    "趾端",
-    "趾节",
-    "趾腹",
-    "趾根",
-    "手部末端",
-    "手部末梢",
-    "足部末端",
-    "足部末梢",
-)
+_MALE_HAND_FACT_TERMS = ("手", "指", "趾", "掌", "腕", "肢")
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -670,6 +659,7 @@ def _card_contract(
     kind: str,
     invariant: Mapping[str, Any],
     card_id: str,
+    structured_male_hands: bool,
 ) -> tuple[dict[str, list[str]], str | None]:
     contract = deepcopy(_KIND_CONTRACTS[kind])
     if kind != "character":
@@ -686,7 +676,21 @@ def _card_contract(
             if shot_id != "hands-detail"
         ]
         contract["required_shots"].extend(_FEMALE_SHOTS)
+    elif structured_male_hands:
+        contract["required_variant_fields"].append("hand_pose")
     return contract, gender
+
+
+def _render_variant_field(
+    key: str,
+    value: Any,
+    *,
+    gender: str | None,
+    structured_male_hands: bool,
+) -> str:
+    if key == "hand_pose" and gender == "male" and structured_male_hands:
+        return _MALE_HAND_POSE_OPTIONS[str(value)]
+    return _render(value)
 
 
 def _identity_lock_prompt(
@@ -851,6 +855,7 @@ def _compile_card(
         kind=kind,
         invariant=invariant,
         card_id=card_id,
+        structured_male_hands=structured_male_hands,
     )
     _require_fields(
         invariant,
@@ -915,7 +920,7 @@ def _compile_card(
         f"cards.{card_id}.variants[0]",
     )
     reference_variant_text = "；".join(
-        f"{key}：{_render(reference_variant[key])}"
+        f"{key}：{_render_variant_field(key, reference_variant[key], gender=gender, structured_male_hands=structured_male_hands)}"
         for key in contract["required_variant_fields"]
     )
     reference_views = "；".join(
@@ -954,6 +959,12 @@ def _compile_card(
                     f"cards.{card_id}.variants[{variant_index}]",
                 )
             else:
+                hand_pose = str(variant.get("hand_pose") or "")
+                if structured_male_hands and hand_pose not in _MALE_HAND_POSE_OPTIONS:
+                    raise ValueError(
+                        f"cards.{card_id}.variants[{variant_index}].hand_pose "
+                        "must use a governed male hand pose"
+                    )
                 _reject_unsupported_fields(
                     variant,
                     allowed_fields={
@@ -975,7 +986,8 @@ def _compile_card(
             ),
         ]
         variant_text = "；".join(
-            f"{key}：{_render(variant[key])}" for key in ordered_variant_fields
+            f"{key}：{_render_variant_field(key, variant[key], gender=gender, structured_male_hands=structured_male_hands)}"
+            for key in ordered_variant_fields
         )
         for shot_id in contract["required_shots"]:
             prompt = (
