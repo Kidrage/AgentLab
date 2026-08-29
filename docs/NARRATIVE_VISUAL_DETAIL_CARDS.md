@@ -1,24 +1,40 @@
 # Narrative visual detail cards
 
 Every new longform narrative blueprint must produce a hash-sealed
-`narrative-visual-detail-card-pack/v1` before prose production begins. The pack
+`narrative-visual-detail-card-pack/v2` before prose production begins. The pack
 is a candidate artifact: it cannot become canon and it cannot authorize image
 generation or project writes by itself.
 
 ## Source contract
 
-The source is project-bounded `narrative-visual-detail-spec/v1` YAML. The CLI
+The source is project-bounded `narrative-visual-detail-spec/v2` YAML. The CLI
 creates or reuses an exact Runtime-v2 Task bound to `narrative.visual.v1`; a
 deterministic Attempt verifies the declared source hash and all transitive
 source hashes before recording the pack as an immutable ArtifactVersion. A
 directory by itself is never accepted as a Task or as production evidence.
-The spec contains one or more cards with globally unique `card_id` values.
+The spec contains a `creative_policy` with the work title and an explicit
+`female_modern_nail_art_allowed` boolean, plus one or more cards with globally
+unique `card_id` values. Version 1 inputs and packs are historical evidence;
+new compilation and prose prerequisites use version 2.
 Supported kinds are:
 
-- `character`: locks facial geometry and features, skin, eyes, hair, body
-  proportions, hands/nails, signature details, and negative constraints. Every
-  wardrobe/state variant must specify garment construction and materials,
-  grooming, manicure, and wear state.
+- `character`: branches on an explicit `gender` value. Both branches lock
+  structured facial geometry, brows, eyes/iris/eyelids, nose, lips, ears,
+  distinguishing marks, skin, hair colour, hair texture/parting/style,
+  hair-accessory material and placement, body proportions, hands, signature
+  details, and negative constraints. Every wardrobe/state variant also locks
+  its front/back hairstyle and accessory condition.
+- Female character cards additionally require a structured makeup identity,
+  makeup per state, leg proportions/musculature/skin/marks, foot shape/arch/toe
+  arrangement/skin/marks, and per-variant hand and foot nail art. Each manicure
+  and pedicure records style, length, shape, base and accent colours, finish,
+  design, embellishments, and condition. When the work policy allows it,
+  modern French, gradient, cat-eye, jelly, chrome, aurora, marble, magnetic,
+  mirror, and similar nail-art language is intentional rather than treated as
+  accidental modernization.
+- Male character cards use a hand-only detail shot. Nail/manicure/pedicure
+  fields and nail-detail prose are rejected anywhere in the card, so a shared
+  generic prompt cannot reintroduce them.
 - `map`: locks orientation, scale, geography, terrain, water, settlements,
   routes/borders, labels, palette, and prohibited topology drift.
 - `location`: locks architecture, terrain/layout, materials, lighting,
@@ -26,7 +42,10 @@ Supported kinds are:
 - `prop`: locks geometry/dimensions, materials, finish, mechanism, markings,
   damage, and in-hand scale.
 
-The compiler emits all mandatory views for every variant. The same
+The compiler emits gender-appropriate mandatory views for every variant.
+Female sheets include calibrated makeup, hair, hand manicure, leg, and bare-foot
+pedicure views; male sheets include facial-feature, hair, and hand-structure
+views without nail detail. The same
 `identity_lock_prompt` is copied verbatim into every prompt and has its own
 digest. Each prompt and the complete pack are SHA-256 sealed. After the first
 reference image is accepted, all later prompts require that exact reference

@@ -28,20 +28,23 @@ from agent_runtime.task_runtime_v2 import (
 )
 
 
-SPEC_SCHEMA = "narrative-visual-detail-spec/v1"
-PACK_SCHEMA = "narrative-visual-detail-card-pack/v1"
+SPEC_SCHEMA = "narrative-visual-detail-spec/v2"
+PACK_SCHEMA = "narrative-visual-detail-card-pack/v2"
 AWAITING_ACCEPTANCE = "awaiting_visual_generation_and_human_acceptance"
 
 _KIND_CONTRACTS: dict[str, dict[str, list[str]]] = {
     "character": {
         "required_invariant_fields": [
+            "gender",
             "facial_structure",
             "facial_features",
             "skin",
             "eyes",
-            "hair",
+            "hair_color",
+            "hairstyle",
+            "hair_accessories",
             "body",
-            "hands_and_nails",
+            "hands",
             "signature_details",
             "negative_constraints",
         ],
@@ -49,17 +52,20 @@ _KIND_CONTRACTS: dict[str, dict[str, list[str]]] = {
             "state",
             "wardrobe",
             "grooming",
-            "manicure",
+            "hairstyle",
+            "hair_accessories",
             "wear_state",
         ],
         "required_shots": [
             "face-front-neutral",
             "face-three-quarter",
             "face-profile",
+            "facial-features-detail",
+            "hair-color-style-accessories-detail",
             "full-body-front",
             "full-body-back",
             "full-body-side",
-            "hands-and-nails-detail",
+            "hands-detail",
             "garment-construction-detail",
             "state-expression",
             "action-dynamic",
@@ -128,14 +134,92 @@ _KIND_CONTRACTS: dict[str, dict[str, list[str]]] = {
     },
 }
 
+_CHARACTER_DETAIL_FIELDS = {
+    "facial_structure": ["face_shape", "forehead", "cheekbones", "jaw", "asymmetry"],
+    "facial_features": ["brows", "nose", "lips", "ears", "distinguishing_marks"],
+    "eyes": ["shape", "iris_color", "eyelids", "spacing", "gaze"],
+    "hair_color": ["base", "undertone", "highlights"],
+    "hairstyle": ["length", "texture", "parting", "structure"],
+    "hair_accessories": ["primary", "materials", "placement", "secondary"],
+}
+
+_CHARACTER_VARIANT_HAIR_FIELDS = {
+    "hairstyle": ["form", "front", "back", "texture_state"],
+    "hair_accessories": ["items", "materials", "placement", "condition"],
+}
+
+_FEMALE_INVARIANT_FIELDS = ["makeup_identity", "legs", "feet"]
+_FEMALE_VARIANT_FIELDS = ["makeup", "manicure", "pedicure", "leg_and_foot_state"]
+_FEMALE_SHOTS = [
+    "makeup-face-detail",
+    "hands-and-manicure-detail",
+    "legs-detail",
+    "feet-and-pedicure-detail",
+]
+_FEMALE_DETAIL_FIELDS = {
+    "makeup_identity": ["skin_texture", "brow_anchor", "eye_anchor", "lip_anchor"],
+    "legs": ["proportion", "musculature", "skin", "marks"],
+    "feet": ["shape", "arch", "toes", "skin", "marks"],
+}
+_FEMALE_VARIANT_DETAIL_FIELDS = {
+    "makeup": ["complexion", "brows", "eyes", "cheeks", "lips", "finish"],
+    "manicure": [
+        "style",
+        "length",
+        "shape",
+        "base_color",
+        "accent_colors",
+        "finish",
+        "design",
+        "embellishments",
+        "condition",
+    ],
+    "pedicure": [
+        "style",
+        "length",
+        "shape",
+        "base_color",
+        "accent_colors",
+        "finish",
+        "design",
+        "embellishments",
+        "condition",
+    ],
+    "leg_and_foot_state": ["legs", "feet", "exposure", "footwear_interaction"],
+}
+_FEMALE_CHARACTER_DETAIL_CONTRACT = {
+    "modern_nail_art_allowed": True,
+    "nail_art_vocabulary": {
+        "styles": [
+            "solid",
+            "french",
+            "gradient",
+            "cat-eye",
+            "jelly",
+            "chrome",
+            "aurora",
+            "marble",
+        ],
+        "lengths": ["short", "medium-short", "medium", "long"],
+        "shapes": ["round", "squoval", "oval", "almond", "coffin", "stiletto"],
+        "finishes": ["matte", "gloss", "glass", "satin", "magnetic", "mirror"],
+    },
+}
+
 _SHOT_DIRECTIONS = {
     "face-front-neutral": "正面中性表情脸部特写，85mm 人像透视，均匀柔光，完整显示五官比例",
     "face-three-quarter": "同一人物三分之二侧脸特写，保持眼距、鼻形、下颌与发际线",
     "face-profile": "同一人物严格侧面特写，显示额头、鼻梁、唇线、下颌和耳廓轮廓",
+    "facial-features-detail": "同一人物五官校准特写，分别核验眉形、眼形与虹膜、鼻形、唇形、耳廓和标志痕迹",
+    "hair-color-style-accessories-detail": "同一人物头发设定组图，稳定核验发色层次、发丝质地、分缝、前后发型结构、发饰材质与固定位置",
     "full-body-front": "全身正面自然站姿，头脚完整，显示真实身高、肩腰腿比例和服装层次",
     "full-body-back": "全身背面自然站姿，头脚完整，显示发型后部、衣物背片和下摆结构",
     "full-body-side": "全身严格侧面站姿，显示胸背厚度、骨盆、腿长和鞋履比例",
-    "hands-and-nails-detail": "双手与指甲微距细节，保留手型、惯用手、茧、伤痕和美甲状态",
+    "hands-detail": "双手微距细节，仅保留手型、惯用手、茧、伤痕与关节比例",
+    "makeup-face-detail": "女性妆面校准特写，分别核验底妆质感、眉妆、眼妆、腮红、唇妆与妆效，不得磨除身份痕迹",
+    "hands-and-manicure-detail": "女性双手与手部美甲微距，完整显示甲长、甲型、底色、强调色、质感、图案、饰件及当下磨损",
+    "legs-detail": "女性腿部正面、侧面与背面细节组图，稳定核验腿长比例、肌肉结构、肤色、膝部与固定标志",
+    "feet-and-pedicure-detail": "女性双足自然承重与非承重微距，稳定核验足型、足弓、脚趾排列、皮肤标志及足部美甲的长度、形状、颜色、图案与饰件",
     "garment-construction-detail": "服饰结构细节组图，展示领口、袖口、腰封、接缝、面料与饰件",
     "state-expression": "指定状态下的半身表情定妆照，身份不变，仅允许状态差异",
     "action-dynamic": "符合人物能力的动态全身姿态，面部和身材比例不得漂移",
@@ -204,6 +288,25 @@ _VISUAL_STAGE_PROFILES = {
     "verifier": ("Verifier", "verifier"),
 }
 
+_MALE_NAIL_DETAIL_TERMS = (
+    "指甲",
+    "趾甲",
+    "美甲",
+    "甲面",
+    "甲缘",
+    "甲缝",
+    "护甲油",
+    "甲油",
+    "修甲",
+    "染甲",
+    "manicure",
+    "pedicure",
+    "nail_",
+    "nails",
+    "toenail",
+    "fingernail",
+)
+
 
 def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(
@@ -215,7 +318,9 @@ def _canonical_bytes(value: Any) -> bytes:
 
 
 def _sha256(value: bytes | str) -> str:
-    return hashlib.sha256(value.encode("utf-8") if isinstance(value, str) else value).hexdigest()
+    return hashlib.sha256(
+        value.encode("utf-8") if isinstance(value, str) else value
+    ).hexdigest()
 
 
 def _resolve_visual_stage_contracts(agentlab_root: Path) -> dict[str, dict[str, str]]:
@@ -228,12 +333,9 @@ def _resolve_visual_stage_contracts(agentlab_root: Path) -> dict[str, dict[str, 
         raise ValueError(f"cannot load visual role authority: {exc}") from exc
     mode_id = str(document.get("default_mode") or "")
     tier_id = str(((document.get("tier_policy") or {}).get("default_tier")) or "")
-    tier = (
-        (((document.get("modes") or {}).get(mode_id) or {}).get("tiers") or {}).get(
-            tier_id
-        )
-        or {}
-    )
+    tier = (((document.get("modes") or {}).get(mode_id) or {}).get("tiers") or {}).get(
+        tier_id
+    ) or {}
     resolved: dict[str, dict[str, str]] = {}
     for stage_id, (role, profile_key) in _VISUAL_STAGE_PROFILES.items():
         profile = tier.get(profile_key) or {}
@@ -256,7 +358,9 @@ def _resolve_visual_stage_contracts(agentlab_root: Path) -> dict[str, dict[str, 
             invocation_contract,
         )
         if not allowed:
-            raise ValueError(f"visual stage {stage_id} role binding is invalid: {reason}")
+            raise ValueError(
+                f"visual stage {stage_id} role binding is invalid: {reason}"
+            )
         resolved[stage_id] = {
             "role": role,
             "profile_key": profile_key,
@@ -312,33 +416,132 @@ def _require_fields(value: Mapping[str, Any], fields: list[str], locator: str) -
             raise ValueError(f"{locator}.{field} must be non-empty")
 
 
-def _identity_lock_prompt(card: Mapping[str, Any], ordered_fields: list[str]) -> str:
-    invariant = _require_mapping(card["invariant"], f"cards.{card['card_id']}.invariant")
-    facts = "；".join(f"{field}：{_render(invariant[field])}" for field in ordered_fields)
+def _reject_male_nail_details(card: Mapping[str, Any], card_id: str) -> None:
+    serialized = _render(card).lower()
+    present = [term for term in _MALE_NAIL_DETAIL_TERMS if term in serialized]
+    if present:
+        raise ValueError(
+            f"cards.{card_id} male character must not contain nail details: "
+            + ", ".join(present)
+        )
+
+
+def _require_detail_mappings(
+    value: Mapping[str, Any],
+    contracts: Mapping[str, list[str]],
+    locator: str,
+) -> None:
+    for field, required_fields in contracts.items():
+        detail = _require_mapping(value.get(field), f"{locator}.{field}")
+        _require_fields(detail, required_fields, f"{locator}.{field}")
+
+
+def _card_contract(
+    *,
+    kind: str,
+    invariant: Mapping[str, Any],
+    card_id: str,
+) -> tuple[dict[str, list[str]], str | None]:
+    contract = deepcopy(_KIND_CONTRACTS[kind])
+    if kind != "character":
+        return contract, None
+    gender = str(invariant.get("gender") or "").strip().lower()
+    if gender not in {"male", "female"}:
+        raise ValueError(f"cards.{card_id}.invariant.gender must be male or female")
+    if gender == "female":
+        contract["required_invariant_fields"].extend(_FEMALE_INVARIANT_FIELDS)
+        contract["required_variant_fields"].extend(_FEMALE_VARIANT_FIELDS)
+        contract["required_shots"] = [
+            shot_id
+            for shot_id in contract["required_shots"]
+            if shot_id != "hands-detail"
+        ]
+        contract["required_shots"].extend(_FEMALE_SHOTS)
+    return contract, gender
+
+
+def _identity_lock_prompt(
+    card: Mapping[str, Any],
+    ordered_fields: list[str],
+    *,
+    modern_nail_art_allowed: bool,
+) -> str:
+    invariant = _require_mapping(
+        card["invariant"], f"cards.{card['card_id']}.invariant"
+    )
+    facts = "；".join(
+        f"{field}：{_render(invariant[field])}" for field in ordered_fields
+    )
+    modernization_rule = (
+        "除卡片明确记载的女性现代美甲元素外，不得擅自现代化"
+        if modern_nail_art_allowed
+        else "不得现代化"
+    )
     return (
         f"【IDENTITY LOCK {card['card_id']} / {card['display_name']}】{facts}。"
-        "所有图像必须把这些内容视为不可变事实；不得美化替换、现代化、左右翻转或随机增删。"
+        f"所有图像必须把这些内容视为不可变事实；不得美化替换，{modernization_rule}，"
+        "不得左右翻转或随机增删。"
     )
 
 
-def _compile_card(card: Mapping[str, Any]) -> dict:
-    _require_fields(card, ["card_id", "kind", "display_name", "invariant", "variants"], "card")
+def _compile_card(
+    card: Mapping[str, Any],
+    *,
+    creative_policy: Mapping[str, Any],
+) -> dict:
+    _require_fields(
+        card, ["card_id", "kind", "display_name", "invariant", "variants"], "card"
+    )
     card_id = str(card["card_id"])
     kind = str(card["kind"])
     if kind not in _KIND_CONTRACTS:
         raise ValueError(f"cards.{card_id}.kind unsupported: {kind}")
-    contract = _KIND_CONTRACTS[kind]
     invariant = _require_mapping(card["invariant"], f"cards.{card_id}.invariant")
+    contract, gender = _card_contract(
+        kind=kind,
+        invariant=invariant,
+        card_id=card_id,
+    )
     _require_fields(
         invariant,
         contract["required_invariant_fields"],
         f"cards.{card_id}.invariant",
     )
+    if kind == "character":
+        _require_detail_mappings(
+            invariant,
+            _CHARACTER_DETAIL_FIELDS,
+            f"cards.{card_id}.invariant",
+        )
+        if gender == "male":
+            _reject_male_nail_details(card, card_id)
+        else:
+            _require_detail_mappings(
+                invariant,
+                _FEMALE_DETAIL_FIELDS,
+                f"cards.{card_id}.invariant",
+            )
     variants = card["variants"]
     if not isinstance(variants, list) or not variants:
         raise ValueError(f"cards.{card_id}.variants must be a non-empty list")
 
-    identity_prompt = _identity_lock_prompt(card, contract["required_invariant_fields"])
+    modern_nail_art_allowed = (
+        gender == "female"
+        and creative_policy.get("female_modern_nail_art_allowed") is True
+    )
+    identity_prompt = _identity_lock_prompt(
+        card,
+        contract["required_invariant_fields"],
+        modern_nail_art_allowed=modern_nail_art_allowed,
+    )
+    if gender == "female":
+        if modern_nail_art_allowed:
+            work_title = str(creative_policy["work_title"])
+            identity_prompt += (
+                f"现代美甲元素为《{work_title}》的合法视觉设定；可使用法式、渐变、猫眼、"
+                "果冻、镜面、极光与玉石晕染等语言，但每个变体的甲长、甲型、底色、"
+                "强调色、质感、图案、饰件与磨损必须按卡片精确锁定。"
+            )
     identity_digest = _sha256(identity_prompt)
     reference_variant = _require_mapping(variants[0], f"cards.{card_id}.variants[0]")
     _require_fields(
@@ -365,12 +568,26 @@ def _compile_card(card: Mapping[str, Any]) -> dict:
     prompts: list[dict] = []
     seen_variants: set[str] = set()
     for variant_index, raw_variant in enumerate(variants):
-        variant = _require_mapping(raw_variant, f"cards.{card_id}.variants[{variant_index}]")
+        variant = _require_mapping(
+            raw_variant, f"cards.{card_id}.variants[{variant_index}]"
+        )
         _require_fields(
             variant,
             ["variant_id", *contract["required_variant_fields"]],
             f"cards.{card_id}.variants[{variant_index}]",
         )
+        if kind == "character":
+            _require_detail_mappings(
+                variant,
+                _CHARACTER_VARIANT_HAIR_FIELDS,
+                f"cards.{card_id}.variants[{variant_index}]",
+            )
+            if gender == "female":
+                _require_detail_mappings(
+                    variant,
+                    _FEMALE_VARIANT_DETAIL_FIELDS,
+                    f"cards.{card_id}.variants[{variant_index}]",
+                )
         variant_id = str(variant["variant_id"])
         if variant_id in seen_variants:
             raise ValueError(f"cards.{card_id} duplicate variant_id: {variant_id}")
@@ -405,7 +622,7 @@ def _compile_card(card: Mapping[str, Any]) -> dict:
                 }
             )
 
-    return {
+    compiled = {
         "card_id": card_id,
         "kind": kind,
         "display_name": str(card["display_name"]),
@@ -425,19 +642,46 @@ def _compile_card(card: Mapping[str, Any]) -> dict:
         },
         "prompt_set": prompts,
     }
+    if gender == "female":
+        character_detail_contract = deepcopy(_FEMALE_CHARACTER_DETAIL_CONTRACT)
+        character_detail_contract["modern_nail_art_allowed"] = modern_nail_art_allowed
+        compiled["character_detail_contract"] = character_detail_contract
+    return compiled
 
 
 def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
     """Compile one structured candidate spec into deterministic prompt cards."""
 
     document = _require_mapping(spec, "spec")
-    _require_fields(document, ["schema_version", "project", "task_id", "cards"], "spec")
+    _require_fields(
+        document,
+        ["schema_version", "project", "task_id", "creative_policy", "cards"],
+        "spec",
+    )
     if document["schema_version"] != SPEC_SCHEMA:
         raise ValueError(f"unsupported spec schema: {document['schema_version']}")
     cards = document["cards"]
     if not isinstance(cards, list) or not cards:
         raise ValueError("spec.cards must be a non-empty list")
-    compiled_cards = [_compile_card(_require_mapping(card, "spec.cards[]")) for card in cards]
+    creative_policy = _require_mapping(
+        document["creative_policy"], "spec.creative_policy"
+    )
+    _require_fields(
+        creative_policy,
+        ["work_title", "female_modern_nail_art_allowed"],
+        "spec.creative_policy",
+    )
+    if not isinstance(creative_policy["female_modern_nail_art_allowed"], bool):
+        raise ValueError(
+            "spec.creative_policy.female_modern_nail_art_allowed must be boolean"
+        )
+    compiled_cards = [
+        _compile_card(
+            _require_mapping(card, "spec.cards[]"),
+            creative_policy=creative_policy,
+        )
+        for card in cards
+    ]
     card_ids = [card["card_id"] for card in compiled_cards]
     if len(card_ids) != len(set(card_ids)):
         raise ValueError("spec.cards card_id values must be unique")
@@ -453,6 +697,7 @@ def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
         "promotion_state": AWAITING_ACCEPTANCE,
         "source_spec_sha256": _sha256(_canonical_bytes(document)),
         "source_refs": deepcopy(source_refs),
+        "creative_policy": deepcopy(dict(creative_policy)),
         "generation_contract": deepcopy(_GENERATION_CONTRACT),
         "review_contract": deepcopy(_REVIEW_CONTRACT),
         "cards": compiled_cards,
@@ -478,13 +723,13 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
     if pack.get("candidate_only") is not True:
         issues.append("pack must remain candidate_only")
     if pack.get("promotion_state") != AWAITING_ACCEPTANCE:
-        issues.append("promotion_state must await visual generation and human acceptance")
+        issues.append(
+            "promotion_state must await visual generation and human acceptance"
+        )
     if pack.get("generation_contract") != _GENERATION_CONTRACT:
         issues.append("generation_contract must bind image generation to Codex handoff")
     if pack.get("review_contract") != _REVIEW_CONTRACT:
-        issues.append(
-            "review_contract does not match the Codex/Agy/Hermes boundary"
-        )
+        issues.append("review_contract does not match the Codex/Agy/Hermes boundary")
     cards = pack.get("cards")
     if not isinstance(cards, list) or not cards:
         issues.append("cards must be a non-empty list")
@@ -511,7 +756,10 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
                     "display_name": card.get("display_name"),
                     "invariant": card.get("invariant"),
                     "variants": card.get("variants"),
-                }
+                },
+                creative_policy=_require_mapping(
+                    pack.get("creative_policy"), "pack.creative_policy"
+                ),
             )
         except (KeyError, TypeError, ValueError) as exc:
             issues.append(f"{card_id}: cannot rebuild card: {exc}")
@@ -521,16 +769,23 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
             issues.append(f"{card_id}: identity_lock_prompt does not match invariant")
         if card.get("identity_digest") != _sha256(lock):
             issues.append(f"{card_id}: identity_digest mismatch")
-        if card.get("required_shot_ids") != contract["required_shots"]:
+        required_shots = rebuilt["required_shot_ids"]
+        if card.get("required_shot_ids") != required_shots:
             issues.append(f"{card_id}: required_shot_ids mismatch")
+        if card.get("character_detail_contract") != rebuilt.get(
+            "character_detail_contract"
+        ):
+            issues.append(f"{card_id}: character_detail_contract mismatch")
         if card.get("identity_reference") != rebuilt["identity_reference"]:
             issues.append(f"{card_id}: identity_reference mismatch")
-        variants = card.get("variants") if isinstance(card.get("variants"), list) else []
+        variants = (
+            card.get("variants") if isinstance(card.get("variants"), list) else []
+        )
         expected = {
             (str(variant.get("variant_id")), shot)
             for variant in variants
             if isinstance(variant, Mapping)
-            for shot in contract["required_shots"]
+            for shot in required_shots
         }
         observed: set[tuple[str, str]] = set()
         prompts = card.get("prompt_set")
@@ -543,12 +798,20 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
                 continue
             prompt = str(item.get("prompt") or "")
             if lock not in prompt:
-                issues.append(f"{card_id}.prompt_set[{prompt_index}] missing identity lock")
+                issues.append(
+                    f"{card_id}.prompt_set[{prompt_index}] missing identity lock"
+                )
             if item.get("prompt_sha256") != _sha256(prompt):
-                issues.append(f"{card_id}.prompt_set[{prompt_index}] prompt_sha256 mismatch")
+                issues.append(
+                    f"{card_id}.prompt_set[{prompt_index}] prompt_sha256 mismatch"
+                )
             if item.get("reference_asset_ids") != [f"{card_id}::identity-reference"]:
-                issues.append(f"{card_id}.prompt_set[{prompt_index}] reference asset mismatch")
-            observed.add((str(item.get("variant_id") or ""), str(item.get("shot_id") or "")))
+                issues.append(
+                    f"{card_id}.prompt_set[{prompt_index}] reference asset mismatch"
+                )
+            observed.add(
+                (str(item.get("variant_id") or ""), str(item.get("shot_id") or ""))
+            )
         if observed != expected:
             issues.append(f"{card_id}: prompt shot coverage mismatch")
         if prompts != rebuilt["prompt_set"]:
@@ -605,10 +868,7 @@ def _pinned_managed_tool_public_key(agentlab_root: Path) -> Path:
         pass
     else:
         raise ValueError("Codex managed-tool public key must be outside AgentLab")
-    if (
-        not public_key.is_file()
-        or _sha256(public_key.read_bytes()) != expected_sha256
-    ):
+    if not public_key.is_file() or _sha256(public_key.read_bytes()) != expected_sha256:
         raise ValueError("Codex managed-tool public key pin mismatch")
     return public_key
 
@@ -748,7 +1008,9 @@ def _validate_pack_runtime_provenance(
     try:
         observed_pack = yaml.safe_load(pack_bytes.decode("utf-8")) or {}
     except (UnicodeError, yaml.YAMLError) as exc:
-        raise ValueError("visual detail card pack ArtifactVersion is unreadable") from exc
+        raise ValueError(
+            "visual detail card pack ArtifactVersion is unreadable"
+        ) from exc
     if observed_pack != pack:
         raise ValueError("visual detail card pack mapping does not match its file")
     digest = _sha256(pack_bytes)
@@ -763,14 +1025,15 @@ def _validate_pack_runtime_provenance(
         if artifact.get("artifact_id") == "visual_detail_card_pack"
         and artifact.get("disposition", "eligible") == "eligible"
         and artifact.get("sha256") == digest
-        and (
-            runtime._task_dir(task_id) / str(artifact.get("path") or "")
-        ).resolve(strict=True)
+        and (runtime._task_dir(task_id) / str(artifact.get("path") or "")).resolve(
+            strict=True
+        )
         == resolved_pack
     ]
-    if projection["task"].get("protocol_ref") != "narrative.visual.v1" or len(
-        matches
-    ) != 1:
+    if (
+        projection["task"].get("protocol_ref") != "narrative.visual.v1"
+        or len(matches) != 1
+    ):
         raise ValueError(
             "generation requires one eligible narrative.visual.v1 pack ArtifactVersion"
         )
@@ -784,9 +1047,7 @@ def _validate_pack_runtime_provenance(
         raise ValueError("visual detail card pack has no exact deterministic hash gate")
     facts = projection["task"].get("input_profile") or {}
     blueprint_task_id = str(facts.get("source_blueprint_task_id") or "")
-    blueprint_version_id = str(
-        facts.get("source_blueprint_artifact_version_id") or ""
-    )
+    blueprint_version_id = str(facts.get("source_blueprint_artifact_version_id") or "")
     try:
         blueprint = runtime.load_task(blueprint_task_id)
     except (EntityNotFound, LedgerIntegrityError) as exc:
@@ -926,7 +1187,10 @@ def validate_identity_reference_acceptance(
         ),
         None,
     )
-    if receipt.get("schema_version") != "narrative-visual-identity-reference-acceptance/v1":
+    if (
+        receipt.get("schema_version")
+        != "narrative-visual-identity-reference-acceptance/v1"
+    ):
         issues.append("unsupported identity reference acceptance schema")
     if receipt.get("status") != "accepted":
         issues.append("identity reference receipt is not accepted")
@@ -952,7 +1216,9 @@ def validate_identity_reference_acceptance(
         else:
             try:
                 root = agentlab_root.resolve(strict=True)
-                project = _safe_identifier(str(pack.get("project") or ""), label="project")
+                project = _safe_identifier(
+                    str(pack.get("project") or ""), label="project"
+                )
                 project_path = root / "projects" / project
                 _reject_symlink_ancestry(project_path, root, label="project")
                 project_root = project_path.resolve(strict=True)
@@ -1018,20 +1284,22 @@ def validate_identity_reference_acceptance(
                 or reference_facts.get("identity_reference_prompt_sha256")
                 != (card.get("identity_reference") or {}).get("prompt_sha256")
             ):
-                issues.append("identity reference Task facts do not bind the exact card")
+                issues.append(
+                    "identity reference Task facts do not bind the exact card"
+                )
             try:
                 visual_projection = runtime.load_task(str(pack.get("task_id") or ""))
                 visual_version_id = str(
                     reference_facts.get("source_visual_pack_version_id") or ""
                 )
                 visual_artifact = visual_projection["artifacts"].get(visual_version_id)
-                visual_pack_path = runtime._task_dir(str(pack.get("task_id") or "")) / str(
-                    (visual_artifact or {}).get("path") or ""
-                )
+                visual_pack_path = runtime._task_dir(
+                    str(pack.get("task_id") or "")
+                ) / str((visual_artifact or {}).get("path") or "")
                 visual_pack_bytes = visual_pack_path.read_bytes()
-                visual_pack_mapping = yaml.safe_load(
-                    visual_pack_bytes.decode("utf-8")
-                ) or {}
+                visual_pack_mapping = (
+                    yaml.safe_load(visual_pack_bytes.decode("utf-8")) or {}
+                )
                 visual_gate = visual_projection["protocol_gates"].get(
                     "visual_detail_cards_hash_verified"
                 )
@@ -1039,8 +1307,7 @@ def validate_identity_reference_acceptance(
                     visual_projection["task"].get("protocol_ref")
                     != "narrative.visual.v1"
                     or not isinstance(visual_artifact, Mapping)
-                    or visual_artifact.get("artifact_id")
-                    != "visual_detail_card_pack"
+                    or visual_artifact.get("artifact_id") != "visual_detail_card_pack"
                     or visual_artifact.get("disposition", "eligible") != "eligible"
                     or visual_artifact.get("sha256") != _sha256(visual_pack_bytes)
                     or visual_pack_mapping != pack
@@ -1060,18 +1327,20 @@ def validate_identity_reference_acceptance(
                 ValueError,
                 yaml.YAMLError,
             ):
-                issues.append("identity reference Task source visual pack is unavailable")
+                issues.append(
+                    "identity reference Task source visual pack is unavailable"
+                )
             immutable_asset = runtime._task_dir(evidence_task_id) / str(
                 artifact.get("path") or ""
             )
-            if (
-                not immutable_asset.is_file()
-                or immutable_asset.resolve(strict=True)
-                != (agentlab_root.resolve(strict=True) / str(asset.get("path") or "")).resolve(
-                    strict=True
+            if not immutable_asset.is_file() or immutable_asset.resolve(
+                strict=True
+            ) != (
+                agentlab_root.resolve(strict=True) / str(asset.get("path") or "")
+            ).resolve(strict=True):
+                issues.append(
+                    "identity reference asset is not the Runtime-v2 ArtifactVersion"
                 )
-            ):
-                issues.append("identity reference asset is not the Runtime-v2 ArtifactVersion")
 
         stage_sessions: dict[str, str] = {}
         stage_backends: dict[str, str] = {}
@@ -1099,7 +1368,9 @@ def validate_identity_reference_acceptance(
                     if isinstance(attempt, Mapping)
                     else None
                 )
-                outcome = attempt.get("outcome") if isinstance(attempt, Mapping) else None
+                outcome = (
+                    attempt.get("outcome") if isinstance(attempt, Mapping) else None
+                )
                 if (
                     not isinstance(stage, Mapping)
                     or not isinstance(attempt, Mapping)
@@ -1122,9 +1393,10 @@ def validate_identity_reference_acceptance(
                     attempt_receipt_path = runtime._task_dir(evidence_task_id) / str(
                         outcome.get("receipt_path") or ""
                     )
-                    attempt_receipt = yaml.safe_load(
-                        attempt_receipt_path.read_text(encoding="utf-8")
-                    ) or {}
+                    attempt_receipt = (
+                        yaml.safe_load(attempt_receipt_path.read_text(encoding="utf-8"))
+                        or {}
+                    )
                 except (
                     OSError,
                     UnicodeError,
@@ -1140,11 +1412,15 @@ def validate_identity_reference_acceptance(
                         not isinstance(artifact, Mapping)
                         or artifact.get("producer_attempt_id") != attempt_id
                     ):
-                        issues.append("identity reference generation Attempt did not produce the artifact")
+                        issues.append(
+                            "identity reference generation Attempt did not produce the artifact"
+                        )
                 else:
                     expected_source = (
                         {
-                            "path": immutable_asset.relative_to(agentlab_root).as_posix(),
+                            "path": immutable_asset.relative_to(
+                                agentlab_root
+                            ).as_posix(),
                             "sha256": asset_sha256,
                         }
                         if isinstance(immutable_asset, Path)
@@ -1161,9 +1437,13 @@ def validate_identity_reference_acceptance(
                             attempt_receipt.get("output_path") or ""
                         )
                         output_bytes = output_path.read_bytes()
-                        if _sha256(output_bytes) != attempt_receipt.get("output_sha256"):
+                        if _sha256(output_bytes) != attempt_receipt.get(
+                            "output_sha256"
+                        ):
                             raise ValueError("review output hash mismatch")
-                        review_output = yaml.safe_load(output_bytes.decode("utf-8")) or {}
+                        review_output = (
+                            yaml.safe_load(output_bytes.decode("utf-8")) or {}
+                        )
                     except (OSError, UnicodeError, ValueError, yaml.YAMLError):
                         issues.append(
                             f"identity reference {stage_id} review output is invalid"
@@ -1179,7 +1459,9 @@ def validate_identity_reference_acceptance(
                         )
                 model_execution = attempt_receipt.get("model_execution")
                 if not isinstance(model_execution, Mapping):
-                    issues.append(f"identity reference {stage_id} model evidence is missing")
+                    issues.append(
+                        f"identity reference {stage_id} model evidence is missing"
+                    )
                     continue
                 model_path = runtime._task_dir(evidence_task_id) / str(
                     model_execution.get("path") or ""
@@ -1188,16 +1470,18 @@ def validate_identity_reference_acceptance(
                     model_bytes = model_path.read_bytes()
                     model_receipt = yaml.safe_load(model_bytes.decode("utf-8")) or {}
                 except (OSError, UnicodeError, yaml.YAMLError):
-                    issues.append(f"identity reference {stage_id} model receipt is unavailable")
+                    issues.append(
+                        f"identity reference {stage_id} model receipt is unavailable"
+                    )
                     continue
                 if (
                     _sha256(model_bytes) != model_execution.get("sha256")
-                    or stage.get("model_receipt_sha256") != model_execution.get("sha256")
+                    or stage.get("model_receipt_sha256")
+                    != model_execution.get("sha256")
                     or model_receipt.get("status") != "pass"
                     or model_receipt.get("worker") != expected_worker
                     or model_receipt.get("role") != expected_role
-                    or model_receipt.get("invocation_contract")
-                    != expected_contract
+                    or model_receipt.get("invocation_contract") != expected_contract
                     or (
                         stage_id != "generation"
                         and model_receipt.get("selected_model_key")
@@ -1207,11 +1491,12 @@ def validate_identity_reference_acceptance(
                     or model_receipt.get("provider_process_started") is not True
                     or model_receipt.get("fallback_detected") is not False
                 ):
-                    issues.append(f"identity reference {stage_id} model receipt is invalid")
+                    issues.append(
+                        f"identity reference {stage_id} model receipt is invalid"
+                    )
                     continue
                 if stage_id == "generation" and (
-                    model_receipt.get("execution_surface")
-                    != "codex_managed_imagegen"
+                    model_receipt.get("execution_surface") != "codex_managed_imagegen"
                     or model_receipt.get("managed_tool")
                     != _GENERATION_CONTRACT["managed_tool"]
                     or model_receipt.get("generated_asset_sha256") != asset_sha256
@@ -1266,9 +1551,7 @@ def validate_identity_reference_acceptance(
                                 / "projects"
                                 / str(pack.get("project") or ""),
                                 payload=expected_attestation_payload,
-                                signature_path=Path(
-                                    str(attestation["signature_path"])
-                                ),
+                                signature_path=Path(str(attestation["signature_path"])),
                                 public_key_path=_pinned_managed_tool_public_key(
                                     agentlab_root
                                 ),
@@ -1288,7 +1571,9 @@ def validate_identity_reference_acceptance(
                     )
                 )
                 if not session_id or provider_model in {"/", ""}:
-                    issues.append(f"identity reference {stage_id} session/model is missing")
+                    issues.append(
+                        f"identity reference {stage_id} session/model is missing"
+                    )
                     continue
                 stage_sessions[stage_id] = session_id
                 stage_backends[stage_id] = provider_model
@@ -1316,11 +1601,7 @@ def validate_identity_reference_acceptance(
                 or gate.get("status") != "pass"
                 or gate.get("evidence_kind") != evidence_kind
                 or gate.get("attempt_id")
-                != (
-                    stage.get("attempt_id")
-                    if isinstance(stage, Mapping)
-                    else None
-                )
+                != (stage.get("attempt_id") if isinstance(stage, Mapping) else None)
                 or gate.get("subject_version_ids") != [version_id]
                 or gate.get("evidence_sha256") != gate_subject_digest
             ):
@@ -1328,8 +1609,7 @@ def validate_identity_reference_acceptance(
                     f"identity reference protocol gate {gate_id} is missing or stale"
                 )
         if any(
-            (projection["work_items"].get(stage_id) or {}).get("status")
-            != "accepted"
+            (projection["work_items"].get(stage_id) or {}).get("status") != "accepted"
             for stage_id in expected_stages
         ):
             issues.append("identity reference protocol WorkItems are not accepted")
@@ -1412,11 +1692,7 @@ def compile_visual_generation_batch(
     )
     generation_profile = _resolve_visual_stage_contracts(agentlab_root)["generation"]
     card = next(
-        (
-            item
-            for item in pack["cards"]
-            if item.get("card_id") == card_id
-        ),
+        (item for item in pack["cards"] if item.get("card_id") == card_id),
         None,
     )
     if card is None:
@@ -1449,20 +1725,26 @@ def compile_visual_generation_batch(
         _reject_symlink_ancestry(project_path, root, label="project")
         project_root = project_path.resolve(strict=True)
         for receipt_path in accepted_reference_receipt_paths:
-            requested = receipt_path if receipt_path.is_absolute() else root / receipt_path
+            requested = (
+                receipt_path if receipt_path.is_absolute() else root / receipt_path
+            )
             resolved_receipt = _bounded_regular_file(
                 requested,
                 project_root,
                 label="identity reference acceptance receipt",
             )
             try:
-                receipt = yaml.safe_load(
-                    resolved_receipt.read_text(encoding="utf-8")
-                ) or {}
+                receipt = (
+                    yaml.safe_load(resolved_receipt.read_text(encoding="utf-8")) or {}
+                )
             except (OSError, UnicodeError, yaml.YAMLError) as exc:
-                raise ValueError(f"identity reference acceptance receipt is invalid: {exc}") from exc
+                raise ValueError(
+                    f"identity reference acceptance receipt is invalid: {exc}"
+                ) from exc
             if not isinstance(receipt, Mapping):
-                raise ValueError("identity reference acceptance receipt must be a mapping")
+                raise ValueError(
+                    "identity reference acceptance receipt must be a mapping"
+                )
             reference_validation = validate_identity_reference_acceptance(
                 agentlab_root,
                 pack,
@@ -1474,15 +1756,15 @@ def compile_visual_generation_batch(
                     + ", ".join(reference_validation["issues"])
                 )
             if receipt.get("card_id") != card_id:
-                raise ValueError("identity reference acceptance belongs to another card")
+                raise ValueError(
+                    "identity reference acceptance belongs to another card"
+                )
             references.append(deepcopy(dict(receipt["asset"])))
             receipt_refs.append(
                 {
                     "path": resolved_receipt.relative_to(root).as_posix(),
                     "sha256": _sha256(resolved_receipt.read_bytes()),
-                    "content_sha256": reference_validation[
-                        "acceptance_receipt_sha256"
-                    ],
+                    "content_sha256": reference_validation["acceptance_receipt_sha256"],
                 }
             )
         jobs = [

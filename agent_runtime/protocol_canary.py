@@ -279,9 +279,13 @@ def _prepare_visual_canary_prerequisite(
     atomic_write_yaml(
         spec_path,
         {
-            "schema_version": "narrative-visual-detail-spec/v1",
+            "schema_version": "narrative-visual-detail-spec/v2",
             "project": project,
             "task_id": visual_task_id,
+            "creative_policy": {
+                "work_title": "Protocol Canary",
+                "female_modern_nail_art_allowed": False,
+            },
             "source_refs": [],
             "cards": [
                 {

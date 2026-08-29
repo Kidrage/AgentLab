@@ -36,13 +36,48 @@ def _character_card() -> dict:
         "kind": "character",
         "display_name": "沈渡",
         "invariant": {
-            "facial_structure": "窄长鹅蛋脸，下颌利落，颧骨克制",
-            "facial_features": "直鼻薄唇，左眉尾有一道浅断痕",
+            "gender": "male",
+            "facial_structure": {
+                "face_shape": "窄长鹅蛋脸",
+                "forehead": "额头中等偏高，额角平顺",
+                "cheekbones": "颧骨克制，不外扩",
+                "jaw": "下颌利落，颏部略窄",
+                "asymmetry": "右侧咬肌略强，笑时右嘴角先抬",
+            },
+            "facial_features": {
+                "brows": "平直浓眉，左眉尾有一道浅断痕",
+                "nose": "鼻梁直，鼻尖收束，鼻翼窄",
+                "lips": "薄唇，唇峰浅，下唇中央略厚",
+                "ears": "耳廓贴近头部，耳垂薄",
+                "distinguishing_marks": "左眉尾四毫米断痕",
+            },
             "skin": "冷调小麦肤色，真实细微毛孔",
-            "eyes": "深褐狭长眼，外眼角微垂，目光安静警觉",
-            "hair": "墨黑长发，发际线自然，常以旧乌木簪束半髻",
+            "eyes": {
+                "shape": "狭长眼，外眼角微垂",
+                "iris_color": "深褐色，虹膜外圈更深",
+                "eyelids": "窄内双，上眼睑薄",
+                "spacing": "眼距约一只眼宽",
+                "gaze": "安静警觉，注视时不夸张眯眼",
+            },
+            "hair_color": {
+                "base": "墨黑",
+                "undertone": "冷棕",
+                "highlights": "日光下发梢呈极淡深栗色",
+            },
+            "hairstyle": {
+                "length": "过肩至肩胛下缘",
+                "texture": "直发，发丝中等粗，受潮后微弯",
+                "parting": "自然中分略偏左，发际线不过度整齐",
+                "structure": "上半束半髻，下半自然垂落",
+            },
+            "hair_accessories": {
+                "primary": "旧乌木簪",
+                "materials": "哑光乌木，无金属镶嵌",
+                "placement": "从半髻左下向右上穿入",
+                "secondary": "黑色棉绳隐藏束发，无外露珠饰",
+            },
             "body": "青年男性，一百八十四厘米，宽肩窄腰，长腿，精瘦而非健美块状",
-            "hands_and_nails": "修长有剑茧的手，短圆甲，甲面自然无亮油，虎口旧伤",
+            "hands": "修长有剑茧的手，虎口旧伤，惯用右手",
             "signature_details": "右锁骨下旧箭伤，腰侧青布钱囊",
             "negative_constraints": "不得改变脸型、眼距、断眉、肤色、身高比例与惯用手",
         },
@@ -60,7 +95,18 @@ def _character_card() -> dict:
                     "footwear": "旧牛皮薄底靴，鞋头有泥痕",
                 },
                 "grooming": "鬓角略乱，下颌有一天青茬",
-                "manicure": "短圆自然甲，缝隙有洗不净的淡墨和尘土",
+                "hairstyle": {
+                    "form": "松束半髻",
+                    "front": "偏左中分，鬓角受潮散落",
+                    "back": "发尾自然落至肩胛",
+                    "texture_state": "带江雾湿气，发丝成小束但不油腻",
+                },
+                "hair_accessories": {
+                    "items": "旧乌木簪与隐藏黑棉绳",
+                    "materials": "磨损乌木与棉线",
+                    "placement": "木簪保持左下向右上",
+                    "condition": "簪尾有旧磕痕，不新增装饰",
+                },
                 "wear_state": "斗篷下摆磨毛，左袖两处细补丁",
             },
             {
@@ -76,8 +122,220 @@ def _character_card() -> dict:
                     "footwear": "深色软底云头靴",
                 },
                 "grooming": "发髻整齐，面部干净",
-                "manicure": "短圆自然甲，洁净哑光，剑茧仍清楚",
+                "hairstyle": {
+                    "form": "紧实半髻",
+                    "front": "偏左中分，鬓发收整但保留发际碎发",
+                    "back": "下半发梳顺并收至背后",
+                    "texture_state": "洁净哑光，可见独立发丝",
+                },
+                "hair_accessories": {
+                    "items": "修复后的原乌木簪与黑棉绳",
+                    "materials": "乌木与棉线，不加玉石金属",
+                    "placement": "木簪方向与早期完全一致",
+                    "condition": "裂纹修补可见，表面不抛高光",
+                },
                 "wear_state": "衣料平整，仅袖口有轻微使用褶皱",
+            },
+        ],
+    }
+
+
+def _female_character_card() -> dict:
+    return {
+        "card_id": "character-su-wantang",
+        "kind": "character",
+        "display_name": "苏晚棠",
+        "invariant": {
+            "gender": "female",
+            "facial_structure": {
+                "face_shape": "端正偏方的鹅蛋脸",
+                "forehead": "额头饱满，发际线圆润",
+                "cheekbones": "颧骨略高但转折柔和",
+                "jaw": "下颌圆中带直线，颏部不尖",
+                "asymmetry": "左颊略丰满，微笑时右嘴角先动",
+            },
+            "facial_features": {
+                "brows": "自然平直眉，眉头疏、眉尾清楚",
+                "nose": "鼻梁柔和，鼻尖圆润，鼻翼窄",
+                "lips": "唇形清楚偏丰，唇峰圆钝",
+                "ears": "耳廓小而贴，左耳垂有单枚耳洞",
+                "distinguishing_marks": "右嘴角下极淡小痣",
+            },
+            "skin": "暖调象牙肤色，鼻翼有细雀斑，保留自然纹理",
+            "eyes": {
+                "shape": "杏眼，眼尾平，内眼角圆钝",
+                "iris_color": "琥珀深褐，虹膜内圈有暖金细纹",
+                "eyelids": "自然外双，褶线窄而稳定",
+                "spacing": "眼距略小于一只眼宽",
+                "gaze": "注视账目时上眼睑略压低，精确克制",
+            },
+            "hair_color": {
+                "base": "深黑褐",
+                "undertone": "暖栗棕",
+                "highlights": "日光下仅发梢出现低饱和茶棕",
+            },
+            "hairstyle": {
+                "length": "及腰",
+                "texture": "粗韧直发，发尾轻微自然弯",
+                "parting": "左侧三七分，无空气刘海",
+                "structure": "低髻为身份锚点，后脑轮廓饱满但不夸张",
+            },
+            "hair_accessories": {
+                "primary": "银质算盘珠簪",
+                "materials": "旧银、黑漆木珠",
+                "placement": "从低髻右下向左上斜穿固定",
+                "secondary": "两枚极细旧银U形固定簪，不外露",
+            },
+            "makeup_identity": {
+                "skin_texture": "雀斑与毛孔不得被底妆抹除",
+                "brow_anchor": "平直眉形与自然眉峰固定",
+                "eye_anchor": "不扩大眼裂，不粘夸张浓睫",
+                "lip_anchor": "保留清楚偏丰的原生唇形",
+            },
+            "body": "二十二岁，一百七十厘米，肩背挺直，腰胯为真实成年女性曲线",
+            "hands": "手掌略宽、指节灵活，右手中指有执笔薄茧",
+            "legs": {
+                "proportion": "大腿与小腿比例接近一比一点一，小腿线条偏长",
+                "musculature": "常年登船形成紧实小腿与稳定膝部",
+                "skin": "暖象牙肤色，膝盖与胫骨略有日晒色差",
+                "marks": "右膝外侧一厘米旧擦伤，不得左右翻转",
+            },
+            "feet": {
+                "shape": "脚型修长但前掌略宽，后跟窄",
+                "arch": "中等足弓，承重时弧度自然下降",
+                "toes": "脚趾长度由大趾向外递减，排列自然不挤压",
+                "skin": "足背肤色与腿部一致，后跟有轻微真实干纹",
+                "marks": "左脚踝内侧一颗浅褐小痣",
+            },
+            "signature_details": "右嘴角小痣、算盘珠簪、左脚踝小痣、黑漆算盘",
+            "negative_constraints": "不得幼态化、瓷白磨皮、改变雀斑、腿长比例、足型和标志位置",
+        },
+        "variants": [
+            {
+                "variant_id": "river-merchant",
+                "state": "初掌船队，理性戒备，江风中保持稳重",
+                "wardrobe": {
+                    "silhouette": "湖蓝窄袖对襟衫配深灰长裙和短半臂",
+                    "layers": "素棉中衣、湖蓝衫、深灰裙、烟青防水披帛",
+                    "materials": "细棉、葛布、哑光丝边、涂蜡帆布",
+                    "palette": "湖蓝、深灰、银白、少量朱砂红",
+                    "construction": "对襟盘扣、腋下活动片、裙侧暗袋",
+                    "ornament": "算盘珠簪、小银环、黑漆算盘",
+                    "footwear": "深灰软底船履，防滑麻底，可脱下核验足部锚点",
+                },
+                "grooming": "江风吹出两缕碎发，皮肤保持自然光泽",
+                "makeup": {
+                    "complexion": "轻薄暖调底妆，仅均匀局部泛红",
+                    "brows": "原生平直眉，眉尾用灰棕补齐",
+                    "eyes": "暖褐内眼线与极淡杏色眼影",
+                    "cheeks": "低饱和杏桃色，面积克制",
+                    "lips": "半哑光茶杏色润唇",
+                    "finish": "低光泽耐风妆，不遮雀斑与毛孔",
+                },
+                "hairstyle": {
+                    "form": "低髻，发尾全部收束",
+                    "front": "左侧三七分，两缕受风碎发",
+                    "back": "髻心顺时针盘绕，轮廓贴近后脑",
+                    "texture_state": "江风下略蓬松，不油亮",
+                },
+                "hair_accessories": {
+                    "items": "银算盘珠簪与两枚隐藏U簪",
+                    "materials": "氧化旧银与黑漆木珠",
+                    "placement": "主簪右下向左上斜穿",
+                    "condition": "银面有细划痕，木珠无缺失",
+                },
+                "manicure": {
+                    "style": "现代微法式与透明果冻甲结合",
+                    "length": "中短，前缘超出指尖三毫米",
+                    "shape": "方圆形",
+                    "base_color": "半透明奶茶米色",
+                    "accent_colors": "极细朱砂红法式边",
+                    "finish": "玻璃感亮面",
+                    "design": "无名指算盘珠几何细线",
+                    "embellishments": "零立体钻饰，使用极薄金属箔点",
+                    "condition": "完整新做，右中指执笔茧仍可见",
+                },
+                "pedicure": {
+                    "style": "现代猫眼渐变足部美甲",
+                    "length": "短，前缘不超过趾端一毫米",
+                    "shape": "大趾方圆，其余自然圆形",
+                    "base_color": "深湖蓝半透明底",
+                    "accent_colors": "银灰磁光与一线朱砂红",
+                    "finish": "高亮猫眼光带",
+                    "design": "双足大趾纵向窄猫眼，其余纯色",
+                    "embellishments": "大趾根部单枚微型银箔，不使用厚重贴钻",
+                    "condition": "边缘完整，足部皮肤纹理真实",
+                },
+                "leg_and_foot_state": {
+                    "legs": "小腿有登船后的轻微肌肉张力，无伤",
+                    "feet": "足背干净，后跟保留轻微干纹",
+                    "exposure": "细节照脱鞋赤足，其余镜头按服饰穿船履",
+                    "footwear_interaction": "鞋头宽度匹配前掌，不挤压趾形",
+                },
+                "wear_state": "袖口有墨点，裙摆有轻微水痕",
+            },
+            {
+                "variant_id": "alliance-chair",
+                "state": "合伙议会主持者，沉着威严",
+                "wardrobe": {
+                    "silhouette": "深青立领长衫外叠宽肩织金半臂",
+                    "layers": "米白绢衣、深青长衫、乌蓝半臂",
+                    "materials": "素绢、云纹提花、乌木扣、氧化银",
+                    "palette": "深青、乌蓝、旧银、暗朱",
+                    "construction": "肩线清晰、裙褶稳定、无拖尾",
+                    "ornament": "旧银算盘珠簪与合伙印戒",
+                    "footwear": "黑蓝软皮履，低跟，可脱下核验足部锚点",
+                },
+                "grooming": "低髻光洁但保留发丝纹理，雀斑不遮",
+                "makeup": {
+                    "complexion": "半哑光轻薄底妆，保留鼻翼雀斑",
+                    "brows": "灰黑平直眉，边界柔和",
+                    "eyes": "深茶眼线与旧金细闪内眼角",
+                    "cheeks": "冷豆沙色沿颧骨轻扫",
+                    "lips": "半哑光深豆沙唇",
+                    "finish": "正式耐久妆，皮肤不过度磨平",
+                },
+                "hairstyle": {
+                    "form": "结构更紧密的低髻",
+                    "front": "左侧三七分，额前无碎发",
+                    "back": "双股扭绕后收成扁圆髻",
+                    "texture_state": "顺滑但可见独立发丝",
+                },
+                "hair_accessories": {
+                    "items": "同形旧银算盘珠簪与暗朱丝线",
+                    "materials": "旧银、黑漆木、蚕丝",
+                    "placement": "主簪保持固定方向，丝线沿髻根一圈",
+                    "condition": "氧化层均匀，无新增珠翠",
+                },
+                "manicure": {
+                    "style": "现代镜面铬粉框边甲",
+                    "length": "中等，前缘超出指尖五毫米",
+                    "shape": "短杏仁形",
+                    "base_color": "半透明冷豆沙",
+                    "accent_colors": "旧银镜面细框与暗朱点色",
+                    "finish": "局部镜面、主体缎面",
+                    "design": "食指印戒位留白，无名指细框",
+                    "embellishments": "无厚重水钻，单枚极薄银箔",
+                    "condition": "边缘整齐，右中指执笔茧保留",
+                },
+                "pedicure": {
+                    "style": "现代玉石晕染与极细金线",
+                    "length": "短齐趾端",
+                    "shape": "大趾方圆，其余柔和圆形",
+                    "base_color": "半透明墨青玉色",
+                    "accent_colors": "乌蓝晕染、旧金极细线",
+                    "finish": "温润玉石亮面",
+                    "design": "大趾不对称山河纹晕染，其余单色",
+                    "embellishments": "平面金箔线，无立体饰物",
+                    "condition": "完整正式，左右设计互为对应而非复制",
+                },
+                "leg_and_foot_state": {
+                    "legs": "站立议事后小腿肌肉轻微绷紧",
+                    "feet": "足背肤色一致，左脚踝小痣清楚",
+                    "exposure": "细节照脱鞋赤足，其余镜头穿软皮履",
+                    "footwear_interaction": "低跟保持自然足弓与步态",
+                },
+                "wear_state": "正式但有使用折痕，账册带边缘轻磨",
             },
         ],
     }
@@ -164,10 +422,15 @@ def _prop_card() -> dict:
 
 def _spec(*cards: dict) -> dict:
     return {
-        "schema_version": "narrative-visual-detail-spec/v1",
+        "schema_version": "narrative-visual-detail-spec/v2",
         "project": "ShanHeYouJia",
         "task_id": "task-shanhe-blueprint-006",
-        "cards": list(cards) or [
+        "creative_policy": {
+            "work_title": "山河有约",
+            "female_modern_nail_art_allowed": True,
+        },
+        "cards": list(cards)
+        or [
             _character_card(),
             _map_card(),
             _location_card(),
@@ -180,7 +443,7 @@ def _spec(*cards: dict) -> dict:
 def test_compiles_stable_identity_lock_into_every_character_prompt() -> None:
     pack = compile_visual_detail_card_pack(_spec())
 
-    assert pack["schema_version"] == "narrative-visual-detail-card-pack/v1"
+    assert pack["schema_version"] == "narrative-visual-detail-card-pack/v2"
     assert pack["candidate_only"] is True
     assert pack["generation_contract"] == {
         "role": "ArtifactProducer",
@@ -212,7 +475,10 @@ def test_compiles_stable_identity_lock_into_every_character_prompt() -> None:
     reference = character["identity_reference"]
     assert reference["asset_id"] == "character-shen-du::identity-reference"
     assert character["identity_lock_prompt"] in reference["prompt"]
-    assert reference["prompt_sha256"] == hashlib.sha256(reference["prompt"].encode()).hexdigest()
+    assert (
+        reference["prompt_sha256"]
+        == hashlib.sha256(reference["prompt"].encode()).hexdigest()
+    )
     assert reference["must_be_accepted_before_dependent_generation"] is True
     prompts = character["prompt_set"]
     assert {item["variant_id"] for item in prompts} == {"wanderer", "merchant"}
@@ -220,15 +486,109 @@ def test_compiles_stable_identity_lock_into_every_character_prompt() -> None:
         "face-front-neutral",
         "face-three-quarter",
         "face-profile",
+        "facial-features-detail",
+        "hair-color-style-accessories-detail",
         "full-body-front",
         "full-body-back",
-        "hands-and-nails-detail",
+        "hands-detail",
         "garment-construction-detail",
         "state-expression",
     }
     assert all(character["identity_lock_prompt"] in item["prompt"] for item in prompts)
-    assert all(item["prompt_sha256"] == hashlib.sha256(item["prompt"].encode()).hexdigest() for item in prompts)
-    assert all(item["reference_asset_ids"] == ["character-shen-du::identity-reference"] for item in prompts)
+    assert all(
+        detail in reference["prompt"]
+        for detail in (
+            "face_shape",
+            "brows",
+            "nose",
+            "lips",
+            "ears",
+            "iris_color",
+            "hair_color",
+            "hairstyle",
+            "hair_accessories",
+        )
+    )
+    assert all(
+        forbidden not in item["prompt"].lower()
+        for item in prompts
+        for forbidden in ("指甲", "趾甲", "美甲", "manicure", "pedicure", "nail")
+    )
+    assert all(
+        item["prompt_sha256"] == hashlib.sha256(item["prompt"].encode()).hexdigest()
+        for item in prompts
+    )
+    assert all(
+        item["reference_asset_ids"] == ["character-shen-du::identity-reference"]
+        for item in prompts
+    )
+    assert validate_visual_detail_card_pack(pack)["status"] == "pass"
+
+
+def test_compiles_female_beauty_hair_leg_foot_and_modern_nail_art_details() -> None:
+    pack = compile_visual_detail_card_pack(_spec(_female_character_card()))
+    character = pack["cards"][0]
+
+    assert character["character_detail_contract"]["modern_nail_art_allowed"] is True
+    assert character["character_detail_contract"]["nail_art_vocabulary"] == {
+        "styles": [
+            "solid",
+            "french",
+            "gradient",
+            "cat-eye",
+            "jelly",
+            "chrome",
+            "aurora",
+            "marble",
+        ],
+        "lengths": ["short", "medium-short", "medium", "long"],
+        "shapes": ["round", "squoval", "oval", "almond", "coffin", "stiletto"],
+        "finishes": ["matte", "gloss", "glass", "satin", "magnetic", "mirror"],
+    }
+    required_shots = set(character["required_shot_ids"])
+    assert {
+        "makeup-face-detail",
+        "hair-color-style-accessories-detail",
+        "hands-and-manicure-detail",
+        "legs-detail",
+        "feet-and-pedicure-detail",
+    } <= required_shots
+    prompt = character["identity_reference"]["prompt"]
+    assert "现代美甲元素为《山河有约》的合法视觉设定" in prompt
+    assert all(
+        detail in prompt
+        for detail in (
+            "hair_color",
+            "hairstyle",
+            "hair_accessories",
+            "makeup_identity",
+            "legs",
+            "feet",
+            "manicure",
+            "pedicure",
+            "base_color",
+            "accent_colors",
+            "embellishments",
+        )
+    )
+    assert (
+        len(
+            {
+                json.dumps(v["manicure"], ensure_ascii=False, sort_keys=True)
+                for v in character["variants"]
+            }
+        )
+        == 2
+    )
+    assert (
+        len(
+            {
+                json.dumps(v["pedicure"], ensure_ascii=False, sort_keys=True)
+                for v in character["variants"]
+            }
+        )
+        == 2
+    )
     assert validate_visual_detail_card_pack(pack)["status"] == "pass"
 
 
@@ -350,7 +710,9 @@ def _accepted_reference_receipt(
         ),
         encoding="utf-8",
     )
-    card = next(item for item in pack["cards"] if item["card_id"] == "character-shen-du")
+    card = next(
+        item for item in pack["cards"] if item["card_id"] == "character-shen-du"
+    )
     task_id = visual_reference_task_id(pack, "character-shen-du")
     runtime = TaskRuntime(root, project="ShanHeYouJia")
     visual_projection = runtime.load_task(pack["task_id"])
@@ -389,14 +751,51 @@ def _accepted_reference_receipt(
         project="ShanHeYouJia",
     ).prepare(task_id)
     runtime.transition_task(task_id, status="ready", idempotency_key="reference-ready")
-    runtime.transition_task(task_id, status="running", idempotency_key="reference-running")
+    runtime.transition_task(
+        task_id, status="running", idempotency_key="reference-running"
+    )
 
     stage_config = {
-        "generation": ("ArtifactProducer", "codex", "openai", "gpt-image-2", "codex", "fixture-generation"),
-        "producer_self_check": ("ArtifactProducer", "codex", "openai", "gpt-5.6-sol", "codex", "codex_gpt_5_6_sol_medium_cli_oauth"),
-        "observer": ("Observer", "agy", "google", "gemini-3.6-flash-high", "agy_observer", "gemini_3_6_flash_high_agy_oauth"),
-        "reviewer": ("Reviewer", "agy", "google", "gemini-3.6-flash-high", "agy_visual_reviewer", "gemini_3_6_flash_high_agy_oauth"),
-        "verifier": ("Verifier", "hermes", "deepseek", "deepseek-v4-flash", "hermes_deepseek", "deepseek_v4_flash_hermes_private"),
+        "generation": (
+            "ArtifactProducer",
+            "codex",
+            "openai",
+            "gpt-image-2",
+            "codex",
+            "fixture-generation",
+        ),
+        "producer_self_check": (
+            "ArtifactProducer",
+            "codex",
+            "openai",
+            "gpt-5.6-sol",
+            "codex",
+            "codex_gpt_5_6_sol_medium_cli_oauth",
+        ),
+        "observer": (
+            "Observer",
+            "agy",
+            "google",
+            "gemini-3.6-flash-high",
+            "agy_observer",
+            "gemini_3_6_flash_high_agy_oauth",
+        ),
+        "reviewer": (
+            "Reviewer",
+            "agy",
+            "google",
+            "gemini-3.6-flash-high",
+            "agy_visual_reviewer",
+            "gemini_3_6_flash_high_agy_oauth",
+        ),
+        "verifier": (
+            "Verifier",
+            "hermes",
+            "deepseek",
+            "deepseek-v4-flash",
+            "hermes_deepseek",
+            "deepseek_v4_flash_hermes_private",
+        ),
     }
     stage_evidence: dict[str, dict[str, str]] = {}
     immutable_asset: Path | None = None
@@ -449,10 +848,14 @@ def _accepted_reference_receipt(
         generated_asset: Path | None = None
         generated_asset_sha256 = ""
         if stage_id == "generation":
-            generated_asset = task_root / "artifacts" / "staging" / "shen-du-reference.png"
+            generated_asset = (
+                task_root / "artifacts" / "staging" / "shen-du-reference.png"
+            )
             generated_asset.parent.mkdir(parents=True)
             generated_asset.write_bytes(b"fixture-image")
-            generated_asset_sha256 = hashlib.sha256(generated_asset.read_bytes()).hexdigest()
+            generated_asset_sha256 = hashlib.sha256(
+                generated_asset.read_bytes()
+            ).hexdigest()
         output = attempt_root / "output.md"
         if stage_id == "generation":
             output.write_text("generation: complete\n", encoding="utf-8")
@@ -474,8 +877,7 @@ def _accepted_reference_receipt(
                             dimension: {
                                 "status": (
                                     "fail"
-                                    if rejected
-                                    and dimension == "identity_consistency"
+                                    if rejected and dimension == "identity_consistency"
                                     else "pass"
                                 ),
                                 "evidence": [f"{stage_id}:{dimension}:checked"],
@@ -810,7 +1212,9 @@ def _accepted_reference_receipt(
     }
 
 
-def test_generation_batch_requires_hash_bound_accepted_identity_reference(tmp_path: Path) -> None:
+def test_generation_batch_requires_hash_bound_accepted_identity_reference(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "AgentLab"
     pack, pack_path = _materialize_visual_pack(root)
 
@@ -839,7 +1243,9 @@ def test_generation_batch_requires_hash_bound_accepted_identity_reference(tmp_pa
     }
 
     receipt = _accepted_reference_receipt(root, pack)
-    assert validate_identity_reference_acceptance(root, pack, receipt)["status"] == "pass"
+    assert (
+        validate_identity_reference_acceptance(root, pack, receipt)["status"] == "pass"
+    )
     receipt_path = (
         root
         / "projects"
@@ -862,7 +1268,10 @@ def test_generation_batch_requires_hash_bound_accepted_identity_reference(tmp_pa
     )
     assert dependent["phase"] == "dependent_shot_generation"
     assert dependent["jobs"]
-    assert all(job["input_images"][0]["sha256"] == receipt["asset"]["sha256"] for job in dependent["jobs"])
+    assert all(
+        job["input_images"][0]["sha256"] == receipt["asset"]["sha256"]
+        for job in dependent["jobs"]
+    )
     assert all(
         job["reference_acceptance_receipts"]
         == [
@@ -1041,7 +1450,10 @@ def test_reference_acceptance_rejects_superseded_identity_artifact(
     result = validate_identity_reference_acceptance(root, pack, receipt)
 
     assert result["status"] == "blocked"
-    assert "identity reference ArtifactVersion is missing or mismatched" in result["issues"]
+    assert (
+        "identity reference ArtifactVersion is missing or mismatched"
+        in result["issues"]
+    )
 
 
 def test_reference_acceptance_requires_the_task_selected_current_version(
@@ -1090,7 +1502,10 @@ def test_reference_acceptance_requires_the_task_selected_current_version(
     result = validate_identity_reference_acceptance(root, pack, receipt)
 
     assert result["status"] == "blocked"
-    assert "identity reference ArtifactVersion is missing or mismatched" in result["issues"]
+    assert (
+        "identity reference ArtifactVersion is missing or mismatched"
+        in result["issues"]
+    )
 
 
 def test_reference_acceptance_rejects_retired_execution_contract(
@@ -1110,7 +1525,9 @@ def test_reference_acceptance_rejects_retired_execution_contract(
     result = validate_identity_reference_acceptance(root, pack, receipt)
 
     assert result["status"] == "blocked"
-    assert any("visual role authority is invalid" in issue for issue in result["issues"])
+    assert any(
+        "visual role authority is invalid" in issue for issue in result["issues"]
+    )
 
 
 def test_dependent_batch_rejects_multiple_current_references(tmp_path: Path) -> None:
@@ -1171,11 +1588,37 @@ def test_visual_spec_loader_rejects_symlinked_project_ancestor(tmp_path: Path) -
         )
 
 
-def test_rejects_character_without_body_or_hands_and_nails_lock() -> None:
+def test_rejects_character_without_body_or_hands_lock() -> None:
     card = _character_card()
-    del card["invariant"]["hands_and_nails"]
+    del card["invariant"]["hands"]
 
-    with pytest.raises(ValueError, match="hands_and_nails"):
+    with pytest.raises(ValueError, match="hands"):
+        compile_visual_detail_card_pack(_spec(card))
+
+
+def test_rejects_all_male_nail_detail_fields_and_text() -> None:
+    card = _character_card()
+    card["variants"][0]["manicure"] = "短圆自然甲"
+
+    with pytest.raises(
+        ValueError, match="male character must not contain nail details"
+    ):
+        compile_visual_detail_card_pack(_spec(card))
+
+
+def test_rejects_female_character_without_leg_and_foot_identity_locks() -> None:
+    card = _female_character_card()
+    del card["invariant"]["feet"]
+
+    with pytest.raises(ValueError, match=r"invariant\.feet"):
+        compile_visual_detail_card_pack(_spec(card))
+
+
+def test_rejects_female_nail_art_without_shape_length_color_and_finish() -> None:
+    card = _female_character_card()
+    del card["variants"][0]["pedicure"]["length"]
+
+    with pytest.raises(ValueError, match=r"pedicure\.length"):
         compile_visual_detail_card_pack(_spec(card))
 
 
@@ -1196,18 +1639,23 @@ def test_validation_rejects_rehashed_canon_promotion_state() -> None:
     payload = dict(pack)
     payload.pop("pack_sha256")
     pack["pack_sha256"] = hashlib.sha256(
-        __import__("json").dumps(
+        __import__("json")
+        .dumps(
             payload,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
-        ).encode("utf-8")
+        )
+        .encode("utf-8")
     ).hexdigest()
 
     result = validate_visual_detail_card_pack(pack)
 
     assert result["status"] == "blocked"
-    assert "promotion_state must await visual generation and human acceptance" in result["issues"]
+    assert (
+        "promotion_state must await visual generation and human acceptance"
+        in result["issues"]
+    )
 
 
 def _copy_protocol_config(root: Path) -> None:
@@ -1228,9 +1676,7 @@ def test_anchored_visual_runtime_shares_the_standard_ledger_lock(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "agentlab"
-    task_root = (
-        root / "projects" / "ShanHeYouJia" / "runtime" / "tasks" / "task-lock"
-    )
+    task_root = root / "projects" / "ShanHeYouJia" / "runtime" / "tasks" / "task-lock"
     task_root.mkdir(parents=True)
     descriptor = visual_reference_runtime._open_task_subdirectory(
         root,
@@ -1297,11 +1743,7 @@ def _record_blueprint_artifact(
             if protocol_ref
             else None
         ),
-        **(
-            {}
-            if protocol_ref
-            else {"legacy_source": {"kind": "test_fixture"}}
-        ),
+        **({} if protocol_ref else {"legacy_source": {"kind": "test_fixture"}}),
         idempotency_key="create-blueprint-fixture",
     )
     runtime.create_work_item(
@@ -1313,7 +1755,9 @@ def _record_blueprint_artifact(
         idempotency_key="create-blueprint-work",
     )
     runtime.transition_task(task_id, status="ready", idempotency_key="blueprint-ready")
-    runtime.transition_task(task_id, status="running", idempotency_key="blueprint-running")
+    runtime.transition_task(
+        task_id, status="running", idempotency_key="blueprint-running"
+    )
     runtime.transition_work_item(
         task_id,
         work_item_id="blueprint",
@@ -1337,9 +1781,9 @@ def _record_blueprint_artifact(
                     "input_tier": runtime.load_task(task_id)["task"][
                         "input_classification"
                     ]["tier"],
-                    "route": runtime.load_task(task_id)["task"][
-                        "input_classification"
-                    ]["route"],
+                    "route": runtime.load_task(task_id)["task"]["input_classification"][
+                        "route"
+                    ],
                 }
                 if protocol_ref
                 else {}
@@ -1508,7 +1952,9 @@ def test_public_managed_imagegen_ingest_records_real_image_artifact(
     )
     image = tmp_path / "shen-du.png"
     Image.new("RGB", (8, 8), color=(47, 63, 79)).save(image, format="PNG")
-    card = next(item for item in pack["cards"] if item["card_id"] == "character-shen-du")
+    card = next(
+        item for item in pack["cards"] if item["card_id"] == "character-shen-du"
+    )
     task_id = visual_reference_task_id(pack, "character-shen-du")
     payload = {
         "schema_version": "narrative-visual-managed-imagegen-attestation-payload/v1",
@@ -1618,12 +2064,7 @@ def test_public_managed_imagegen_ingest_records_real_image_artifact(
     profiles_path.write_text(profiles_text, encoding="utf-8")
 
     reference_task_root = (
-        root
-        / "projects"
-        / "ShanHeYouJia"
-        / "runtime"
-        / "tasks"
-        / task_id
+        root / "projects" / "ShanHeYouJia" / "runtime" / "tasks" / task_id
     )
     escaped_task = tmp_path / "escaped-reference-task"
     escaped_task.mkdir()
@@ -1745,7 +2186,7 @@ def test_public_managed_imagegen_ingest_records_real_image_artifact(
             card_id="character-shen-du",
             image_path=image,
             attestation_path=attestation,
-    )
+        )
     assert list(escaped_after_check.iterdir()) == []
     assert list(parked_after_check.iterdir()) == []
     reference_task_root.unlink()
@@ -1813,9 +2254,12 @@ def test_public_managed_imagegen_ingest_records_real_image_artifact(
     assert result["artifact"]["sha256"] == payload["asset_sha256"]
     assert result["managed_imagegen_gate"]["status"] == "pass"
     assert result["projection"]["work_items"]["generation"]["status"] == "accepted"
-    assert result["projection"]["attempts"]["attempt-generation-001"][
-        "outcome"
-    ]["execution_origin"] == "role_attempt_executor"
+    assert (
+        result["projection"]["attempts"]["attempt-generation-001"]["outcome"][
+            "execution_origin"
+        ]
+        == "role_attempt_executor"
+    )
     repeated = ingest_managed_visual_identity_reference(
         root,
         pack=pack,
@@ -1858,7 +2302,9 @@ def test_public_managed_imagegen_ingest_records_real_image_artifact(
         )
 
 
-def test_visual_card_protocol_runs_as_real_deterministic_attempt(tmp_path: Path) -> None:
+def test_visual_card_protocol_runs_as_real_deterministic_attempt(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "AgentLab"
     _copy_protocol_config(root)
     project_root = root / "projects" / "ShanHeYouJia"
@@ -1911,7 +2357,17 @@ def test_visual_card_protocol_runs_as_real_deterministic_attempt(tmp_path: Path)
         for item in projection["artifacts"].values()
         if item["artifact_id"] == "visual_detail_card_pack"
     )
-    output_pack = yaml.safe_load((root / "projects" / "ShanHeYouJia" / "runtime" / "tasks" / "task-shanhe-visual-001" / version["path"]).read_text(encoding="utf-8"))
+    output_pack = yaml.safe_load(
+        (
+            root
+            / "projects"
+            / "ShanHeYouJia"
+            / "runtime"
+            / "tasks"
+            / "task-shanhe-visual-001"
+            / version["path"]
+        ).read_text(encoding="utf-8")
+    )
     assert validate_visual_detail_card_pack(output_pack)["status"] == "pass"
     receipt = yaml.safe_load(
         (
@@ -1972,7 +2428,9 @@ def test_prose_prerequisite_rejects_superseded_visual_pack(
         for version_id, artifact in result["projection"]["artifacts"].items()
         if artifact["artifact_id"] == "visual_detail_card_pack"
     )
-    artifact_path = runtime._task_dir("task-shanhe-visual-prose-gate") / artifact["path"]
+    artifact_path = (
+        runtime._task_dir("task-shanhe-visual-prose-gate") / artifact["path"]
+    )
     facts = {
         "source_visual_task_id": "task-shanhe-visual-prose-gate",
         "source_visual_pack_version_id": version_id,
@@ -2028,7 +2486,9 @@ def test_visual_card_protocol_rejects_source_changed_after_task_creation(
         },
         idempotency_key="create-visual-task-drift",
     )
-    source.write_text(source.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+    source.write_text(
+        source.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8"
+    )
 
     with pytest.raises(InvalidTransition, match="source fact hash mismatch"):
         ProductionProtocolRunner(root, project="ShanHeYouJia").execute_node(
@@ -2150,7 +2610,9 @@ def test_visual_preflight_snapshot_closes_post_validation_source_swap(
 
     def preflight_then_swap(*args, **kwargs):
         result = original_preflight(*args, **kwargs)
-        source.write_text(source.read_text(encoding="utf-8") + "\n# swapped\n", encoding="utf-8")
+        source.write_text(
+            source.read_text(encoding="utf-8") + "\n# swapped\n", encoding="utf-8"
+        )
         return result
 
     monkeypatch.setattr(runner, "_deterministic_preflight", preflight_then_swap)
@@ -2313,10 +2775,18 @@ def test_invalid_visual_spec_never_starts_an_attempt(tmp_path: Path) -> None:
 
 
 def test_narrative_blueprint_protocol_requires_visual_detail_card_pack() -> None:
-    config = yaml.safe_load((ROOT / "config" / "production_packs.yml").read_text(encoding="utf-8"))
-    blueprint = next(item for item in config["packs"] if item["pack_id"] == "narrative_blueprint")
+    config = yaml.safe_load(
+        (ROOT / "config" / "production_packs.yml").read_text(encoding="utf-8")
+    )
+    blueprint = next(
+        item for item in config["packs"] if item["pack_id"] == "narrative_blueprint"
+    )
     assert "visual_detail_card_pack.yml" not in blueprint["required_outputs"]
-    pack = next(item for item in config["packs"] if item["pack_id"] == "narrative_visual_development")
+    pack = next(
+        item
+        for item in config["packs"]
+        if item["pack_id"] == "narrative_visual_development"
+    )
     assert pack["protocol"]["ref"] == "narrative.visual.v1"
     assert "visual_detail_card_pack.yml" in pack["required_outputs"]
     assert "visual_detail_card_pack" in pack["memory_contract"]
@@ -2330,14 +2800,18 @@ def test_narrative_blueprint_protocol_requires_visual_detail_card_pack() -> None
     assert "pack_sha256" in contract["required_markers"]
     assert "identity_lock_prompt" in contract["required_markers"]
     assert "visual_detail_cards_hash_verified" in pack["quality_gates"]
-    chapter = next(item for item in config["packs"] if item["pack_id"] == "narrative_longform")
+    chapter = next(
+        item for item in config["packs"] if item["pack_id"] == "narrative_longform"
+    )
     assert {
         "source_visual_task_id",
         "source_visual_pack_version_id",
         "source_visual_detail_pack",
         "source_visual_detail_pack_sha256",
     }.issubset(chapter["protocol"]["required_facts"])
-    routing = yaml.safe_load((ROOT / "config" / "routing_rules.yml").read_text(encoding="utf-8"))
+    routing = yaml.safe_load(
+        (ROOT / "config" / "routing_rules.yml").read_text(encoding="utf-8")
+    )
     assert "narrative_visual_development" in routing["routes"]
 
 

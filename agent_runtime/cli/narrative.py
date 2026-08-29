@@ -353,7 +353,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         source: Path = typer.Option(
             ...,
             "--source",
-            help="Task-input narrative-visual-detail-spec/v1 YAML.",
+            help="Task-input narrative-visual-detail-spec/v2 YAML.",
         ),
     ) -> None:
         """Run visual-card compilation as an authoritative deterministic Attempt."""
