@@ -78,7 +78,14 @@ def _character_card() -> dict:
                 "secondary": "黑色棉绳隐藏束发，无外露珠饰",
             },
             "body": "青年男性，一百八十四厘米，宽肩窄腰，长腿，精瘦而非健美块状",
-            "hands": "修长有剑茧的手，虎口旧伤，惯用右手",
+            "hands": {
+                "proportion": "long_narrow",
+                "joints": "fine_straight",
+                "callus_pattern": "sword_grip",
+                "marks": "right_thenar_scar",
+                "dominant_hand": "right",
+                "hand_armor": "none",
+            },
             "signature_details": "右锁骨下旧箭伤，腰侧青布钱囊",
             "negative_constraints": "不得改变脸型、眼距、断眉、肤色、身高比例与惯用手",
         },
@@ -1605,7 +1612,8 @@ def test_rejects_all_male_nail_detail_fields_and_text() -> None:
     card["variants"][0]["manicure"] = "短圆自然甲"
 
     with pytest.raises(
-        ValueError, match="male character must not contain nail details"
+        ValueError,
+        match="male hand profile|male character must not contain nail details",
     ):
         compile_visual_detail_card_pack(_spec(card))
 
@@ -1623,7 +1631,8 @@ def test_rejects_singular_english_nail_detail_in_allowed_male_field() -> None:
     card["invariant"]["signature_details"] = "left brow scar and one broken nail"
 
     with pytest.raises(
-        ValueError, match="male character must not contain nail details"
+        ValueError,
+        match="must be a mapping|male character must not contain nail details",
     ):
         compile_visual_detail_card_pack(_spec(card))
 
@@ -1646,7 +1655,8 @@ def test_rejects_male_nail_detail_circumlocutions_in_allowed_fields(
     card["invariant"][field] = detail
 
     with pytest.raises(
-        ValueError, match="male character must not contain nail details"
+        ValueError,
+        match="must be a mapping|male character must not contain nail details",
     ):
         compile_visual_detail_card_pack(_spec(card))
 
@@ -1654,12 +1664,32 @@ def test_rejects_male_nail_detail_circumlocutions_in_allowed_fields(
 def test_male_armor_terms_remain_allowed() -> None:
     card = _character_card()
     card["invariant"]["signature_details"] = "左眉断疤，肩后旧铁甲片磨痕"
+    card["invariant"]["hands"]["hand_armor"] = "segmented_iron_gauntlet"
     card["variants"][0]["wardrobe"]["layers"] += "、旧皮甲"
     card["variants"][0]["state"] = "雨夜站在船首甲板，警觉而疲惫"
 
     pack = compile_visual_detail_card_pack(_spec(card))
 
     assert validate_visual_detail_card_pack(pack)["status"] == "pass"
+    assert "外覆分节铁护手" in pack["cards"][0]["identity_lock_prompt"]
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "十根指头末梢的硬壳都剪短磨圆，色泽健康；掌心有剑茧",
+        "十指末端甲片均修短磨平，掌心有剑茧",
+        "手指外覆铁甲片，边缘磨圆以免妨碍握剑；掌心有剑茧",
+    ],
+)
+def test_male_hands_reject_free_prose_in_favor_of_governed_profiles(
+    detail: str,
+) -> None:
+    card = _character_card()
+    card["invariant"]["hands"] = detail
+
+    with pytest.raises(ValueError, match="must be a mapping"):
+        compile_visual_detail_card_pack(_spec(card))
 
 
 def test_rejects_novel_visual_pack_without_exact_character_roster() -> None:

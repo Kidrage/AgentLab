@@ -38,9 +38,13 @@ Supported kinds are:
   modern French, gradient, cat-eye, jelly, chrome, aurora, marble, magnetic,
   mirror, and similar nail-art language is intentional rather than treated as
   accidental modernization.
-- Male character cards use a hand-only detail shot. Nail/manicure/pedicure
-  fields and nail-detail prose are rejected anywhere in the card, so a shared
-  generic prompt cannot reintroduce them.
+- Male character cards use a hand-only detail shot. Their hand description is
+  a closed structured profile: hand proportion, joints, callus pattern, marks,
+  dominant hand, and optional governed hand armor are selected from versioned
+  values and expanded by the compiler. Free-form male hand prose and explicit
+  nail/manicure/pedicure language elsewhere in the card are rejected, so nail
+  detail cannot be smuggled through synonyms while segmented iron hand armor
+  remains representable.
 - `map`: locks orientation, scale, geography, terrain, water, settlements,
   routes/borders, labels, palette, and prohibited topology drift.
 - `location`: locks architecture, terrain/layout, materials, lighting,

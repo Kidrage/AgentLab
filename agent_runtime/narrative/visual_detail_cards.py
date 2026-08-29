@@ -183,6 +183,52 @@ _CHARACTER_VARIANT_HAIR_FIELDS = {
     "hair_accessories": ["items", "materials", "placement", "condition"],
 }
 
+_MALE_HAND_PROFILE_OPTIONS = {
+    "proportion": {
+        "long_narrow": "手掌偏窄、手指修长",
+        "broad_square": "手掌宽厚、手指方直",
+        "balanced": "手掌宽度中等、手指比例均衡",
+        "compact_strong": "手掌紧凑有力、手指略短",
+    },
+    "joints": {
+        "fine_straight": "关节细直、活动灵活",
+        "prominent": "关节轮廓明显但无肿胀",
+        "thick_straight": "关节粗直、握力感强",
+    },
+    "callus_pattern": {
+        "none": "掌面无职业性厚茧",
+        "sword_grip": "虎口与掌根有持剑薄茧",
+        "bowstring": "拇指根部与食指侧有弓弦茧",
+        "oar_rope": "掌心横向与指根有舟楫绳索茧",
+        "brush_abacus": "中指执笔处与指腹有算盘薄茧",
+        "manual_labor": "掌心与指根有劳作厚茧",
+    },
+    "marks": {
+        "none": "双手无固定伤痕",
+        "right_thenar_scar": "右手虎口有一道旧伤",
+        "left_palm_line": "左掌有一道浅色线状旧伤",
+        "right_knuckle_scar": "右手食指关节有小块旧疤",
+        "old_burn_patch": "左手背有一小片旧烫伤",
+    },
+    "dominant_hand": {
+        "right": "惯用右手",
+        "left": "惯用左手",
+        "ambidextrous": "双手使用能力接近",
+    },
+    "hand_armor": {
+        "none": "不佩戴手甲或手套",
+        "segmented_iron_gauntlet": "外覆分节铁护手，边缘磨圆且不妨碍握持",
+        "leather_bracer_glove": "佩戴熟皮护腕连半掌手套，保留关节活动",
+    },
+}
+_MALE_CHARACTER_DETAIL_CONTRACT = {
+    "hands": {
+        field: list(choices) for field, choices in _MALE_HAND_PROFILE_OPTIONS.items()
+    },
+    "free_form_hand_prose_allowed": False,
+    "nail_detail_allowed": False,
+}
+
 _FEMALE_INVARIANT_FIELDS = ["makeup_identity", "legs", "feet"]
 _FEMALE_VARIANT_FIELDS = ["makeup", "manicure", "pedicure", "leg_and_foot_state"]
 _FEMALE_SHOTS = [
@@ -351,21 +397,6 @@ _MALE_NAIL_DETAIL_TERMS = (
     "甲型",
     "甲长",
 )
-_MALE_NAIL_DETAIL_PATTERNS = (
-    re.compile(
-        r"(?:十指|手指|脚趾|指尖|趾尖|指端|趾端|十指末端).{0,32}"
-        r"(?:角质|半透明|硬层|硬片|硬质|薄层|覆盖层|甲片).{0,32}"
-        r"(?:边缘|表面|剪|修|磨|圆|方|尖|光泽|颜色|涂层|上色|着色|抛光)"
-    ),
-    re.compile(
-        r"(?:十指|手指|脚趾|指尖|趾尖|指端|趾端|十指末端).{0,16}"
-        r"(?:甲床|甲缘|甲面|甲根|甲沟|甲油|甲色|甲型|甲长|甲片)"
-    ),
-    re.compile(r"(?:十枚|十个).{0,12}(?:指端|趾端|角质硬片)"),
-    re.compile(
-        r"(?:角质硬片|指端硬片|趾端硬片).{0,16}(?:边缘|洁净|整齐|颜色|光泽|形状)"
-    ),
-)
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -481,13 +512,39 @@ def _reject_male_nail_details(card: Mapping[str, Any], card_id: str) -> None:
     present = [term for term in _MALE_NAIL_DETAIL_TERMS if term in serialized]
     if re.search(r"(?<![a-z])nails?(?![a-z])", serialized):
         present.append("nail")
-    if any(pattern.search(serialized) for pattern in _MALE_NAIL_DETAIL_PATTERNS):
-        present.append("circumlocution")
     if present:
         raise ValueError(
             f"cards.{card_id} male character must not contain nail details: "
             + ", ".join(present)
         )
+
+
+def _validated_male_hand_profile(value: Any, *, locator: str) -> Mapping[str, str]:
+    profile = _require_mapping(value, locator)
+    expected_fields = set(_MALE_HAND_PROFILE_OPTIONS)
+    _reject_unsupported_fields(
+        profile,
+        allowed_fields=expected_fields,
+        locator=locator,
+    )
+    _require_fields(profile, sorted(expected_fields), locator)
+    normalized: dict[str, str] = {}
+    for field, choices in _MALE_HAND_PROFILE_OPTIONS.items():
+        selected = str(profile[field] or "")
+        if selected not in choices:
+            raise ValueError(
+                f"{locator}.{field} must use a governed male hand profile value"
+            )
+        normalized[field] = selected
+    return normalized
+
+
+def _render_male_hand_profile(profile: Mapping[str, Any]) -> str:
+    validated = _validated_male_hand_profile(profile, locator="male hands")
+    return "；".join(
+        _MALE_HAND_PROFILE_OPTIONS[field][validated[field]]
+        for field in _MALE_HAND_PROFILE_OPTIONS
+    )
 
 
 def _require_detail_mappings(
@@ -562,13 +619,15 @@ def _identity_lock_prompt(
     card: Mapping[str, Any],
     ordered_fields: list[str],
     *,
+    gender: str | None,
     modern_nail_art_allowed: bool,
 ) -> str:
     invariant = _require_mapping(
         card["invariant"], f"cards.{card['card_id']}.invariant"
     )
     facts = "；".join(
-        f"{field}：{_render(invariant[field])}" for field in ordered_fields
+        f"{field}：{_render_male_hand_profile(invariant[field]) if field == 'hands' and gender == 'male' else _render(invariant[field])}"
+        for field in ordered_fields
     )
     modernization_rule = (
         "除卡片明确记载的女性现代美甲元素外，不得擅自现代化"
@@ -730,6 +789,10 @@ def _compile_card(
             f"cards.{card_id}.invariant",
         )
         if gender == "male":
+            _validated_male_hand_profile(
+                invariant.get("hands"),
+                locator=f"cards.{card_id}.invariant.hands",
+            )
             _reject_unsupported_fields(
                 invariant,
                 allowed_fields=set(contract["required_invariant_fields"]),
@@ -753,6 +816,7 @@ def _compile_card(
     identity_prompt = _identity_lock_prompt(
         card,
         contract["required_invariant_fields"],
+        gender=gender,
         modern_nail_art_allowed=modern_nail_art_allowed,
     )
     if gender == "female":
@@ -872,7 +936,11 @@ def _compile_card(
         },
         "prompt_set": prompts,
     }
-    if gender == "female":
+    if gender == "male":
+        compiled["character_detail_contract"] = deepcopy(
+            _MALE_CHARACTER_DETAIL_CONTRACT
+        )
+    elif gender == "female":
         character_detail_contract = deepcopy(_FEMALE_CHARACTER_DETAIL_CONTRACT)
         character_detail_contract["modern_nail_art_allowed"] = modern_nail_art_allowed
         compiled["character_detail_contract"] = character_detail_contract
