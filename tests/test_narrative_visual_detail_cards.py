@@ -1738,10 +1738,41 @@ def test_male_action_uses_governed_hand_pose_instead_of_free_prose() -> None:
     assert "抬起右臂指向远方" in pack["cards"][0]["prompt_set"][0]["prompt"]
 
     card["variants"][0]["state"] = "抬手指向远山，神色警觉"
-    with pytest.raises(
-        ValueError, match="male character must not contain nail details"
-    ):
+    assert (
+        validate_visual_detail_card_pack(compile_visual_detail_card_pack(_spec(card)))[
+            "status"
+        ]
+        == "pass"
+    )
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "双拳紧握，准备迎敌",
+        "右拳抵住心口郑重起誓",
+        "握剑遥望来敌",
+    ],
+)
+def test_male_free_action_must_match_governed_hand_pose(state: str) -> None:
+    card = _character_card()
+    card["variants"][0]["state"] = state
+    card["variants"][0]["hand_pose"] = "ledger_writing"
+
+    with pytest.raises(ValueError, match="conflicts with governed hand_pose"):
         compile_visual_detail_card_pack(_spec(card))
+
+
+def test_male_martial_merchant_and_political_terms_are_not_nail_details() -> None:
+    card = _character_card()
+    card["variants"][0]["state"] = (
+        "新任少林掌门，初遇江湖高手与强劲对手，负责指挥船队，沉静警觉"
+    )
+    card["variants"][1]["state"] = "掌柜身份，处事有铁腕风格，核对商路指标，沉静自信"
+
+    pack = compile_visual_detail_card_pack(_spec(card))
+
+    assert validate_visual_detail_card_pack(pack)["status"] == "pass"
 
 
 def test_rejects_novel_visual_pack_without_exact_character_roster() -> None:

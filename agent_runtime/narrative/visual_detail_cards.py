@@ -231,7 +231,19 @@ _MALE_HAND_POSE_OPTIONS = {
     "ledger_writing": "一侧执笔记录，另一侧压住账页",
     "cupped_salute": "双臂在胸前完成克制的抱拳礼",
     "hands_behind_back": "双臂收于身后，站姿沉静",
+    "fists_ready": "双拳收紧进入迎敌架势，肩臂保持可发力状态",
+    "fist_oath": "右拳抵住心口郑重起誓，另一侧自然收拢",
 }
+_MALE_HAND_ACTION_POSE_PATTERNS = (
+    (re.compile(r"(?:指向|遥指)"), "pointing_distant"),
+    (re.compile(r"(?:握剑|持剑|执剑|握刀|持刀)"), "sword_grip"),
+    (re.compile(r"(?:控缰|握缰|执缰)"), "holding_reins"),
+    (re.compile(r"(?:执笔|提笔|写账|记账)"), "ledger_writing"),
+    (re.compile(r"(?:抱拳|拱手礼)"), "cupped_salute"),
+    (re.compile(r"(?:背手|负手)"), "hands_behind_back"),
+    (re.compile(r"(?:双拳紧握|握紧双拳|攥紧双拳)"), "fists_ready"),
+    (re.compile(r"(?:右拳抵住心口|右拳抵心|握拳起誓)"), "fist_oath"),
+)
 _MALE_CHARACTER_DETAIL_CONTRACT = {
     "hands": {
         field: list(choices) for field, choices in _MALE_HAND_PROFILE_OPTIONS.items()
@@ -432,8 +444,12 @@ _MALE_NAIL_CIRCUMLOCUTION_PATTERNS = (
         r".{0,40}(?:角质|半透明|硬壳|硬层|硬片|硬质|薄层|覆盖层|甲片)"
         r".{0,40}(?:边缘|表面|剪|修|磨|圆|方|尖|色泽|光泽|颜色|涂层|上色|着色|抛光)"
     ),
+    re.compile(
+        r"(?:十枚|十个|双手|末梢|末端).{0,40}"
+        r"(?:透明|半透明|角层|角质|硬壳|硬层|硬片|覆盖层).{0,40}"
+        r"(?:削|剪|修|磨|齐|圆|方|尖|色泽|光泽|颜色|涂层|上色|着色|抛光)"
+    ),
 )
-_MALE_HAND_FACT_TERMS = ("手", "指", "趾", "掌", "腕", "肢")
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -562,19 +578,6 @@ def _reject_male_nail_details(
         present.append("nail")
     if any(pattern.search(serialized) for pattern in semantic_patterns):
         present.append("free-form digit material prose")
-    if not legacy_v2:
-        outside_profile = deepcopy(dict(card))
-        outside_invariant = deepcopy(
-            dict(_require_mapping(outside_profile.get("invariant"), "card.invariant"))
-        )
-        outside_invariant.pop("hands", None)
-        outside_profile["invariant"] = outside_invariant
-        outside_serialized = _render(outside_profile)
-        misplaced = [
-            term for term in _MALE_HAND_FACT_TERMS if term in outside_serialized
-        ]
-        if misplaced:
-            present.append("male hand facts outside governed hands profile")
     if present:
         raise ValueError(
             f"cards.{card_id} male character must not contain nail details: "
@@ -608,6 +611,26 @@ def _render_male_hand_profile(profile: Mapping[str, Any]) -> str:
         _MALE_HAND_PROFILE_OPTIONS[field][validated[field]]
         for field in _MALE_HAND_PROFILE_OPTIONS
     )
+
+
+def _validate_male_variant_hand_actions(
+    variant: Mapping[str, Any],
+    *,
+    locator: str,
+) -> None:
+    selected_pose = str(variant.get("hand_pose") or "")
+    prose = _render(
+        {key: value for key, value in variant.items() if key != "hand_pose"}
+    )
+    observed_poses = {
+        pose
+        for pattern, pose in _MALE_HAND_ACTION_POSE_PATTERNS
+        if pattern.search(prose)
+    }
+    if observed_poses and observed_poses != {selected_pose}:
+        raise ValueError(
+            f"{locator} free-text hand action conflicts with governed hand_pose"
+        )
 
 
 def _require_detail_mappings(
@@ -964,6 +987,11 @@ def _compile_card(
                     raise ValueError(
                         f"cards.{card_id}.variants[{variant_index}].hand_pose "
                         "must use a governed male hand pose"
+                    )
+                if structured_male_hands:
+                    _validate_male_variant_hand_actions(
+                        variant,
+                        locator=f"cards.{card_id}.variants[{variant_index}]",
                     )
                 _reject_unsupported_fields(
                     variant,

@@ -42,13 +42,16 @@ Supported kinds are:
   a closed structured profile: hand proportion, joints, callus pattern, marks,
   dominant hand, and optional governed hand armor are selected from versioned
   values and expanded by the compiler. Free-form male hand prose and explicit
-  nail/manicure/pedicure language elsewhere in the card are rejected. Male
-  digit-anatomy facts are owned exclusively by the structured hand profile and
-  hand actions are selected through a separate governed `hand_pose`; both are
-  rejected in signature, body, state, grooming, wardrobe, and other free-text
-  fields. This prevents cross-field synonym smuggling while pointing, writing,
-  weapon handling, and segmented iron hand armor remain representable through
-  governed values.
+  nail/manicure/pedicure language elsewhere in the card are rejected. Hand
+  actions use a separate governed `hand_pose`; a bounded cross-field semantic
+  guard rejects nail-like combinations of digit/quantity, keratinous material,
+  trimming, finish, and colour while allowing ordinary martial, merchant, and
+  political prose such as pointing, `掌门`, `掌柜`, `高手`, and `铁腕`. Pointing,
+  writing, weapon handling, and segmented iron hand armor remain explicitly
+  representable through governed values. If free state prose also names a
+  hand action such as pointing, gripping a weapon, saluting, writing, holding
+  reins, making fists, or swearing an oath, it must resolve to the same
+  `hand_pose`; a contradictory pose is rejected.
 - `map`: locks orientation, scale, geography, terrain, water, settlements,
   routes/borders, labels, palette, and prohibited topology drift.
 - `location`: locks architecture, terrain/layout, materials, lighting,
