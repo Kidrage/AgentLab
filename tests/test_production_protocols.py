@@ -258,6 +258,10 @@ def test_compiles_narrative_protocol_with_minimum_risk_selected_team() -> None:
             "chapter": 1,
             "risk_flags": [],
             "source_story_bible": "examples/novel_canary/story_bible.yml",
+            "source_visual_task_id": "task-visual-001",
+            "source_visual_pack_version_id": "visual-pack-v1",
+            "source_visual_detail_pack": "projects/Novel/runtime/tasks/task-visual-001/artifacts/versions/visual-pack-v1/payload.yml",
+            "source_visual_detail_pack_sha256": "a" * 64,
         },
     )
 

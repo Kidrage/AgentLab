@@ -2,18 +2,28 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import uuid
 from typing import Any, Callable, Mapping
+
+import yaml
 
 from agent_runtime.atomic_io import safe_read_yaml
 from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
 from agent_runtime.narrative.author_team import (
     load_author_team_contract,
     select_author_team,
+)
+from agent_runtime.narrative.visual_detail_cards import (
+    compile_visual_detail_card_pack,
+    load_visual_detail_spec,
+    validate_visual_detail_card_pack,
 )
 from agent_runtime.outbound_context import is_forbidden_source_path
 from agent_runtime.role_keys import normalize_role_key
@@ -247,10 +257,19 @@ class ProductionProtocolRunner:
         *,
         project: str,
         role_executor_factory: Callable[[Path, str], Any] | None = None,
+        runtime: TaskRuntime | None = None,
     ):
         self.agentlab_root = Path(agentlab_root).resolve()
         self.project = str(project)
-        self.runtime = TaskRuntime(self.agentlab_root, project=self.project)
+        if runtime is not None and (
+            runtime.agentlab_root != self.agentlab_root
+            or runtime.project != self.project
+        ):
+            raise ValueError("injected TaskRuntime does not match the protocol runner")
+        self.runtime = runtime or TaskRuntime(
+            self.agentlab_root,
+            project=self.project,
+        )
         self._role_executor_factory = role_executor_factory
 
     def prepare(self, task_id: str) -> dict[str, Any]:
@@ -372,6 +391,14 @@ class ProductionProtocolRunner:
             raise InvalidTransition(
                 f"WorkItem is not in the compiled protocol graph: {work_item_id}"
             )
+        if (
+            compiled.get("protocol_ref") == "narrative.visual.reference.v1"
+            and work_item_id == "generation"
+        ):
+            raise InvalidTransition(
+                "visual identity generation requires the governed managed-imagegen "
+                "ingest adapter"
+            )
         node_artifact_contracts = [
             contract
             for contract in compiled["artifact_contracts"]
@@ -385,6 +412,12 @@ class ProductionProtocolRunner:
             projection=projection,
             binding=binding,
             source_paths=source_paths,
+        )
+        deterministic_preflight = self._deterministic_preflight(
+            task_id,
+            projection=projection,
+            binding=binding,
+            source_paths=governed_sources,
         )
         if task["status"] == "created":
             projection = self.runtime.transition_task(
@@ -441,6 +474,7 @@ class ProductionProtocolRunner:
                     attempt_id=resolved_attempt_id,
                     binding=binding,
                     source_paths=governed_sources,
+                    preflight=deterministic_preflight,
                     idempotency_key=f"{idempotency_key}-attempt",
                 )
             else:
@@ -575,6 +609,36 @@ class ProductionProtocolRunner:
                 idempotency_key=f"{idempotency_key}-artifact-{artifact_type}",
             )
 
+        if (
+            compiled.get("protocol_ref") == "narrative.visual.v1"
+            and "visual_detail_cards_hash_verified"
+            not in projection["protocol_gates"]
+        ):
+            visual_versions = [
+                (version_id, artifact)
+                for version_id, artifact in projection["artifacts"].items()
+                if artifact.get("artifact_id") == "visual_detail_card_pack"
+                and artifact.get("producer_attempt_id") == resolved_attempt_id
+            ]
+            if len(visual_versions) != 1:
+                raise InvalidTransition(
+                    "visual hash gate requires exactly one produced card pack"
+                )
+            visual_version_id, visual_artifact = visual_versions[0]
+            projection = self.runtime.record_protocol_gate(
+                task_id,
+                gate_id="visual_detail_cards_hash_verified",
+                work_item_id=work_item_id,
+                evidence_kind="deterministic",
+                evidence_sha256=_document_sha256(
+                    {"visual_detail_card_pack": visual_artifact["sha256"]}
+                ),
+                attempt_id=resolved_attempt_id,
+                subject_version_ids=[visual_version_id],
+                actor="agentlab-visual-card-validator",
+                idempotency_key=f"{idempotency_key}-gate-visual-hash",
+            )
+
         required_gates = {
             binding["gate_id"]
             for binding in compiled["promotion_gate_bindings"]
@@ -636,18 +700,30 @@ class ProductionProtocolRunner:
                     self.agentlab_root / "projects" / self.project / raw_source,
                 ]
             )
-            source_root = next(
+            source_candidate = next(
                 (
-                    candidate.resolve(strict=True)
+                    candidate
                     for candidate in candidates
                     if candidate.exists()
                 ),
                 None,
             )
-            if source_root is None or source_root.is_symlink():
+            if source_candidate is None:
                 raise InvalidTransition(
                     f"compiled protocol source fact is unavailable: {fact_name}"
                 )
+            if not Path(os.path.abspath(source_candidate)).is_relative_to(
+                self.agentlab_root
+            ):
+                raise InvalidTransition(
+                    "compiled protocol source fact is outside the AgentLab root: "
+                    f"{fact_name}"
+                )
+            if _has_symlink_ancestry(source_candidate, self.agentlab_root):
+                raise InvalidTransition(
+                    f"compiled protocol source fact is unavailable: {fact_name}"
+                )
+            source_root = source_candidate.resolve(strict=True)
             if is_forbidden_source_path(source_root):
                 raise InvalidTransition(
                     f"compiled protocol source fact is sensitive: {fact_name}"
@@ -749,6 +825,10 @@ class ProductionProtocolRunner:
             if artifact.get("artifact_id") in gate_subject_types
             and artifact.get("disposition", "eligible") == "eligible"
         )
+        if compiled.get("protocol_ref") == "narrative.chapter.v1":
+            self._validate_visual_prose_prerequisite(
+                projection["task"].get("input_profile") or {}
+            )
         deduplicated: list[Path] = []
         seen: set[Path] = set()
         for path in governed:
@@ -759,6 +839,282 @@ class ProductionProtocolRunner:
                 deduplicated.append(resolved)
                 seen.add(resolved)
         return deduplicated
+
+    def _validate_visual_prose_prerequisite(
+        self,
+        facts: Mapping[str, Any],
+    ) -> None:
+        """Require an exact hash-verified visual pack before prose starts."""
+
+        visual_task_id = str(facts.get("source_visual_task_id") or "")
+        version_id = str(facts.get("source_visual_pack_version_id") or "")
+        try:
+            visual = self.runtime.load_task(visual_task_id)
+        except (EntityNotFound, LedgerIntegrityError) as exc:
+            raise InvalidTransition("source visual Task is unavailable") from exc
+        artifact = visual["artifacts"].get(version_id)
+        gate = visual["protocol_gates"].get(
+            "visual_detail_cards_hash_verified"
+        )
+        if (
+            visual["task"].get("protocol_ref") != "narrative.visual.v1"
+            or not isinstance(artifact, Mapping)
+            or artifact.get("artifact_id") != "visual_detail_card_pack"
+            or artifact.get("disposition", "eligible") != "eligible"
+            or artifact.get("sha256") != facts.get("source_visual_detail_pack_sha256")
+            or not isinstance(gate, Mapping)
+            or gate.get("status") != "pass"
+            or version_id not in (gate.get("subject_version_ids") or [])
+        ):
+            raise InvalidTransition(
+                "prose requires an exact hash-verified visual detail card ArtifactVersion"
+            )
+        task_root = self.runtime._task_dir(visual_task_id)
+        artifact_path = task_root / str(artifact.get("path") or "")
+        declared = Path(str(facts.get("source_visual_detail_pack") or ""))
+        declared_path = (
+            declared
+            if declared.is_absolute()
+            else self.agentlab_root / declared
+        )
+        try:
+            artifact_bytes = artifact_path.read_bytes()
+            declared_resolved = declared_path.resolve(strict=True)
+        except OSError as exc:
+            raise InvalidTransition("source visual ArtifactVersion is unavailable") from exc
+        if (
+            declared_resolved != artifact_path.resolve(strict=True)
+            or hashlib.sha256(artifact_bytes).hexdigest() != artifact.get("sha256")
+        ):
+            raise InvalidTransition("source visual ArtifactVersion hash or path drifted")
+        try:
+            pack = yaml.safe_load(artifact_bytes.decode("utf-8")) or {}
+        except (UnicodeError, yaml.YAMLError) as exc:
+            raise InvalidTransition("source visual ArtifactVersion is unreadable") from exc
+        pack_validation = validate_visual_detail_card_pack(pack)
+        if pack_validation["status"] != "pass":
+            raise InvalidTransition("source visual ArtifactVersion is invalid")
+
+    def _deterministic_preflight(
+        self,
+        task_id: str,
+        *,
+        projection: Mapping[str, Any],
+        binding: Mapping[str, Any],
+        source_paths: list[Path],
+    ) -> dict[str, Any] | None:
+        """Compile deterministic inputs before any Task or Attempt starts."""
+
+        if (
+            projection["task"].get("protocol_ref") != "narrative.visual.v1"
+            or not self._is_deterministic_binding(binding)
+        ):
+            return None
+        facts = projection["task"].get("input_profile") or {}
+        raw_source = Path(str(facts.get("source_visual_detail_spec") or ""))
+        candidates = (
+            [raw_source]
+            if raw_source.is_absolute()
+            else [
+                self.agentlab_root / raw_source,
+                self.agentlab_root / "projects" / self.project / raw_source,
+            ]
+        )
+        declared_source = next(
+            (candidate for candidate in candidates if candidate.exists()),
+            None,
+        )
+        if declared_source is None or _has_symlink_ancestry(
+            declared_source,
+            self.agentlab_root,
+        ):
+            raise InvalidTransition("visual detail spec is not a governed source")
+        resolved_source = declared_source.resolve(strict=True)
+        if resolved_source not in {path.resolve(strict=True) for path in source_paths}:
+            raise InvalidTransition("visual detail spec is not a governed source")
+        try:
+            spec, sealed_sources = load_visual_detail_spec(
+                self.agentlab_root,
+                project=self.project,
+                task_id=task_id,
+                source_path=declared_source,
+            )
+            output_document = compile_visual_detail_card_pack(spec)
+        except (OSError, ValueError) as exc:
+            raise InvalidTransition(f"visual detail spec is invalid: {exc}") from exc
+        if sealed_sources[0]["sha256"] != facts.get(
+            "source_visual_detail_spec_sha256"
+        ):
+            raise InvalidTransition("visual detail spec no longer matches its Task fact hash")
+        validation = validate_visual_detail_card_pack(output_document)
+        if validation["status"] != "pass":
+            raise InvalidTransition(
+                "visual detail card compiler produced an invalid pack: "
+                + ", ".join(validation["issues"])
+            )
+        blueprint_task_id = str(facts.get("source_blueprint_task_id") or "")
+        blueprint_version_id = str(
+            facts.get("source_blueprint_artifact_version_id") or ""
+        )
+        try:
+            blueprint_projection = self.runtime.load_task(blueprint_task_id)
+        except (EntityNotFound, LedgerIntegrityError) as exc:
+            raise InvalidTransition("source blueprint Task is unavailable") from exc
+        blueprint_artifact = blueprint_projection["artifacts"].get(
+            blueprint_version_id
+        )
+        if (
+            blueprint_projection["task"].get("protocol_ref")
+            != "narrative.blueprint.v1"
+            or
+            not isinstance(blueprint_artifact, Mapping)
+            or blueprint_artifact.get("artifact_id") != "story_blueprint"
+            or blueprint_artifact.get("disposition", "eligible") != "eligible"
+            or blueprint_artifact.get("sha256")
+            != facts.get("source_blueprint_artifact_sha256")
+        ):
+            raise InvalidTransition(
+                "source blueprint ArtifactVersion does not match the Task facts"
+            )
+        blueprint_path = (
+            self.runtime._task_dir(blueprint_task_id)
+            / str(blueprint_artifact.get("path") or "")
+        )
+        try:
+            blueprint_bytes = blueprint_path.read_bytes()
+        except OSError as exc:
+            raise InvalidTransition("source blueprint ArtifactVersion is unavailable") from exc
+        blueprint_sha256 = hashlib.sha256(blueprint_bytes).hexdigest()
+        if blueprint_sha256 != blueprint_artifact.get("sha256"):
+            raise InvalidTransition("source blueprint ArtifactVersion hash drifted")
+        sealed_sources.append(
+            {
+                "path": blueprint_path.relative_to(self.agentlab_root).as_posix(),
+                "sha256": blueprint_sha256,
+            }
+        )
+        snapshot_sources = self._snapshot_visual_sources(
+            task_id,
+            sealed_sources,
+        )
+        return {
+            "output_document": output_document,
+            "declared_sources": sealed_sources,
+            "sealed_sources": snapshot_sources,
+        }
+
+    def _snapshot_visual_sources(
+        self,
+        task_id: str,
+        sources: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        """Copy verified bytes into immutable task-local preflight snapshots."""
+
+        task_root = self.runtime._task_dir(task_id)
+        snapshot_root = task_root / "inputs" / "snapshots"
+        if _has_symlink_ancestry(snapshot_root, task_root):
+            raise InvalidTransition("visual preflight snapshot path contains a symlink")
+        snapshot_root.mkdir(parents=True, exist_ok=True)
+        if (
+            _has_symlink_ancestry(snapshot_root, task_root)
+            or snapshot_root.resolve(strict=True)
+            != task_root.resolve(strict=True) / "inputs" / "snapshots"
+        ):
+            raise InvalidTransition("visual preflight snapshot path escapes its Task")
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(
+            os,
+            "O_NOFOLLOW",
+            0,
+        )
+        try:
+            snapshot_dir_fd = os.open(snapshot_root, directory_flags)
+        except OSError as exc:
+            raise InvalidTransition("visual preflight snapshot directory is unsafe") from exc
+        snapshots: list[dict[str, str]] = []
+        unique_sources: list[dict[str, str]] = []
+        seen_sources: dict[str, str] = {}
+        for source in sources:
+            path_value = str(source.get("path") or "")
+            digest = str(source.get("sha256") or "")
+            previous = seen_sources.get(path_value)
+            if previous is not None and previous != digest:
+                raise InvalidTransition("visual preflight source path has conflicting hashes")
+            if previous is None:
+                seen_sources[path_value] = digest
+                unique_sources.append(source)
+        try:
+            for index, source in enumerate(unique_sources, start=1):
+                digest = str(source.get("sha256") or "")
+                original = self.agentlab_root / str(source.get("path") or "")
+                try:
+                    payload = original.read_bytes()
+                except OSError as exc:
+                    raise InvalidTransition(
+                        "visual preflight source became unavailable"
+                    ) from exc
+                if hashlib.sha256(payload).hexdigest() != digest:
+                    raise InvalidTransition(
+                        "visual preflight source changed during snapshot"
+                    )
+                destination = snapshot_root / f"{index:03d}-{digest}.snapshot"
+                temporary_name = f".{destination.name}.{uuid.uuid4().hex}.tmp"
+                temporary_fd: int | None = None
+                try:
+                    temporary_fd = os.open(
+                        temporary_name,
+                        os.O_WRONLY
+                        | os.O_CREAT
+                        | os.O_EXCL
+                        | getattr(os, "O_NOFOLLOW", 0),
+                        0o600,
+                        dir_fd=snapshot_dir_fd,
+                    )
+                    with os.fdopen(temporary_fd, "wb") as handle:
+                        temporary_fd = None
+                        handle.write(payload)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    try:
+                        os.link(
+                            temporary_name,
+                            destination.name,
+                            src_dir_fd=snapshot_dir_fd,
+                            dst_dir_fd=snapshot_dir_fd,
+                            follow_symlinks=False,
+                        )
+                    except FileExistsError:
+                        existing_fd = os.open(
+                            destination.name,
+                            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+                            dir_fd=snapshot_dir_fd,
+                        )
+                        with os.fdopen(existing_fd, "rb") as existing:
+                            if hashlib.sha256(existing.read()).hexdigest() != digest:
+                                raise InvalidTransition(
+                                    "visual preflight snapshot collision"
+                                )
+                except OSError as exc:
+                    raise InvalidTransition(
+                        "visual preflight snapshot write is unsafe"
+                    ) from exc
+                finally:
+                    if temporary_fd is not None:
+                        os.close(temporary_fd)
+                    try:
+                        os.unlink(temporary_name, dir_fd=snapshot_dir_fd)
+                    except FileNotFoundError:
+                        pass
+                snapshots.append(
+                    {
+                        "path": destination.relative_to(
+                            self.agentlab_root
+                        ).as_posix(),
+                        "sha256": digest,
+                    }
+                )
+        finally:
+            os.close(snapshot_dir_fd)
+        return snapshots
 
     def _is_deterministic_binding(self, binding: Mapping[str, Any]) -> bool:
         return binding.get("execution_kind") == "deterministic_tool"
@@ -771,6 +1127,7 @@ class ProductionProtocolRunner:
         attempt_id: str,
         binding: Mapping[str, Any],
         source_paths: list[Path],
+        preflight: Mapping[str, Any] | None,
         idempotency_key: str,
     ) -> dict[str, Any]:
         projection = self.runtime.load_task(task_id)
@@ -781,6 +1138,8 @@ class ProductionProtocolRunner:
             "protocol_ref": projection["task"]["protocol_ref"],
             "node_id": work_item_id,
         }
+        if projection["task"]["protocol_ref"] == "narrative.visual.v1":
+            tool["compiler_id"] = "narrative_visual_detail_card_compiler"
         contract = {
             "role": binding["role"],
             "executor_type": "deterministic_tool",
@@ -808,12 +1167,6 @@ class ProductionProtocolRunner:
         attempt_root = task_root / "attempt_logs" / attempt_id
         attempt_root.mkdir(parents=True, exist_ok=True)
         output_path = attempt_root / "output.md"
-        source_hashes = {
-            path.relative_to(self.agentlab_root).as_posix(): hashlib.sha256(
-                path.read_bytes()
-            ).hexdigest()
-            for path in source_paths
-        }
         artifact_inputs = {
             str(artifact["artifact_id"]): {
                 "version_id": version_id,
@@ -827,9 +1180,20 @@ class ProductionProtocolRunner:
                 if attempt.get("work_item_id") in set(binding.get("depends_on") or [])
             }
         }
-        atomic_write_yaml(
-            output_path,
-            {
+        if projection["task"]["protocol_ref"] == "narrative.visual.v1":
+            if not isinstance(preflight, Mapping):
+                raise InvalidTransition("visual deterministic preflight is missing")
+            output_document = deepcopy(dict(preflight["output_document"]))
+            sealed_sources = list(preflight["sealed_sources"])
+            declared_sources = list(preflight["declared_sources"])
+        else:
+            source_hashes = {
+                path.relative_to(self.agentlab_root).as_posix(): hashlib.sha256(
+                    path.read_bytes()
+                ).hexdigest()
+                for path in source_paths
+            }
+            output_document = {
                 "schema_version": "protocol-deterministic-projection/v1",
                 "protocol_ref": projection["task"]["protocol_ref"],
                 "task_id": task_id,
@@ -852,8 +1216,16 @@ class ProductionProtocolRunner:
                 "task_facts_sha256": projection["task"]["compiled_protocol"][
                     "task_facts_sha256"
                 ],
-            },
-        )
+            }
+            sealed_sources = [
+                {
+                    "path": path.relative_to(self.agentlab_root).as_posix(),
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                }
+                for path in source_paths
+            ]
+            declared_sources = sealed_sources
+        atomic_write_yaml(output_path, output_document)
         output_sha256 = hashlib.sha256(output_path.read_bytes()).hexdigest()
         receipt_path = attempt_root / "deterministic_execution_receipt.yml"
         atomic_write_yaml(
@@ -870,13 +1242,8 @@ class ProductionProtocolRunner:
                 "status": "pass",
                 "output_path": output_path.relative_to(task_root).as_posix(),
                 "output_sha256": output_sha256,
-                "sealed_sources": [
-                    {
-                        "path": path.relative_to(self.agentlab_root).as_posix(),
-                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                    }
-                    for path in source_paths
-                ],
+                "sealed_sources": sealed_sources,
+                "declared_sources": declared_sources,
                 "deterministic_tool": tool,
                 "model_execution": None,
             },
@@ -938,6 +1305,23 @@ def _document_sha256(value: Mapping[str, Any]) -> str:
             separators=(",", ":"),
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _has_symlink_ancestry(path: Path, boundary: Path) -> bool:
+    """Inspect lexical path components without resolving away symlinks."""
+
+    boundary_root = boundary.resolve(strict=True)
+    lexical = Path(os.path.abspath(path))
+    try:
+        relative = lexical.relative_to(boundary_root)
+    except ValueError:
+        return True
+    cursor = boundary_root
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
 
 
 def _professional_profiles(root: Path) -> Mapping[str, Any]:
@@ -1221,6 +1605,15 @@ def _validate_task_facts(
         "source_creative_brief_sha256",
         "source_story_bible",
         "source_story_artifact",
+        "source_blueprint_task_id",
+        "source_blueprint_artifact_version_id",
+        "source_visual_detail_spec",
+        "source_visual_task_id",
+        "source_visual_pack_version_id",
+        "source_visual_pack_sha256",
+        "card_id",
+        "identity_reference_prompt_sha256",
+        "source_visual_detail_pack",
     ):
         if field in task_facts and (
             not isinstance(task_facts[field], str) or not task_facts[field].strip()
@@ -1233,6 +1626,31 @@ def _validate_task_facts(
     ):
         raise ValueError(
             "production protocol fact source_creative_brief_sha256 must be lowercase 64-hex"
+        )
+    if "source_visual_detail_spec_sha256" in task_facts and not re.fullmatch(
+        r"[0-9a-f]{64}", str(task_facts["source_visual_detail_spec_sha256"])
+    ):
+        raise ValueError(
+            "production protocol fact source_visual_detail_spec_sha256 must be lowercase 64-hex"
+        )
+    if "source_visual_detail_pack_sha256" in task_facts and not re.fullmatch(
+        r"[0-9a-f]{64}", str(task_facts["source_visual_detail_pack_sha256"])
+    ):
+        raise ValueError(
+            "production protocol fact source_visual_detail_pack_sha256 must be lowercase 64-hex"
+        )
+    for field in ("source_visual_pack_sha256", "identity_reference_prompt_sha256"):
+        if field in task_facts and not re.fullmatch(
+            r"[0-9a-f]{64}", str(task_facts[field])
+        ):
+            raise ValueError(
+                f"production protocol fact {field} must be lowercase 64-hex"
+            )
+    if "source_blueprint_artifact_sha256" in task_facts and not re.fullmatch(
+        r"[0-9a-f]{64}", str(task_facts["source_blueprint_artifact_sha256"])
+    ):
+        raise ValueError(
+            "production protocol fact source_blueprint_artifact_sha256 must be lowercase 64-hex"
         )
     if "repository_sha256" in task_facts and not re.fullmatch(
         r"[0-9a-f]{64}", str(task_facts["repository_sha256"])

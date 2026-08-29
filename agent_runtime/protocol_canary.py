@@ -178,6 +178,184 @@ def _sign_canary_approval(
     return receipt_path, signature_path
 
 
+def _prepare_visual_canary_prerequisite(
+    state_root: Path,
+    *,
+    project: str,
+    iteration: int,
+) -> dict[str, str]:
+    """Create a real hash-gated visual ArtifactVersion for the novel canary."""
+
+    runtime = TaskRuntime(state_root, project=project)
+    blueprint_task_id = f"task_visual_blueprint_source_{iteration:02d}"
+    runtime.create_task(
+        task_id=blueprint_task_id,
+        title="Canary blueprint source",
+        user_goal="Provide one exact story blueprint for visual compilation.",
+        protocol_ref="narrative.blueprint.v1",
+        input_profile={
+            "kind": "blueprint_build",
+            "scope": "longform",
+            "target_count": 1,
+            "canon_impact": "new_project",
+            "risk_flags": [],
+            "project": project,
+            "source_creative_brief": "fixture/creative-brief.yml",
+            "source_creative_brief_sha256": "f" * 64,
+        },
+        idempotency_key=f"create-{blueprint_task_id}",
+    )
+    runtime.create_work_item(
+        blueprint_task_id,
+        job_id="job-main",
+        work_item_id="blueprint-source",
+        kind="production",
+        title="Blueprint source",
+        idempotency_key=f"work-{blueprint_task_id}",
+    )
+    runtime.transition_task(
+        blueprint_task_id,
+        status="ready",
+        idempotency_key=f"ready-{blueprint_task_id}",
+    )
+    runtime.transition_task(
+        blueprint_task_id,
+        status="running",
+        idempotency_key=f"run-{blueprint_task_id}",
+    )
+    runtime.transition_work_item(
+        blueprint_task_id,
+        work_item_id="blueprint-source",
+        status="running",
+        idempotency_key=f"start-{blueprint_task_id}",
+    )
+    projection = runtime.load_task(blueprint_task_id)
+    source_sha256, attempt_id = _execute_canary_attempt(
+        state_root,
+        runtime,
+        projection=projection,
+        task_id=blueprint_task_id,
+        node_id="blueprint-source",
+        binding={
+            "node_id": "blueprint-source",
+            "role": "Scribe",
+            "profile": "state_projector",
+            "agent_model_profile": "state_projector",
+            "execution_kind": "deterministic_tool",
+        },
+        canary={
+            "name": "VisualBlueprintCanary",
+            "protocol_ref": "fixture.visual.blueprint.v1",
+        },
+        source_paths=[],
+    )
+    task_root = runtime._task_dir(blueprint_task_id)
+    blueprint_staging = task_root / "artifacts" / "staging" / "story-blueprint.yml"
+    blueprint_staging.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_yaml(
+        blueprint_staging,
+        {"story_blueprint": "visual canary", "source_output_sha256": source_sha256},
+    )
+    blueprint_projection = runtime.record_artifact_version(
+        blueprint_task_id,
+        artifact_id="story_blueprint",
+        version_id="story-blueprint-v1",
+        attempt_id=attempt_id,
+        path=blueprint_staging,
+        media_type="application/yaml",
+        idempotency_key=f"artifact-{blueprint_task_id}",
+    )
+    blueprint_artifact = blueprint_projection["artifacts"]["story-blueprint-v1"]
+
+    visual_task_id = f"task_visual_prerequisite_{iteration:02d}"
+    spec_path = (
+        state_root
+        / "projects"
+        / project
+        / "production"
+        / "sources"
+        / "visual-detail-spec.yml"
+    )
+    atomic_write_yaml(
+        spec_path,
+        {
+            "schema_version": "narrative-visual-detail-spec/v1",
+            "project": project,
+            "task_id": visual_task_id,
+            "source_refs": [],
+            "cards": [
+                {
+                    "card_id": "prop-canary-lantern",
+                    "kind": "prop",
+                    "display_name": "守塔灯",
+                    "invariant": {
+                        "geometry_and_dimensions": "高三十厘米的六角提灯",
+                        "materials": "黄铜、玻璃与棉芯",
+                        "surface_and_color": "旧金色铜面与透明玻璃",
+                        "mechanism": "侧门开启后更换灯芯",
+                        "markings": "底座刻一道潮汐纹",
+                        "wear_and_damage": "提梁内侧固定磨痕",
+                        "handling_scale": "成年人物单手提握",
+                        "negative_constraints": "不得改变六角结构、潮汐纹或提梁比例",
+                    },
+                    "variants": [
+                        {
+                            "variant_id": "lit",
+                            "state": "夜间点亮",
+                            "context": "灯塔石阶",
+                            "wear_state": "旧而完整",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    spec_sha256 = hashlib.sha256(spec_path.read_bytes()).hexdigest()
+    runtime.create_task(
+        task_id=visual_task_id,
+        title="Compile visual canary prerequisite",
+        user_goal="Prove novel prose cannot bypass visual-card compilation.",
+        protocol_ref="narrative.visual.v1",
+        input_profile={
+            "kind": "visual_detail_build",
+            "scope": "longform",
+            "target_count": 1,
+            "canon_impact": "none",
+            "risk_flags": [],
+            "project": project,
+            "source_blueprint_task_id": blueprint_task_id,
+            "source_blueprint_artifact_version_id": "story-blueprint-v1",
+            "source_blueprint_artifact_sha256": blueprint_artifact["sha256"],
+            "source_visual_detail_spec": spec_path.relative_to(state_root).as_posix(),
+            "source_visual_detail_spec_sha256": spec_sha256,
+        },
+        idempotency_key=f"create-{visual_task_id}",
+    )
+    result = ProductionProtocolRunner(state_root, project=project).execute_node(
+        visual_task_id,
+        work_item_id="visual_card_projector",
+        messages=[],
+        source_paths=[],
+        external_context_request={},
+        idempotency_key=f"execute-{visual_task_id}",
+    )
+    visual_versions = [
+        (version_id, artifact)
+        for version_id, artifact in result["projection"]["artifacts"].items()
+        if artifact.get("artifact_id") == "visual_detail_card_pack"
+    ]
+    if len(visual_versions) != 1:
+        raise RuntimeError("visual canary did not produce exactly one card pack")
+    version_id, artifact = visual_versions[0]
+    artifact_path = runtime._task_dir(visual_task_id) / artifact["path"]
+    return {
+        "source_visual_task_id": visual_task_id,
+        "source_visual_pack_version_id": version_id,
+        "source_visual_detail_pack": artifact_path.relative_to(state_root).as_posix(),
+        "source_visual_detail_pack_sha256": artifact["sha256"],
+    }
+
+
 def _run_one(
     source_root: Path,
     state_root: Path,
@@ -202,6 +380,13 @@ def _run_one(
         task_facts["source_story_bible"] = story_bible.relative_to(
             state_root
         ).as_posix()
+        task_facts.update(
+            _prepare_visual_canary_prerequisite(
+                state_root,
+                project=project,
+                iteration=iteration,
+            )
+        )
         resolved_canary["story_bible_path"] = str(story_bible)
     else:
         repository = production_root / "repository"

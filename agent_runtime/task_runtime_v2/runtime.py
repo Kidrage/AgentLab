@@ -888,10 +888,21 @@ class TaskRuntime:
         with self._ledger_lock(task_id):
             events = self._load_events(task_id)
             projection = self._project(events, task_id=task_id)
-            projection_dir = self._task_dir(task_id) / "projections"
-            projection_dir.mkdir(parents=True, exist_ok=True)
-            self._write_task_projections(projection_dir, projection)
+            self._materialize_task_projections(task_id, projection)
         return projection
+
+    def _materialize_task_projections(
+        self, task_id: str, projection: dict[str, Any]
+    ) -> None:
+        """Write disposable projections for one Task.
+
+        Governed runtimes may override this seam when their Task directory is
+        pinned by a directory descriptor rather than trusted by pathname.
+        """
+
+        projection_dir = self._task_dir(task_id) / "projections"
+        projection_dir.mkdir(parents=True, exist_ok=True)
+        self._write_task_projections(projection_dir, projection)
 
     def rebuild_project(self) -> dict[str, Any]:
         """Rebuild every Task projection and the project index from authoritative ledgers."""
@@ -3589,23 +3600,26 @@ class TaskRuntime:
                 "payload": payload,
             }
             event["event_hash"] = _event_hash(event)
-            ledger_path = self._task_dir(task_id) / "events.jsonl"
-            ledger_path.parent.mkdir(parents=True, exist_ok=True)
-            with ledger_path.open("a", encoding="utf-8") as handle:
-                handle.write(_canonical_json(event) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
+            self._append_ledger_line(task_id, _canonical_json(event) + "\n")
             return event
 
-    def _load_events(self, task_id: str) -> list[dict[str, Any]]:
+    def _append_ledger_line(self, task_id: str, line: str) -> None:
+        """Durably append one canonical event line to a Task ledger."""
+
         ledger_path = self._task_dir(task_id) / "events.jsonl"
-        if not ledger_path.exists():
+        ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        with ledger_path.open("a", encoding="utf-8") as handle:
+            handle.write(line)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def _load_events(self, task_id: str) -> list[dict[str, Any]]:
+        ledger_text = self._read_ledger_text(task_id)
+        if ledger_text is None:
             return []
         events: list[dict[str, Any]] = []
         previous_hash: str | None = None
-        for sequence, line in enumerate(
-            ledger_path.read_text(encoding="utf-8").splitlines(), 1
-        ):
+        for sequence, line in enumerate(ledger_text.splitlines(), 1):
             if not line.strip():
                 continue
             try:
@@ -3637,6 +3651,14 @@ class TaskRuntime:
             events.append(event)
             previous_hash = str(supplied_hash)
         return events
+
+    def _read_ledger_text(self, task_id: str) -> str | None:
+        """Read a Task ledger, returning ``None`` before Task creation."""
+
+        ledger_path = self._task_dir(task_id) / "events.jsonl"
+        if not ledger_path.exists():
+            return None
+        return ledger_path.read_text(encoding="utf-8")
 
     def _project(self, events: list[dict[str, Any]], *, task_id: str) -> dict[str, Any]:
         task: dict[str, Any] | None = None

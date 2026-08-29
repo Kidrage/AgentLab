@@ -66,6 +66,7 @@ from agent_runtime.narrative.planning_window import (
 from agent_runtime.task_runtime_v2.deterministic_executor import (
     DeterministicToolExecutor,
 )
+from agent_runtime.task_runtime_v2 import EntityNotFound, LedgerIntegrityError, TaskRuntime
 from agent_runtime.narrative.role_context import compile_role_context_pack
 from agent_runtime.narrative.preferences import (
     CROWN_AUTHORIAL_PRIOR,
@@ -82,6 +83,16 @@ from agent_runtime.narrative.task_packet import (
     append_narrative_instruction,
     compile_narrative_task_packet,
 )
+from agent_runtime.narrative.visual_detail_cards import (
+    compile_visual_generation_batch,
+    compile_visual_detail_card_pack,
+    load_visual_detail_spec,
+    validate_visual_detail_card_pack,
+)
+from agent_runtime.narrative.visual_reference_runtime import (
+    ingest_managed_visual_identity_reference,
+)
+from agent_runtime.production_protocols import ProductionProtocolRunner
 from agent_runtime.narrative_delivery import (
     run_narrative_doctor,
     validate_narrative_delivery,
@@ -325,6 +336,180 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result["status"] != "pass":
             raise typer.Exit(code=1)
+
+    @narrative_app.command("compile-visual-cards")
+    def compile_visual_cards_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        source_blueprint_task_id: str = typer.Option(
+            ...,
+            "--source-blueprint-task-id",
+        ),
+        source_blueprint_artifact_version_id: str | None = typer.Option(
+            None,
+            "--source-blueprint-artifact-version-id",
+            help="Exact story_blueprint ArtifactVersion; defaults to the latest eligible version.",
+        ),
+        source: Path = typer.Option(
+            ...,
+            "--source",
+            help="Task-input narrative-visual-detail-spec/v1 YAML.",
+        ),
+    ) -> None:
+        """Run visual-card compilation as an authoritative deterministic Attempt."""
+
+        try:
+            root = active_project_root()
+            spec, sealed_sources = load_visual_detail_spec(
+                root,
+                project=project,
+                task_id=task_id,
+                source_path=source,
+            )
+            preview = compile_visual_detail_card_pack(spec)
+            verified_source = root / sealed_sources[0]["path"]
+            source_sha256 = sealed_sources[0]["sha256"]
+            runtime = TaskRuntime(root, project=project)
+            blueprint = runtime.load_task(source_blueprint_task_id)
+            blueprint_versions = [
+                (version_id, artifact)
+                for version_id, artifact in blueprint["artifacts"].items()
+                if artifact.get("artifact_id") == "story_blueprint"
+                and artifact.get("disposition", "eligible") == "eligible"
+                and (
+                    source_blueprint_artifact_version_id is None
+                    or version_id == source_blueprint_artifact_version_id
+                )
+            ]
+            if not blueprint_versions:
+                raise ValueError(
+                    "source blueprint Task has no matching story_blueprint ArtifactVersion"
+                )
+            blueprint_version_id, blueprint_artifact = blueprint_versions[-1]
+            input_profile = {
+                "kind": "visual_detail_build",
+                "scope": "longform",
+                "target_count": len(preview["cards"]),
+                "canon_impact": "none",
+                "risk_flags": [],
+                "project": project,
+                "source_blueprint_task_id": source_blueprint_task_id,
+                "source_blueprint_artifact_version_id": blueprint_version_id,
+                "source_blueprint_artifact_sha256": blueprint_artifact["sha256"],
+                "source_visual_detail_spec": (
+                    verified_source.relative_to(root).as_posix()
+                ),
+                "source_visual_detail_spec_sha256": source_sha256,
+            }
+            try:
+                existing = runtime.load_task(task_id)
+            except (EntityNotFound, LedgerIntegrityError):
+                runtime.create_task(
+                    task_id=task_id,
+                    title="Compile narrative visual continuity cards",
+                    user_goal="Create candidate-only visual identity prompts before prose.",
+                    protocol_ref="narrative.visual.v1",
+                    input_profile=input_profile,
+                    idempotency_key=f"create-visual-cards-{source_sha256[:24]}",
+                )
+            else:
+                if (
+                    existing["task"].get("protocol_ref") != "narrative.visual.v1"
+                    or existing["task"].get("input_profile") != input_profile
+                ):
+                    raise ValueError(
+                        "existing visual-card Task does not match the source"
+                    )
+            result = ProductionProtocolRunner(root, project=project).execute_node(
+                task_id,
+                work_item_id="visual_card_projector",
+                messages=[],
+                source_paths=[],
+                external_context_request={},
+                idempotency_key=f"compile-visual-cards-{source_sha256[:24]}",
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @narrative_app.command("validate-visual-cards")
+    def validate_visual_cards_command(
+        pack_path: Path = typer.Option(..., "--pack-path"),
+    ) -> None:
+        """Recheck a visual card pack without generating or promoting images."""
+
+        try:
+            value = yaml.safe_load(pack_path.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(f"cannot read visual card pack: {exc}") from exc
+        result = validate_visual_detail_card_pack(value)
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+        if result["status"] != "pass":
+            raise typer.Exit(code=1)
+
+    @narrative_app.command("compile-visual-generation-batch")
+    def compile_visual_generation_batch_command(
+        pack_path: Path = typer.Option(..., "--pack-path"),
+        card_id: str = typer.Option(..., "--card-id"),
+        reference_acceptance_receipt: list[Path] | None = typer.Option(
+            None,
+            "--reference-acceptance-receipt",
+            help="Exactly one signed current-reference receipt for dependent shots; omit for the first identity sheet.",
+        ),
+    ) -> None:
+        """Compile a reference-first Codex image handoff without generating images."""
+
+        try:
+            value = yaml.safe_load(pack_path.read_text(encoding="utf-8")) or {}
+            if not isinstance(value, dict):
+                raise ValueError("visual card pack must be a mapping")
+            result = compile_visual_generation_batch(
+                value,
+                card_id=card_id,
+                agentlab_root=active_project_root(),
+                pack_path=pack_path,
+                accepted_reference_receipt_paths=(
+                    reference_acceptance_receipt or []
+                ),
+            )
+        except (OSError, UnicodeError, RuntimeError, ValueError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @narrative_app.command("ingest-visual-identity-reference")
+    def ingest_visual_identity_reference_command(
+        pack_path: Path = typer.Option(..., "--pack-path"),
+        card_id: str = typer.Option(..., "--card-id"),
+        image_path: Path = typer.Option(..., "--image-path"),
+        attestation_path: Path = typer.Option(..., "--attestation-path"),
+    ) -> None:
+        """Ingest one externally attested Codex managed-image result."""
+
+        try:
+            value = yaml.safe_load(pack_path.read_text(encoding="utf-8")) or {}
+            if not isinstance(value, dict):
+                raise ValueError("visual card pack must be a mapping")
+            result = ingest_managed_visual_identity_reference(
+                active_project_root(),
+                pack=value,
+                pack_path=pack_path,
+                card_id=card_id,
+                image_path=image_path,
+                attestation_path=attestation_path,
+            )
+        except (
+            OSError,
+            UnicodeError,
+            RuntimeError,
+            ValueError,
+            yaml.YAMLError,
+        ) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
 
     @narrative_app.command("seal-blueprint")
     def seal_blueprint(

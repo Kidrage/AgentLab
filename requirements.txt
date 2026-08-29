@@ -3,4 +3,5 @@ pydantic
 pyyaml
 typer
 rich
+Pillow>=10,<13
 pytest<9
