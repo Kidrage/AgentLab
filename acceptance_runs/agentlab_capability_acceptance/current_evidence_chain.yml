@@ -1,10 +1,10 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-08-29T10:04:48Z'
+generated_at: '2026-08-29T10:11:13Z'
 repository:
   root: .
-  head: 10f2352
+  head: 6ffeefc
   worktree_dirty: false
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
@@ -146,7 +146,7 @@ current_evidence:
   class: active
   capability_ids:
   - production_pack_synthesis
-  sha256: 96ca0863bbdc027df847f7c592ce5805068d2261186eca2f1e36659ffe67b7ba
+  sha256: 0429bc914701d5752394746f56e0139ea0e611e46537b6682832253d318fff03
 - path: config/worker_invocation_contracts.yml
   class: active
   capability_ids:
@@ -218,7 +218,7 @@ historical_references:
   - crown_formal_live_narrative_eval
   - trusted_live_runner_status
 historical_reference_count: 10
-aggregate_digest: bd30d1a26439d18f6e3a88b2fa48cdb6c8c43a352f3b34bead13e79b07dc133f
+aggregate_digest: 4ecd6d486cac3aba187419977b725d17091b51eb141d33123b2cc1040743dcd6
 status: pass
 issues: []
 notes:
