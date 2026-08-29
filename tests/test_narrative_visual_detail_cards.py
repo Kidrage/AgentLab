@@ -436,7 +436,7 @@ def _spec(*cards: dict) -> dict:
         _prop_card(),
     ]
     return {
-        "schema_version": "narrative-visual-detail-spec/v2",
+        "schema_version": "narrative-visual-detail-spec/v3",
         "project": "ShanHeYouJia",
         "task_id": "task-shanhe-blueprint-006",
         "creative_policy": {
@@ -454,7 +454,7 @@ def _spec(*cards: dict) -> dict:
 def test_compiles_stable_identity_lock_into_every_character_prompt() -> None:
     pack = compile_visual_detail_card_pack(_spec())
 
-    assert pack["schema_version"] == "narrative-visual-detail-card-pack/v2"
+    assert pack["schema_version"] == "narrative-visual-detail-card-pack/v3"
     assert pack["candidate_only"] is True
     assert pack["generation_contract"] == {
         "role": "ArtifactProducer",
@@ -1692,6 +1692,21 @@ def test_male_hands_reject_free_prose_in_favor_of_governed_profiles(
         compile_visual_detail_card_pack(_spec(card))
 
 
+@pytest.mark.parametrize("field", ["signature_details", "variant_state"])
+def test_male_card_rejects_cross_field_nail_circumlocution(field: str) -> None:
+    card = _character_card()
+    detail = "十根指头末梢的硬壳都剪短磨圆，色泽健康"
+    if field == "variant_state":
+        card["variants"][0]["state"] = f"{detail}，精神警觉"
+    else:
+        card["invariant"][field] = f"右锁骨旧伤；{detail}"
+
+    with pytest.raises(
+        ValueError, match="male character must not contain nail details"
+    ):
+        compile_visual_detail_card_pack(_spec(card))
+
+
 def test_rejects_novel_visual_pack_without_exact_character_roster() -> None:
     spec = _spec(_map_card(), _location_card(), _prop_card())
 
@@ -1775,7 +1790,50 @@ def test_v1_pack_remains_read_only_validatable_for_task_recovery() -> None:
 
     acceptance = validate_identity_reference_acceptance(Path("."), pack, {})
     assert acceptance["status"] == "blocked"
-    assert any("current v2 pack" in issue for issue in acceptance["issues"])
+    assert any(
+        "current narrative-visual-detail-card-pack/v3" in issue
+        for issue in acceptance["issues"]
+    )
+
+
+def test_v2_string_hands_pack_remains_read_only_validatable() -> None:
+    card = _character_card()
+    card["invariant"]["hands"] = "修长有剑茧的手，虎口旧伤，惯用右手"
+    source = _spec(card)
+    source["schema_version"] = "narrative-visual-detail-spec/v2"
+    compiled_card = visual_detail_cards._compile_card(
+        card,
+        creative_policy=source["creative_policy"],
+        structured_male_hands=False,
+    )
+    current = compile_visual_detail_card_pack(_spec())
+    pack = {
+        "schema_version": "narrative-visual-detail-card-pack/v2",
+        "project": source["project"],
+        "task_id": source["task_id"],
+        "candidate_only": True,
+        "promotion_state": "awaiting_visual_generation_and_human_acceptance",
+        "source_spec_sha256": visual_detail_cards._sha256(
+            visual_detail_cards._canonical_bytes(source)
+        ),
+        "source_refs": [],
+        "creative_policy": source["creative_policy"],
+        "character_roster": source["character_roster"],
+        "generation_contract": current["generation_contract"],
+        "review_contract": current["review_contract"],
+        "cards": [compiled_card],
+    }
+    pack["pack_sha256"] = visual_detail_cards._pack_sha256(pack)
+
+    assert validate_visual_detail_card_pack(pack)["status"] == "pass"
+    with pytest.raises(ValueError, match="requires a current"):
+        compile_visual_generation_batch(
+            pack,
+            card_id="character-shen-du",
+            agentlab_root=Path("/unneeded-for-v2-rejection"),
+            pack_path=Path("historical-v2-pack.yml"),
+            accepted_reference_receipt_paths=[],
+        )
 
 
 def test_rejects_female_character_without_leg_and_foot_identity_locks() -> None:

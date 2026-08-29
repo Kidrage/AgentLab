@@ -28,9 +28,11 @@ from agent_runtime.task_runtime_v2 import (
 )
 
 
-SPEC_SCHEMA = "narrative-visual-detail-spec/v2"
-PACK_SCHEMA = "narrative-visual-detail-card-pack/v2"
+SPEC_SCHEMA = "narrative-visual-detail-spec/v3"
+PACK_SCHEMA = "narrative-visual-detail-card-pack/v3"
 LEGACY_PACK_SCHEMA = "narrative-visual-detail-card-pack/v1"
+LEGACY_V2_PACK_SCHEMA = "narrative-visual-detail-card-pack/v2"
+LEGACY_V2_SPEC_SCHEMA = "narrative-visual-detail-spec/v2"
 AWAITING_ACCEPTANCE = "awaiting_visual_generation_and_human_acceptance"
 
 _KIND_CONTRACTS: dict[str, dict[str, list[str]]] = {
@@ -397,6 +399,13 @@ _MALE_NAIL_DETAIL_TERMS = (
     "甲型",
     "甲长",
 )
+_MALE_NAIL_CIRCUMLOCUTION_PATTERNS = (
+    re.compile(
+        r"(?:十根?指头|十指|手指|脚趾|指头|指尖|趾尖|指端|趾端|手部末端|足部末端)"
+        r".{0,40}(?:角质|半透明|硬壳|硬层|硬片|硬质|薄层|覆盖层|甲片)"
+        r".{0,40}(?:边缘|表面|剪|修|磨|圆|方|尖|色泽|光泽|颜色|涂层|上色|着色|抛光)"
+    ),
+)
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -512,6 +521,10 @@ def _reject_male_nail_details(card: Mapping[str, Any], card_id: str) -> None:
     present = [term for term in _MALE_NAIL_DETAIL_TERMS if term in serialized]
     if re.search(r"(?<![a-z])nails?(?![a-z])", serialized):
         present.append("nail")
+    if any(
+        pattern.search(serialized) for pattern in _MALE_NAIL_CIRCUMLOCUTION_PATTERNS
+    ):
+        present.append("free-form digit material prose")
     if present:
         raise ValueError(
             f"cards.{card_id} male character must not contain nail details: "
@@ -626,7 +639,7 @@ def _identity_lock_prompt(
         card["invariant"], f"cards.{card['card_id']}.invariant"
     )
     facts = "；".join(
-        f"{field}：{_render_male_hand_profile(invariant[field]) if field == 'hands' and gender == 'male' else _render(invariant[field])}"
+        f"{field}：{_render_male_hand_profile(invariant[field]) if field == 'hands' and gender == 'male' and isinstance(invariant[field], Mapping) else _render(invariant[field])}"
         for field in ordered_fields
     )
     modernization_rule = (
@@ -763,6 +776,7 @@ def _compile_card(
     card: Mapping[str, Any],
     *,
     creative_policy: Mapping[str, Any],
+    structured_male_hands: bool = True,
 ) -> dict:
     _require_fields(
         card, ["card_id", "kind", "display_name", "invariant", "variants"], "card"
@@ -789,10 +803,11 @@ def _compile_card(
             f"cards.{card_id}.invariant",
         )
         if gender == "male":
-            _validated_male_hand_profile(
-                invariant.get("hands"),
-                locator=f"cards.{card_id}.invariant.hands",
-            )
+            if structured_male_hands:
+                _validated_male_hand_profile(
+                    invariant.get("hands"),
+                    locator=f"cards.{card_id}.invariant.hands",
+                )
             _reject_unsupported_fields(
                 invariant,
                 allowed_fields=set(contract["required_invariant_fields"]),
@@ -936,7 +951,7 @@ def _compile_card(
         },
         "prompt_set": prompts,
     }
-    if gender == "male":
+    if gender == "male" and structured_male_hands:
         compiled["character_detail_contract"] = deepcopy(
             _MALE_CHARACTER_DETAIL_CONTRACT
         )
@@ -1040,12 +1055,16 @@ def _pack_sha256(pack: Mapping[str, Any]) -> str:
     return _sha256(_canonical_bytes(payload))
 
 
-def _v2_source_document_from_pack(pack: Mapping[str, Any]) -> dict[str, Any]:
+def _source_document_from_pack(
+    pack: Mapping[str, Any],
+    *,
+    spec_schema: str,
+) -> dict[str, Any]:
     cards = pack.get("cards")
     if not isinstance(cards, list):
         raise ValueError("pack.cards must be a list")
     return {
-        "schema_version": SPEC_SCHEMA,
+        "schema_version": spec_schema,
         "project": pack.get("project"),
         "task_id": pack.get("task_id"),
         "creative_policy": deepcopy(pack.get("creative_policy")),
@@ -1086,8 +1105,9 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
     if not isinstance(pack, Mapping):
         return {"status": "blocked", "issues": ["pack must be a mapping"]}
     schema_version = pack.get("schema_version")
-    legacy_mode = schema_version == LEGACY_PACK_SCHEMA
-    if schema_version not in {PACK_SCHEMA, LEGACY_PACK_SCHEMA}:
+    legacy_v1_mode = schema_version == LEGACY_PACK_SCHEMA
+    legacy_v2_mode = schema_version == LEGACY_V2_PACK_SCHEMA
+    if schema_version not in {PACK_SCHEMA, LEGACY_PACK_SCHEMA, LEGACY_V2_PACK_SCHEMA}:
         issues.append("unsupported pack schema")
     if pack.get("candidate_only") is not True:
         issues.append("pack must remain candidate_only")
@@ -1100,7 +1120,7 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
     if pack.get("review_contract") != _REVIEW_CONTRACT:
         issues.append("review_contract does not match the Codex/Agy/Hermes boundary")
     creative_policy: Mapping[str, Any] = {}
-    if not legacy_mode:
+    if not legacy_v1_mode:
         try:
             creative_policy = _validated_creative_policy(
                 pack.get("creative_policy"),
@@ -1142,7 +1162,14 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
                     )
         try:
             reconstructed_source_sha256 = _sha256(
-                _canonical_bytes(_v2_source_document_from_pack(pack))
+                _canonical_bytes(
+                    _source_document_from_pack(
+                        pack,
+                        spec_schema=(
+                            LEGACY_V2_SPEC_SCHEMA if legacy_v2_mode else SPEC_SCHEMA
+                        ),
+                    )
+                )
             )
         except (TypeError, ValueError) as exc:
             issues.append(f"source spec reconstruction failed: {exc}")
@@ -1154,7 +1181,7 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
         issues.append("cards must be a non-empty list")
         cards = []
     character_roster = pack.get("character_roster")
-    if legacy_mode:
+    if legacy_v1_mode:
         character_roster = []
     elif not isinstance(character_roster, list) or not character_roster:
         issues.append("character_roster must be a non-empty list")
@@ -1169,7 +1196,7 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
             issues.append(f"duplicate card_id: {card_id}")
         seen.add(card_id)
         kind = str(card.get("kind") or "")
-        contracts = _LEGACY_KIND_CONTRACTS if legacy_mode else _KIND_CONTRACTS
+        contracts = _LEGACY_KIND_CONTRACTS if legacy_v1_mode else _KIND_CONTRACTS
         contract = contracts.get(kind)
         if contract is None:
             issues.append(f"{card_id}: unsupported kind")
@@ -1184,8 +1211,12 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
             }
             rebuilt = (
                 _compile_legacy_card(source_card)
-                if legacy_mode
-                else _compile_card(source_card, creative_policy=creative_policy)
+                if legacy_v1_mode
+                else _compile_card(
+                    source_card,
+                    creative_policy=creative_policy,
+                    structured_male_hands=not legacy_v2_mode,
+                )
             )
         except (KeyError, TypeError, ValueError) as exc:
             issues.append(f"{card_id}: cannot rebuild card: {exc}")
@@ -1198,7 +1229,7 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
         required_shots = rebuilt["required_shot_ids"]
         if card.get("required_shot_ids") != required_shots:
             issues.append(f"{card_id}: required_shot_ids mismatch")
-        if not legacy_mode and card.get("character_detail_contract") != rebuilt.get(
+        if not legacy_v1_mode and card.get("character_detail_contract") != rebuilt.get(
             "character_detail_contract"
         ):
             issues.append(f"{card_id}: character_detail_contract mismatch")
@@ -1242,7 +1273,7 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
             issues.append(f"{card_id}: prompt shot coverage mismatch")
         if prompts != rebuilt["prompt_set"]:
             issues.append(f"{card_id}: prompt_set does not match variants")
-    if not legacy_mode:
+    if not legacy_v1_mode:
         observed_character_ids = [
             str(card.get("card_id"))
             for card in cards
@@ -1638,7 +1669,9 @@ def validate_identity_reference_acceptance(
 
     issues: list[str] = []
     if pack.get("schema_version") != PACK_SCHEMA:
-        issues.append("identity reference acceptance requires a current v2 pack")
+        issues.append(
+            f"identity reference acceptance requires a current {PACK_SCHEMA} pack"
+        )
     pack_validation = validate_visual_detail_card_pack(pack)
     if pack_validation["status"] != "pass":
         issues.append("visual detail card pack is invalid")

@@ -279,7 +279,7 @@ def _prepare_visual_canary_prerequisite(
     atomic_write_yaml(
         spec_path,
         {
-            "schema_version": "narrative-visual-detail-spec/v2",
+            "schema_version": "narrative-visual-detail-spec/v3",
             "project": project,
             "task_id": visual_task_id,
             "creative_policy": {

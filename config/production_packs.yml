@@ -325,7 +325,7 @@ packs:
           producer_node: visual_card_projector
           candidate_only: true
           output_instructions: [Compile only the declared hash-bound visual detail spec; do not invent facts or generate images.]
-          required_markers: [narrative-visual-detail-card-pack/v2, pack_sha256, identity_lock_prompt, prompt_sha256, generation_contract, review_contract]
+          required_markers: [narrative-visual-detail-card-pack/v3, pack_sha256, identity_lock_prompt, prompt_sha256, generation_contract, review_contract]
           minimum_bytes: 1000
           unique_content: true
       result_artifact_type: visual_detail_card_pack

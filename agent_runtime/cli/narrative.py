@@ -66,7 +66,11 @@ from agent_runtime.narrative.planning_window import (
 from agent_runtime.task_runtime_v2.deterministic_executor import (
     DeterministicToolExecutor,
 )
-from agent_runtime.task_runtime_v2 import EntityNotFound, LedgerIntegrityError, TaskRuntime
+from agent_runtime.task_runtime_v2 import (
+    EntityNotFound,
+    LedgerIntegrityError,
+    TaskRuntime,
+)
 from agent_runtime.narrative.role_context import compile_role_context_pack
 from agent_runtime.narrative.preferences import (
     CROWN_AUTHORIAL_PRIOR,
@@ -101,8 +105,12 @@ from agent_runtime.narrative_delivery import (
 )
 
 
-def register_narrative_commands(app: typer.Typer, project_root: Path, console: Console) -> None:
-    narrative_app = typer.Typer(help="Longform narrative delivery commands.", no_args_is_help=True)
+def register_narrative_commands(
+    app: typer.Typer, project_root: Path, console: Console
+) -> None:
+    narrative_app = typer.Typer(
+        help="Longform narrative delivery commands.", no_args_is_help=True
+    )
     planning_window_app = typer.Typer(
         help="Governed rolling narrative planning-window lifecycle.",
         no_args_is_help=True,
@@ -245,41 +253,67 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
 
     @narrative_app.command("doctor")
     def doctor(
-        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        project: str = typer.Option(
+            ..., "--project", help="Project name under projects/."
+        ),
     ) -> None:
         """Audit narrative project readiness and recent chapter delivery receipts."""
         result = run_narrative_doctor(project_root, project)
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
         if result.get("status") != "pass":
             raise typer.Exit(code=1)
 
     @narrative_app.command("prepare-chapter")
     def prepare_chapter(
-        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        project: str = typer.Option(
+            ..., "--project", help="Project name under projects/."
+        ),
         chapter: int = typer.Option(..., "--chapter", min=1, help="Chapter number."),
-        task_id: str = typer.Option(..., "--task-id", help="Run id under projects/<Project>/runs/."),
+        task_id: str = typer.Option(
+            ..., "--task-id", help="Run id under projects/<Project>/runs/."
+        ),
     ) -> None:
         """Write a chapter packet from current production facts and prior chapters."""
         result = write_chapter_packet(project_root, project, task_id, chapter)
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("review")
     def review(
-        project: str = typer.Option(..., "--project", help="Project name under projects/."),
-        task_id: str = typer.Option(..., "--task-id", help="Run id under projects/<Project>/runs/."),
-        write_receipt: bool = typer.Option(True, "--write-receipt/--no-write-receipt", help="Write narrative_delivery_receipt.yml."),
+        project: str = typer.Option(
+            ..., "--project", help="Project name under projects/."
+        ),
+        task_id: str = typer.Option(
+            ..., "--task-id", help="Run id under projects/<Project>/runs/."
+        ),
+        write_receipt: bool = typer.Option(
+            True,
+            "--write-receipt/--no-write-receipt",
+            help="Write narrative_delivery_receipt.yml.",
+        ),
     ) -> None:
         """Validate narrative delivery outputs and block failed fiction reviews."""
         run_dir = project_root / "projects" / project / "runs" / task_id
-        result = write_narrative_delivery_receipt(run_dir) if write_receipt else validate_narrative_delivery(run_dir)
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        result = (
+            write_narrative_delivery_receipt(run_dir)
+            if write_receipt
+            else validate_narrative_delivery(run_dir)
+        )
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
         valid = result.get("delivery_check", result).get("valid")
         if not valid:
             raise typer.Exit(code=1)
 
     @narrative_app.command("assemble")
     def assemble(
-        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        project: str = typer.Option(
+            ..., "--project", help="Project name under projects/."
+        ),
         audit_manifest: Path = typer.Option(
             ..., "--audit-manifest", help="Passed continuous-audit manifest."
         ),
@@ -299,7 +333,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             )
         except NarrativeAssemblyError as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("validate-blueprint")
     def validate_blueprint(
@@ -319,9 +355,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 authority_start, authority_end = crown_blueprint_range(project)
             except ValueError as exc:
                 raise typer.BadParameter(str(exc)) from exc
-            selected_start = (
-                authority_start if chapter_start is None else chapter_start
-            )
+            selected_start = authority_start if chapter_start is None else chapter_start
             selected_end = authority_end if chapter_end is None else chapter_end
             if selected_start > selected_end:
                 raise typer.BadParameter(
@@ -333,7 +367,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 chapter_start=selected_start,
                 chapter_end=selected_end,
             )
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
         if result["status"] != "pass":
             raise typer.Exit(code=1)
 
@@ -353,7 +389,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         source: Path = typer.Option(
             ...,
             "--source",
-            help="Task-input narrative-visual-detail-spec/v2 YAML.",
+            help="Task-input narrative-visual-detail-spec/v3 YAML.",
         ),
     ) -> None:
         """Run visual-card compilation as an authoritative deterministic Attempt."""
@@ -472,13 +508,13 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 card_id=card_id,
                 agentlab_root=active_project_root(),
                 pack_path=pack_path,
-                accepted_reference_receipt_paths=(
-                    reference_acceptance_receipt or []
-                ),
+                accepted_reference_receipt_paths=(reference_acceptance_receipt or []),
             )
         except (OSError, UnicodeError, RuntimeError, ValueError, yaml.YAMLError) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("ingest-visual-identity-reference")
     def ingest_visual_identity_reference_command(
@@ -509,7 +545,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             yaml.YAMLError,
         ) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("seal-blueprint")
     def seal_blueprint(
@@ -554,7 +592,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("publish-blueprint-change")
     def publish_blueprint_change_command(
@@ -703,11 +743,15 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("commit-fact-authority")
     def commit_fact_authority(
-        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        project: str = typer.Option(
+            ..., "--project", help="Project name under projects/."
+        ),
     ) -> None:
         """Commit the one artifact-index-selected fact authority revision."""
         project_dir = project_root / "projects" / project
@@ -721,7 +765,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             )
         except (OSError, ValueError, NarrativeStateError) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("progress")
     def narrative_progress_command(
@@ -762,7 +808,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             atomic_write_yaml(output, result)
         except (OSError, PlanningWindowError) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @planning_window_app.command("seal")
     def seal_planning_window_command(
@@ -784,7 +832,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             )
         except (OSError, UnicodeError, yaml.YAMLError, PlanningWindowError) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @planning_window_app.command("activate")
     def activate_planning_window_command(
@@ -795,7 +845,9 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             result = activate_planning_window(project_root, project=project)
         except PlanningWindowError as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @planning_window_app.command("complete")
     def complete_planning_window_command(
@@ -818,16 +870,18 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             )
         except PlanningWindowError as exc:
             raise typer.BadParameter(str(exc)) from exc
-        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     def load_author_team_contract(path: Path | None) -> dict:
-        selected = path or (
-            project_root / "config" / "narrative_author_team.yml"
-        )
+        selected = path or (project_root / "config" / "narrative_author_team.yml")
         try:
             value = yaml.safe_load(selected.read_text(encoding="utf-8")) or {}
         except (OSError, UnicodeError, yaml.YAMLError) as exc:
-            raise typer.BadParameter(f"cannot read author-team contract: {exc}") from exc
+            raise typer.BadParameter(
+                f"cannot read author-team contract: {exc}"
+            ) from exc
         if not isinstance(value, dict):
             raise typer.BadParameter("author-team contract must be a mapping")
         if value.get("schema_version") == "narrative-author-team/v2":
@@ -845,9 +899,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         contract: Path | None = typer.Option(None, "--contract"),
     ) -> None:
         """Validate all v2 professional roles and separation-of-duty gates."""
-        result = validate_author_team_contract(
-            load_author_team_contract(contract)
-        )
+        result = validate_author_team_contract(load_author_team_contract(contract))
         console.print(
             yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
         )
@@ -965,9 +1017,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 context_bundle_manifest=source_path("context_bundle_manifest"),
                 evidence_candidates=normalized_candidates,
                 token_budget=int(value["token_budget"]),
-                minimum_evidence_items=int(
-                    value.get("minimum_evidence_items", 1)
-                ),
+                minimum_evidence_items=int(value.get("minimum_evidence_items", 1)),
                 audit_chapter_id=(
                     int(value["audit_chapter_id"])
                     if value.get("audit_chapter_id") is not None
@@ -1047,12 +1097,8 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                     candidate_path=candidate,
                     risk_flags=[str(item) for item in risks],
                     context_pack_paths=context_pack_paths,
-                    outbound_expires_at=str(
-                        value.get("outbound_expires_at") or ""
-                    ),
-                    execution_ordinal=int(
-                        value.get("execution_ordinal", 1)
-                    ),
+                    outbound_expires_at=str(value.get("outbound_expires_at") or ""),
+                    execution_ordinal=int(value.get("execution_ordinal", 1)),
                 )
             elif action == "compile_revision":
                 candidate = Path(str(value["candidate_path"]))

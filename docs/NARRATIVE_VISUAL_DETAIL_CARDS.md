@@ -1,24 +1,24 @@
 # Narrative visual detail cards
 
 Every new longform narrative blueprint must produce a hash-sealed
-`narrative-visual-detail-card-pack/v2` before prose production begins. The pack
+`narrative-visual-detail-card-pack/v3` before prose production begins. The pack
 is a candidate artifact: it cannot become canon and it cannot authorize image
 generation or project writes by itself.
 
 ## Source contract
 
-The source is project-bounded `narrative-visual-detail-spec/v2` YAML. The CLI
+The source is project-bounded `narrative-visual-detail-spec/v3` YAML. The CLI
 creates or reuses an exact Runtime-v2 Task bound to `narrative.visual.v1`; a
 deterministic Attempt verifies the declared source hash and all transitive
 source hashes before recording the pack as an immutable ArtifactVersion. A
 directory by itself is never accepted as a Task or as production evidence.
 The spec contains a `creative_policy` with the work title and an explicit
 `female_modern_nail_art_allowed` boolean, plus one or more cards with globally
-unique `card_id` values. Version 1 inputs and packs are historical evidence:
-their sealed packs retain a read-only rebuild validator so an already-ledgered
-Task remains auditable, but they cannot release image jobs, accept a new
-identity reference, or satisfy the prose prerequisite. The compiler never
-creates a new version 1 pack; production requires version 2. A version 2 pack
+unique `card_id` values. Version 1 and version 2 packs are historical evidence:
+their sealed packs retain version-specific read-only rebuild validators so an
+already-ledgered Task remains auditable, but they cannot release image jobs,
+accept a new identity reference, or satisfy the prose prerequisite. The compiler
+never creates a new v1/v2 pack; production requires version 3. A version 3 pack
 also reconstructs and verifies its canonical source-spec hash and source-ref
 manifest, while the runtime recompiles the Task-declared spec before releasing
 production work.
