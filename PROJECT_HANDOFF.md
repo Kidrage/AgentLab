@@ -5,16 +5,16 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-kernel-stabilization-de62d90289e0`
+- Repository ID: `AgentLab-shanhe-production-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab-kernel-stabilization`
+- Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-08-28T08:22:54.035747+00:00`
+- Generated at: `2026-08-29T01:07:32.963861+00:00`
 
 ## Current State
 
-- Branch: `codex/shanhe-youjia-p3`
-- HEAD: `792d806`
+- Branch: `codex/shanhe-production`
+- HEAD: `05b749d`
 - Indexed paths: 2087
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,10 +88,10 @@
 
 ### Categories
 
-- code: 1094 files, 11486106 bytes
-- literature: 424 files, 2430234 bytes
+- code: 1094 files, 11569039 bytes
+- literature: 424 files, 2434082 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3278783 bytes
+- structured_data: 554 files, 3272950 bytes
 
 ### Common Extensions
 
@@ -232,6 +232,8 @@
 
 ## Change History
 
+- `05b749d 2026-08-29 Merge pull request #14 from Kidrage/codex/shanhe-youjia-p3`
+- `aaf936b 2026-08-28 feat(runtime): stabilize governed model routing`
 - `792d806 2026-08-28 fix: validate paired blueprint shard envelopes`
 - `3b69677 2026-08-27 docs: refresh kernel stabilization handoff`
 - `b720735 2026-08-27 test(narrative): reject edit delimiter near misses`
@@ -250,51 +252,10 @@
 - `307a6cc 2026-08-01 fix(background): bind Crown jobs to governed model settings`
 - `0520e7d 2026-08-01 Merge remote-tracking branch 'refs/remotes/github/unified-stable' into codex/relay-memory-github-reconcile-250`
 - `810b42a 2026-08-01 Automate detached narrative acceptance`
-- `9d02aa8 2026-08-01 Merge GitHub unified-stable into 250 relay work`
-- `1cf89cb 2026-07-31 Expose user acceptance gate in work-item CLI`
 
 ## Current Changes
 
-- `## codex/shanhe-youjia-p3...origin/codex/shanhe-youjia-p3`
-- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/brain/media_generation_router.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/frontdesk_boundary_audit.py`
-- ` M agent_runtime/protocols/artifact_task.py`
-- ` M agent_runtime/protocols/enforcement.py`
-- ` M config/README.md`
-- ` M config/agent_model_profiles.yml`
-- ` M config/agent_role_bindings.yml`
-- ` M config/artifact_task_policy.yml`
-- ` M config/cli_workflow_shells.yml`
-- ` M config/hermes_brain_model_groups.yml`
-- ` M config/media_generation_backends.yml`
-- ` M config/mode_tier_worker_policy.yml`
-- ` M config/model_capacity.yml`
-- ` M config/model_catalog.yml`
-- ` M config/model_providers.yml`
-- ` M config/role_assignment_policy.yml`
-- ` M config/runtime_cli_requirements.yml`
-- ` M config/shared_agent_directory.yml`
-- ` M config/worker_capability_defaults.yml`
-- ` M config/worker_fallback_policy.yml`
-- ` M config/worker_invocation_contracts.yml`
-- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
-- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
-- ` M docs/ARTIFACT_PRODUCER_PROTOCOL.md`
-- ` M scripts/generate_agent_cli_matrix.py`
-- ` M tests/test_agent_cli_matrix.py`
-- ` M tests/test_alter_model_profile.py`
-- ` M tests/test_artifact_task_protocol.py`
-- ` M tests/test_cli_executor.py`
-- ` M tests/test_execution_config_consolidation.py`
-- ` M tests/test_m1_mission_compiler_v2.py`
-- ` M tests/test_m2_role_assignment_router.py`
-- ` M tests/test_m2_worker_governance.py`
-- ` M tests/test_models_and_governance_cli.py`
-- ` M tests/test_narrative_author_team_v2.py`
-- ` M tests/test_production_pack_role_session_request.py`
-- ` M tests/test_protocol_enforcement.py`
+- `## codex/shanhe-production...origin/main`
 
 ## Related Repositories
 
@@ -840,6 +801,21 @@ system preference remain required before Gate 2 scaling or Phase 5.
   Independent Standards and Spec reviews found no remaining release blocker.
   This delivery is isolated on `codex/shanhe-youjia-p3`; merge only through a
   reviewed PR to `main`.
+- 2026-08-29 CST: PR #14 was merged into `main` as
+  `05b749d651ebdcab660e6b58fd93e611f14c9620`; the post-merge `main` CI run
+  `33225004838` passed in 10m38s. 《山河有约》 production work is isolated on
+  `codex/shanhe-production` in `/Users/saintpeter/Desktop/AgentLab-shanhe-production`.
+  The ignored 131 MB Runtime v2 ledger for `task-shanhe-blueprint-006` was copied
+  byte-for-byte from the prior worktree; its events file SHA-256 remains
+  `2732e2f07e7598a3a505fa70f4ca1e852f8d38226315f42157aeab150a5cf6eb`.
+  R26 V11 passed; V12 failed deterministic validation; V12-V15 remain pending;
+  no R26 composite, canon promotion, or human acceptance exists. The current
+  governed routes are Claude Code/DeepSeek V4 Pro Writer, Hermes/private
+  DeepSeek V4 Flash senior editor, and Agy/Gemini reader simulation. The old
+  outbound authorization expired at `2026-08-28T05:00:00Z`, so provider calls
+  remain fail-closed pending fresh task-scoped candidate-only authorization.
+  Start evidence and the proposed authorization statement are mirrored under
+  `agents/codex/shanhe-production-start/` on TrueNAS.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule
