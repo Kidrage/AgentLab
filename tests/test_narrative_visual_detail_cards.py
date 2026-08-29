@@ -1714,6 +1714,10 @@ def test_male_card_rejects_cross_field_nail_circumlocution(field: str) -> None:
     [
         "双手各指末梢的透明角层均已削齐，泛着温润色泽",
         "双手末梢的十枚透明角层均削齐，呈健康光泽",
+        "十指末端覆盖着半透明的角质层，均修剪齐整，色泽健康",
+        "双手各指末梢外覆一层透明角质，边缘修齐",
+        "十个指端各有透明硬片，均已削齐",
+        "十根指头末端覆盖着半透明硬层，磨得圆润",
     ],
 )
 def test_male_card_rejects_hand_facts_outside_structured_profile(
