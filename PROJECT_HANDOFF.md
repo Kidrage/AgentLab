@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-08-29T04:55:07.027743+00:00`
+- Generated at: `2026-08-29T04:56:12.840518+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-production`
-- HEAD: `69830da`
+- HEAD: `ade0b96`
 - Indexed paths: 2091
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,9 +89,9 @@
 ### Categories
 
 - code: 1097 files, 11808143 bytes
-- literature: 425 files, 2443592 bytes
+- literature: 425 files, 2445859 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3280671 bytes
+- structured_data: 554 files, 3280672 bytes
 
 ### Common Extensions
 
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `ade0b96 2026-08-29 feat(narrative): govern visual continuity references`
 - `69830da 2026-08-29 feat(narrative): add visual continuity detail cards`
 - `48864d4 2026-08-29 chore(narrative): checkpoint ShanHe production start`
 - `05b749d 2026-08-29 Merge pull request #14 from Kidrage/codex/shanhe-youjia-p3`
@@ -251,26 +252,11 @@
 - `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
 - `91cb273 2026-08-01 feat(narrative): materialize strict professional chapter DAGs`
 - `9e41606 2026-08-01 fix(background): bind Crown jobs to governed model settings`
-- `307a6cc 2026-08-01 fix(background): bind Crown jobs to governed model settings`
 
 ## Current Changes
 
-- `## codex/shanhe-production...origin/main [ahead 2]`
+- `## codex/shanhe-production...origin/main [ahead 3]`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M agent_runtime/cli/narrative.py`
-- ` M agent_runtime/narrative/visual_detail_cards.py`
-- ` M agent_runtime/production_protocols.py`
-- ` M agent_runtime/protocol_canary.py`
-- ` M agent_runtime/task_runtime_v2/runtime.py`
-- ` M config/agent_model_profiles.yml`
-- ` M config/production_packs.yml`
-- ` M config/routing_rules.yml`
-- ` M config/task_input_tiers.yml`
-- ` M docs/NARRATIVE_VISUAL_DETAIL_CARDS.md`
-- ` M requirements.txt`
-- ` M tests/test_narrative_visual_detail_cards.py`
-- ` M tests/test_production_protocols.py`
-- `?? agent_runtime/narrative/visual_reference_runtime.py`
 
 ## Related Repositories
 
