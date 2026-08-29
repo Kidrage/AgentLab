@@ -1756,6 +1756,10 @@ def test_male_action_uses_governed_hand_pose_instead_of_free_prose() -> None:
         "勒住缰绳停马",
         "伸手取酒，神色沉静",
         "双手捧起透明琉璃酒盏，表面光泽温润，神色沉静",
+        "他抬手指向透明琉璃酒盏，盏口边缘圆润，表面光泽温润",
+        "手指沾着透明酒液，酒液表面光泽温润",
+        "手指向十枚透明琉璃筹码，颜色各异",
+        "腰间钱囊缀十枚透明琉璃珠，逐颗磨圆，光泽温润",
     ],
 )
 def test_male_free_action_prose_is_not_misclassified_as_nail_detail(
