@@ -344,6 +344,22 @@ def test_blueprint_outbound_authority_is_task_scoped_and_candidate_only(
     authority = truth.resources[
         "policies.outbound_context_auto_approval"
     ]
+    renewed = authorize_blueprint_outbound(
+        tmp_path,
+        project="ShanHeYouJia",
+        task_id="task-blueprint-authorized",
+        authorized_by="renewing_user",
+    )
+    renewed_replay = authorize_blueprint_outbound(
+        tmp_path,
+        project="ShanHeYouJia",
+        task_id="task-blueprint-authorized",
+        authorized_by="renewing_user",
+    )
+
+    assert renewed_replay == renewed
+    assert renewed["authorized_by"] == "renewing_user"
+    assert renewed["truth_revision_id"] != first["truth_revision_id"]
     assert authority.actor_id == "user_saintpeter"
     assert authority.content["policy_sha256"] == first["policy_sha256"]
     collision = evaluate_narrative_auto_approval(

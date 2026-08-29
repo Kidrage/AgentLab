@@ -357,7 +357,9 @@ def authorize_blueprint_outbound(
                 project_id=project,
                 expected_snapshot_id=current.snapshot_id,
                 actor_id=actor,
-                idempotency_key=f"authorize-blueprint-outbound-{task_id}",
+                idempotency_key=(
+                    f"authorize-blueprint-outbound-{task_id}-{policy_sha256[:16]}"
+                ),
                 reason="User-authorized candidate-only blueprint execution.",
                 resources=(
                     ResourceChange(
