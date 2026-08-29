@@ -1633,6 +1633,8 @@ def test_rejects_singular_english_nail_detail_in_allowed_male_field() -> None:
     [
         ("hands", "十枚指端角质硬片均修短磨平，边缘洁净；掌心有茧"),
         ("hands", "手指修长，甲床宽阔且修剪整齐"),
+        ("hands", "十根指尖的半透明硬层都剪短磨圆，表面泛着健康光泽；掌心有剑茧"),
+        ("hands", "十指末端甲片均修短磨平，掌心有剑茧"),
         ("signature_details", "left brow scar and broken_nail"),
     ],
 )
@@ -2578,6 +2580,11 @@ def test_prose_prerequisite_rejects_superseded_visual_pack(
         "source_visual_detail_pack_sha256": artifact["sha256"],
     }
     runner._validate_visual_prose_prerequisite(facts)
+    original_source = source.read_bytes()
+    source.write_text("schema_version: drifted\n", encoding="utf-8")
+    with pytest.raises(InvalidTransition, match="provenance is invalid"):
+        runner._validate_visual_prose_prerequisite(facts)
+    source.write_bytes(original_source)
     runtime.change_artifact_disposition(
         "task-shanhe-visual-prose-gate",
         version_id=version_id,

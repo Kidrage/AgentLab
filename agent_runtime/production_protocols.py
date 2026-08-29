@@ -25,6 +25,7 @@ from agent_runtime.narrative.visual_detail_cards import (
     compile_visual_detail_card_pack,
     load_visual_detail_spec,
     validate_visual_detail_card_pack,
+    validate_visual_pack_runtime_provenance,
 )
 from agent_runtime.outbound_context import is_forbidden_source_path
 from agent_runtime.role_keys import normalize_role_key
@@ -890,6 +891,16 @@ class ProductionProtocolRunner:
             or pack_validation["status"] != "pass"
         ):
             raise InvalidTransition("source visual ArtifactVersion is invalid")
+        try:
+            validate_visual_pack_runtime_provenance(
+                self.agentlab_root,
+                pack,
+                artifact_path,
+            )
+        except ValueError as exc:
+            raise InvalidTransition(
+                "source visual ArtifactVersion provenance is invalid"
+            ) from exc
 
     def _deterministic_preflight(
         self,
