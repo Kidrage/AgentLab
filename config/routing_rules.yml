@@ -270,6 +270,26 @@ routes:
       - Reviewer
       - Scribe
 
+  narrative_visual_development:
+    size: L3
+    description: 长篇小说视觉前置路线，编译人物、地图、场景与道具的哈希密封细节卡和参考图批次
+    agents:
+      - Supervisor
+      - ArtifactProducer
+      - Observer
+      - Reviewer
+      - Verifier
+      - Scribe
+
+  narrative_visual_reference:
+    size: L3
+    description: 单张小说视觉身份参考图的受治理生成、独立审查、人工接受与唯一当前版本选择路线
+    agents:
+      - ArtifactProducer
+      - Observer
+      - Reviewer
+      - Verifier
+
   article_light_draft:
     size: L1
     description: 普通文章/短文/说明文轻路径，生成正文和简单结构检查

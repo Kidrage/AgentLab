@@ -22,6 +22,19 @@ professional_role_profiles:
       default: deepseek_v4_flash_hermes_private
   reader_simulation_panel: {base_role_key: reviewer, execution_tier: alter, execution_kind: cli_agent, capacity_route: ProfessionalReviewerStrict}
   state_projector: {base_role_key: scribe, execution_tier: deterministic, execution_kind: deterministic_tool}
+  visual_asset_producer: {base_role_key: artifact_producer, execution_tier: alter, execution_kind: cli_agent, capacity_route: AlterArtifactProducer}
+  visual_producer_self_check: {base_role_key: artifact_producer, execution_tier: alter, execution_kind: cli_agent, capacity_route: AlterArtifactProducer}
+  visual_observer: {base_role_key: observer, execution_tier: alter, execution_kind: cli_agent, capacity_route: Observer}
+  visual_independent_reviewer:
+    base_role_key: reviewer
+    execution_tier: alter
+    execution_kind: cli_agent
+    capacity_route: VisualReviewer
+    execution_override:
+      cli_agent: agy
+      invocation_contract: agy_visual_reviewer
+      default: gemini_3_6_flash_high_agy_oauth
+  visual_verifier: {base_role_key: verifier, execution_tier: alter, execution_kind: cli_agent, capacity_route: AlterVerifier}
 authority:
   purpose: canonical_agent_backend_selection
   owns:

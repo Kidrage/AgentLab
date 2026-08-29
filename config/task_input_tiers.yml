@@ -118,6 +118,8 @@ classification:
     consistency_patch: L2
     prose_build: L3
     blueprint_build: L3
+    visual_detail_build: L3
+    visual_identity_reference_build: L3
     code_build: L3
     film_build: L3
     structural_change: L3
@@ -126,6 +128,7 @@ classification:
     unclassified: L3
   scope_minimum:
     single_detail: L0
+    single_asset: L0
     localized: L1
     cross_artifact: L3
     multi_chapter: L3

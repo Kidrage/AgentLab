@@ -10,16 +10,27 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Mapping
 
 import yaml
 
-from agent_runtime.atomic_io import atomic_write_yaml
+from agent_runtime.narrative.user_acceptance import (
+    _pinned_public_key,
+    _verify_external_signature,
+)
+from agent_runtime.protocols.enforcement import check_role_binding
+from agent_runtime.task_runtime_v2 import (
+    EntityNotFound,
+    InvalidTransition,
+    LedgerIntegrityError,
+    TaskRuntime,
+)
 
 
 SPEC_SCHEMA = "narrative-visual-detail-spec/v1"
 PACK_SCHEMA = "narrative-visual-detail-card-pack/v1"
-RECEIPT_SCHEMA = "narrative-visual-detail-card-receipt/v1"
+AWAITING_ACCEPTANCE = "awaiting_visual_generation_and_human_acceptance"
 
 _KIND_CONTRACTS: dict[str, dict[str, list[str]]] = {
     "character": {
@@ -146,20 +157,36 @@ _SHOT_DIRECTIONS = {
 
 _GENERATION_CONTRACT = {
     "role": "ArtifactProducer",
-    "worker": "codex",
-    "backend": "codex_imagegen_handoff",
+    "profile_key": "artifact_producer",
+    "profile_authority": "config/agent_model_profiles.yml",
+    "required_worker_capability": "codex_managed_image_generation",
+    "managed_tool": "image_gen.imagegen",
     "auto_executable": False,
     "reference_images_required_after_first_accepted_generation": True,
 }
 
 _REVIEW_CONTRACT = {
-    "observer": {"role": "Observer", "worker": "agy"},
-    "reviewer": {"role": "Reviewer", "worker": "agy"},
-    "verifier": {"role": "Verifier", "worker": "codex"},
+    "observer": {
+        "role": "Observer",
+        "profile_key": "observer",
+    },
+    "reviewer": {
+        "role": "Reviewer",
+        "profile_key": "visual_reviewer",
+    },
+    "producer_self_check": {
+        "role": "ArtifactProducer",
+        "profile_key": "artifact_producer",
+    },
+    "verifier": {
+        "role": "Verifier",
+        "profile_key": "verifier",
+    },
+    "profile_authority": "config/agent_model_profiles.yml",
     "independence": {
-        "producer_must_not_review": True,
-        "distinct_session_ids_required": True,
-        "distinct_backend_model_pairs_required": True,
+        "producer_self_check_counts_as_independent_acceptance": False,
+        "all_stage_session_ids_must_differ": True,
+        "reviewer_verifier_backend_model_pair_must_differ": True,
     },
     "required_dimensions": [
         "identity_consistency",
@@ -167,6 +194,14 @@ _REVIEW_CONTRACT = {
         "spatial_and_scale_consistency",
         "prompt_and_asset_hash_integrity",
     ],
+}
+
+_VISUAL_STAGE_PROFILES = {
+    "generation": ("ArtifactProducer", "artifact_producer"),
+    "producer_self_check": ("ArtifactProducer", "artifact_producer"),
+    "observer": ("Observer", "observer"),
+    "reviewer": ("Reviewer", "visual_reviewer"),
+    "verifier": ("Verifier", "verifier"),
 }
 
 
@@ -181,6 +216,68 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _sha256(value: bytes | str) -> str:
     return hashlib.sha256(value.encode("utf-8") if isinstance(value, str) else value).hexdigest()
+
+
+def _resolve_visual_stage_contracts(agentlab_root: Path) -> dict[str, dict[str, str]]:
+    """Resolve visual workers only from the canonical role/tier matrix."""
+
+    profile_path = agentlab_root / "config" / "agent_model_profiles.yml"
+    try:
+        document = yaml.safe_load(profile_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot load visual role authority: {exc}") from exc
+    mode_id = str(document.get("default_mode") or "")
+    tier_id = str(((document.get("tier_policy") or {}).get("default_tier")) or "")
+    tier = (
+        (((document.get("modes") or {}).get(mode_id) or {}).get("tiers") or {}).get(
+            tier_id
+        )
+        or {}
+    )
+    resolved: dict[str, dict[str, str]] = {}
+    for stage_id, (role, profile_key) in _VISUAL_STAGE_PROFILES.items():
+        profile = tier.get(profile_key) or {}
+        worker = str(profile.get("cli_agent") or "")
+        invocation_contract = str(profile.get("invocation_contract") or "")
+        model_key = str(profile.get("default") or "")
+        if (
+            profile.get("executor_type") != "cli_agent"
+            or not worker
+            or not invocation_contract
+            or not model_key
+        ):
+            raise ValueError(
+                f"visual stage {stage_id} has no complete {mode_id}/{tier_id} profile"
+            )
+        allowed, reason = check_role_binding(
+            agentlab_root,
+            worker,
+            role,
+            invocation_contract,
+        )
+        if not allowed:
+            raise ValueError(f"visual stage {stage_id} role binding is invalid: {reason}")
+        resolved[stage_id] = {
+            "role": role,
+            "profile_key": profile_key,
+            "mode": mode_id,
+            "tier": tier_id,
+            "worker": worker,
+            "invocation_contract": invocation_contract,
+            "model_key": model_key,
+        }
+    if resolved["generation"]["worker"] != "codex":
+        raise ValueError(
+            "visual identity generation requires the canonical ArtifactProducer "
+            "profile to resolve to Codex"
+        )
+    return resolved
+
+
+def resolve_visual_stage_contracts(agentlab_root: Path) -> dict[str, dict[str, str]]:
+    """Public read-only resolver for governed visual execution adapters."""
+
+    return _resolve_visual_stage_contracts(agentlab_root)
 
 
 def _nonempty(value: Any) -> bool:
@@ -353,7 +450,7 @@ def compile_visual_detail_card_pack(spec: Mapping[str, Any]) -> dict:
         "project": str(document["project"]),
         "task_id": str(document["task_id"]),
         "candidate_only": True,
-        "promotion_state": "awaiting_visual_generation_and_human_acceptance",
+        "promotion_state": AWAITING_ACCEPTANCE,
         "source_spec_sha256": _sha256(_canonical_bytes(document)),
         "source_refs": deepcopy(source_refs),
         "generation_contract": deepcopy(_GENERATION_CONTRACT),
@@ -380,10 +477,14 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
         issues.append("unsupported pack schema")
     if pack.get("candidate_only") is not True:
         issues.append("pack must remain candidate_only")
+    if pack.get("promotion_state") != AWAITING_ACCEPTANCE:
+        issues.append("promotion_state must await visual generation and human acceptance")
     if pack.get("generation_contract") != _GENERATION_CONTRACT:
         issues.append("generation_contract must bind image generation to Codex handoff")
     if pack.get("review_contract") != _REVIEW_CONTRACT:
-        issues.append("review_contract does not match the independent Agy/Codex boundary")
+        issues.append(
+            "review_contract does not match the Codex/Agy/Hermes boundary"
+        )
     cards = pack.get("cards")
     if not isinstance(cards, list) or not cards:
         issues.append("cards must be a non-empty list")
@@ -468,7 +569,66 @@ def validate_visual_detail_card_pack(pack: Mapping[str, Any]) -> dict:
     }
 
 
+def _safe_identifier(value: str, *, label: str) -> str:
+    normalized = str(value or "")
+    if (
+        not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", normalized)
+        or ".." in normalized
+    ):
+        raise ValueError(f"{label} is not a safe runtime identifier")
+    return normalized
+
+
+def _pinned_managed_tool_public_key(agentlab_root: Path) -> Path:
+    """Load the external public key that attests Codex-managed image results."""
+
+    config_path = agentlab_root / "config" / "local_private_topology.yml"
+    try:
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ValueError("Codex managed-tool authority is not configured") from exc
+    authority = config.get("codex_managed_tool_authority")
+    if not isinstance(authority, Mapping):
+        raise ValueError("Codex managed-tool authority is not configured")
+    public_key = Path(str(authority.get("public_key_path") or ""))
+    expected_sha256 = str(authority.get("public_key_sha256") or "")
+    if (
+        not str(public_key).strip()
+        or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+        or public_key.is_symlink()
+    ):
+        raise ValueError("Codex managed-tool authority is invalid")
+    public_key = public_key.resolve(strict=True)
+    try:
+        public_key.relative_to(agentlab_root.resolve(strict=True))
+    except ValueError:
+        pass
+    else:
+        raise ValueError("Codex managed-tool public key must be outside AgentLab")
+    if (
+        not public_key.is_file()
+        or _sha256(public_key.read_bytes()) != expected_sha256
+    ):
+        raise ValueError("Codex managed-tool public key pin mismatch")
+    return public_key
+
+
+def _reject_symlink_ancestry(path: Path, boundary: Path, *, label: str) -> None:
+    try:
+        relative = path.relative_to(boundary)
+    except ValueError as exc:
+        raise ValueError(f"{label} is outside its boundary") from exc
+    cursor = boundary
+    if cursor.is_symlink():
+        raise ValueError(f"{label} boundary must not be a symlink")
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.exists() and cursor.is_symlink():
+            raise ValueError(f"{label} ancestry must not contain symlinks")
+
+
 def _bounded_regular_file(path: Path, boundary: Path, *, label: str) -> Path:
+    _reject_symlink_ancestry(path, boundary, label=label)
     if path.is_symlink():
         raise ValueError(f"{label} must not be a symlink")
     try:
@@ -486,33 +646,43 @@ def _bounded_regular_file(path: Path, boundary: Path, *, label: str) -> Path:
     return resolved
 
 
-def materialize_visual_detail_card_pack(
+def load_visual_detail_spec(
     agentlab_root: Path,
     *,
     project: str,
     task_id: str,
     source_path: Path,
-) -> dict:
-    """Hash-seal a task-local spec into an immutable candidate version."""
+) -> tuple[dict, list[dict[str, str]]]:
+    """Read and verify a project-bounded spec and all of its declared sources."""
 
     root = agentlab_root.resolve(strict=True)
-    project_root = root / "projects" / project
-    task_root = project_root / "runtime" / "tasks" / task_id
-    inputs_root = task_root / "inputs"
+    selected_project = _safe_identifier(project, label="project")
+    selected_task = _safe_identifier(task_id, label="task_id")
+    projects_root = root / "projects"
+    project_path = projects_root / selected_project
+    _reject_symlink_ancestry(project_path, root, label="project")
+    project_root = project_path.resolve(strict=True)
+    if not project_root.is_relative_to(root):
+        raise ValueError("project root escapes AgentLab")
+    requested_source = source_path if source_path.is_absolute() else root / source_path
+    source = _bounded_regular_file(requested_source, project_root, label="source spec")
     try:
-        source = _bounded_regular_file(source_path, inputs_root, label="source spec")
-    except ValueError as exc:
-        raise ValueError(f"source spec must be inside exact task inputs: {exc}") from exc
-    try:
-        spec = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+        source_bytes = source.read_bytes()
+        spec = yaml.safe_load(source_bytes.decode("utf-8")) or {}
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise ValueError(f"cannot read visual detail spec: {exc}") from exc
     if not isinstance(spec, Mapping):
         raise ValueError("visual detail spec must be a mapping")
-    if spec.get("project") != project or spec.get("task_id") != task_id:
+    if spec.get("project") != selected_project or spec.get("task_id") != selected_task:
         raise ValueError("visual detail spec project/task identity mismatch")
 
     verified_refs: list[dict] = []
+    sealed_sources = [
+        {
+            "path": source.relative_to(root).as_posix(),
+            "sha256": _sha256(source_bytes),
+        }
+    ]
     refs = spec.get("source_refs", [])
     if not isinstance(refs, list):
         raise ValueError("source_refs must be a list")
@@ -520,119 +690,829 @@ def materialize_visual_detail_card_pack(
         ref_map = _require_mapping(ref, f"source_refs[{index}]")
         _require_fields(ref_map, ["path", "sha256"], f"source_refs[{index}]")
         relative = Path(str(ref_map["path"]))
-        if relative.is_absolute():
+        if relative.is_absolute() or ".." in relative.parts:
             raise ValueError(f"source_refs[{index}].path must be repository-relative")
         resolved_ref = _bounded_regular_file(
             root / relative,
             project_root,
             label=f"source_refs[{index}]",
         )
-        observed = _sha256(resolved_ref.read_bytes())
+        ref_bytes = resolved_ref.read_bytes()
+        observed = _sha256(ref_bytes)
         if observed != ref_map["sha256"]:
             raise ValueError(f"source_refs[{index}] sha256 mismatch")
         verified_refs.append({"path": relative.as_posix(), "sha256": observed})
+        sealed_sources.append(
+            {
+                "path": resolved_ref.relative_to(root).as_posix(),
+                "sha256": observed,
+            }
+        )
 
     normalized_spec = deepcopy(dict(spec))
     normalized_spec["source_refs"] = verified_refs
-    pack = compile_visual_detail_card_pack(normalized_spec)
-    validation = validate_visual_detail_card_pack(pack)
-    if validation["status"] != "pass":
-        raise ValueError("compiled visual detail card pack failed validation")
+    return normalized_spec, sealed_sources
 
-    version_root = task_root / "artifacts" / "visual_detail_cards" / "versions" / pack["pack_sha256"]
-    pack_path = version_root / "visual_detail_card_pack.yml"
-    if pack_path.exists():
-        existing = yaml.safe_load(pack_path.read_text(encoding="utf-8")) or {}
-        if existing != pack:
-            raise ValueError("immutable visual detail card version collision")
-    else:
-        atomic_write_yaml(pack_path, pack)
-    pack_file_sha256 = _sha256(pack_path.read_bytes())
-    source_file_sha256 = _sha256(source.read_bytes())
-    receipt = {
-        "schema_version": RECEIPT_SCHEMA,
-        "status": "pass",
-        "project": project,
-        "task_id": task_id,
-        "candidate_only": True,
-        "source_path": source.relative_to(root).as_posix(),
-        "source_file_sha256": source_file_sha256,
-        "source_spec_sha256": pack["source_spec_sha256"],
-        "source_refs": verified_refs,
-        "pack_path": pack_path.relative_to(root).as_posix(),
-        "pack_sha256": pack["pack_sha256"],
-        "pack_file_sha256": pack_file_sha256,
-        "validation": validation,
-        "promotion_authorized": False,
-    }
-    receipt_path = version_root / "materialization_receipt.yml"
-    if receipt_path.exists():
-        existing_receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
-        if existing_receipt != receipt:
-            raise ValueError("immutable visual detail card receipt collision")
-    else:
-        atomic_write_yaml(receipt_path, receipt)
 
-    index_path = task_root / "artifacts" / "visual_detail_cards" / "candidate_index.yml"
-    index = {
-        "schema_version": "narrative-visual-detail-card-candidate-index/v1",
-        "project": project,
-        "task_id": task_id,
-        "candidate_only": True,
-        "current_candidate": None,
-        "card_identity_index": [],
-        "versions": [],
-    }
-    if index_path.exists():
-        loaded = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
-        if not isinstance(loaded, dict) or not isinstance(loaded.get("versions"), list):
-            raise ValueError("invalid visual detail card candidate index")
-        index = loaded
-    entry = {
-        "pack_sha256": pack["pack_sha256"],
-        "pack_path": receipt["pack_path"],
-        "receipt_path": receipt_path.relative_to(root).as_posix(),
-        "status": "current_candidate",
-    }
-    matched = False
-    for prior in index["versions"]:
-        if not isinstance(prior, dict):
-            raise ValueError("invalid visual detail card candidate index version")
-        if prior.get("pack_sha256") == pack["pack_sha256"]:
-            prior.update(entry)
-            matched = True
-        else:
-            prior["status"] = "superseded_candidate"
-            prior["superseded_by"] = pack["pack_sha256"]
-    if not matched:
-        index["versions"].append(entry)
-    index["current_candidate"] = entry
-    index["card_identity_index"] = [
-        {
-            "card_id": card["card_id"],
-            "kind": card["kind"],
-            "display_name": card["display_name"],
-            "identity_digest": card["identity_digest"],
-            "identity_reference_asset_id": card["identity_reference_asset_id"],
-            "identity_reference_prompt_sha256": card["identity_reference"]["prompt_sha256"],
-            "prompt_count": len(card["prompt_set"]) + 1,
-        }
-        for card in pack["cards"]
+def visual_reference_task_id(pack: Mapping[str, Any], card_id: str) -> str:
+    identity = "|".join(
+        (
+            str(pack.get("project") or ""),
+            str(pack.get("task_id") or ""),
+            str(card_id or ""),
+        )
+    )
+    return f"visual-reference-{_sha256(identity)[:32]}"
+
+
+def _validate_pack_runtime_provenance(
+    agentlab_root: Path,
+    pack: Mapping[str, Any],
+    pack_path: Path,
+) -> dict[str, str]:
+    """Bind one generation batch to the selected visual Task ArtifactVersion."""
+
+    root = agentlab_root.resolve(strict=True)
+    project = _safe_identifier(str(pack.get("project") or ""), label="project")
+    task_id = _safe_identifier(str(pack.get("task_id") or ""), label="task_id")
+    project_path = root / "projects" / project
+    _reject_symlink_ancestry(project_path, root, label="project")
+    project_root = project_path.resolve(strict=True)
+    requested = pack_path if pack_path.is_absolute() else root / pack_path
+    resolved_pack = _bounded_regular_file(
+        requested,
+        project_root,
+        label="visual detail card pack",
+    )
+    pack_bytes = resolved_pack.read_bytes()
+    try:
+        observed_pack = yaml.safe_load(pack_bytes.decode("utf-8")) or {}
+    except (UnicodeError, yaml.YAMLError) as exc:
+        raise ValueError("visual detail card pack ArtifactVersion is unreadable") from exc
+    if observed_pack != pack:
+        raise ValueError("visual detail card pack mapping does not match its file")
+    digest = _sha256(pack_bytes)
+    runtime = TaskRuntime(root, project=project)
+    try:
+        projection = runtime.load_task(task_id)
+    except (EntityNotFound, LedgerIntegrityError) as exc:
+        raise ValueError("visual detail card Task is unavailable") from exc
+    matches = [
+        (version_id, artifact)
+        for version_id, artifact in projection["artifacts"].items()
+        if artifact.get("artifact_id") == "visual_detail_card_pack"
+        and artifact.get("disposition", "eligible") == "eligible"
+        and artifact.get("sha256") == digest
+        and (
+            runtime._task_dir(task_id) / str(artifact.get("path") or "")
+        ).resolve(strict=True)
+        == resolved_pack
     ]
-    atomic_write_yaml(index_path, index)
+    if projection["task"].get("protocol_ref") != "narrative.visual.v1" or len(
+        matches
+    ) != 1:
+        raise ValueError(
+            "generation requires one eligible narrative.visual.v1 pack ArtifactVersion"
+        )
+    version_id, artifact = matches[0]
+    gate = projection["protocol_gates"].get("visual_detail_cards_hash_verified")
+    if (
+        not isinstance(gate, Mapping)
+        or gate.get("status") != "pass"
+        or version_id not in (gate.get("subject_version_ids") or [])
+    ):
+        raise ValueError("visual detail card pack has no exact deterministic hash gate")
+    facts = projection["task"].get("input_profile") or {}
+    blueprint_task_id = str(facts.get("source_blueprint_task_id") or "")
+    blueprint_version_id = str(
+        facts.get("source_blueprint_artifact_version_id") or ""
+    )
+    try:
+        blueprint = runtime.load_task(blueprint_task_id)
+    except (EntityNotFound, LedgerIntegrityError) as exc:
+        raise ValueError("source blueprint Task is unavailable") from exc
+    blueprint_artifact = blueprint["artifacts"].get(blueprint_version_id)
+    if (
+        blueprint["task"].get("protocol_ref") != "narrative.blueprint.v1"
+        or not isinstance(blueprint_artifact, Mapping)
+        or blueprint_artifact.get("artifact_id") != "story_blueprint"
+        or blueprint_artifact.get("disposition", "eligible") != "eligible"
+        or blueprint_artifact.get("sha256")
+        != facts.get("source_blueprint_artifact_sha256")
+    ):
+        raise ValueError("source blueprint ArtifactVersion is not current")
+    blueprint_path = runtime._task_dir(blueprint_task_id) / str(
+        blueprint_artifact.get("path") or ""
+    )
+    if _sha256(blueprint_path.read_bytes()) != blueprint_artifact.get("sha256"):
+        raise ValueError("source blueprint ArtifactVersion hash drifted")
+    return {
+        "visual_task_id": task_id,
+        "visual_pack_version_id": version_id,
+        "visual_pack_sha256": str(artifact["sha256"]),
+        "visual_hash_gate_evidence_sha256": str(gate.get("evidence_sha256") or ""),
+        "source_blueprint_task_id": blueprint_task_id,
+        "source_blueprint_artifact_version_id": blueprint_version_id,
+        "source_blueprint_artifact_sha256": str(blueprint_artifact["sha256"]),
+    }
+
+
+def validate_visual_pack_runtime_provenance(
+    agentlab_root: Path,
+    pack: Mapping[str, Any],
+    pack_path: Path,
+) -> dict[str, str]:
+    """Public fail-closed provenance gate for visual execution adapters."""
+
+    return _validate_pack_runtime_provenance(agentlab_root, pack, pack_path)
+
+
+def validate_managed_imagegen_attestation(
+    agentlab_root: Path,
+    attestation: Mapping[str, Any],
+    *,
+    expected_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Verify one externally signed managed-image result exactly."""
+
+    signed_payload = (
+        attestation.get("signed_payload") if isinstance(attestation, Mapping) else None
+    )
+    if (
+        not isinstance(attestation, Mapping)
+        or attestation.get("status") != "attested"
+        or signed_payload != expected_payload
+        or not str(attestation.get("signature_path") or "").strip()
+    ):
+        raise ValueError("managed imagegen attestation does not match the result")
+    authority = _verify_external_signature(
+        agentlab_root
+        / "projects"
+        / _safe_identifier(str(expected_payload.get("project") or ""), label="project"),
+        payload=dict(expected_payload),
+        signature_path=Path(str(attestation["signature_path"])),
+        public_key_path=_pinned_managed_tool_public_key(agentlab_root),
+    )
+    return {
+        "status": "pass",
+        "signed_payload": deepcopy(dict(expected_payload)),
+        "signature_authority": authority,
+    }
+
+
+def _visual_stage_output_issues(
+    output: Any,
+    *,
+    stage_id: str,
+    role: str,
+    asset_sha256: str,
+) -> list[str]:
+    """Validate the semantic pass contract for one independent visual review."""
+
+    if not isinstance(output, Mapping):
+        return [f"identity reference {stage_id} review output must be a mapping"]
+    issues: list[str] = []
+    if output.get("schema_version") != "narrative-visual-stage-review/v1":
+        issues.append(f"identity reference {stage_id} review schema is invalid")
+    if (
+        output.get("stage_id") != stage_id
+        or output.get("role") != role
+        or output.get("asset_sha256") != asset_sha256
+    ):
+        issues.append(f"identity reference {stage_id} review subject is mismatched")
+    if output.get("status") != "complete" or output.get("verdict") != "pass":
+        issues.append(f"identity reference {stage_id} review did not pass")
+    if output.get("blocking_issues") != []:
+        issues.append(f"identity reference {stage_id} review has blocking issues")
+    dimensions = output.get("dimensions")
+    required_dimensions = _REVIEW_CONTRACT["required_dimensions"]
+    if not isinstance(dimensions, Mapping):
+        issues.append(f"identity reference {stage_id} review dimensions are missing")
+    else:
+        for dimension in required_dimensions:
+            finding = dimensions.get(dimension)
+            if (
+                not isinstance(finding, Mapping)
+                or finding.get("status") != "pass"
+                or not isinstance(finding.get("evidence"), list)
+                or not finding["evidence"]
+                or not all(_nonempty(item) for item in finding["evidence"])
+            ):
+                issues.append(
+                    f"identity reference {stage_id} review dimension {dimension} did not pass"
+                )
+    return issues
+
+
+def validate_identity_reference_acceptance(
+    agentlab_root: Path,
+    pack: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+) -> dict:
+    """Verify one accepted identity image before it may condition later shots."""
+
+    issues: list[str] = []
+    pack_validation = validate_visual_detail_card_pack(pack)
+    if pack_validation["status"] != "pass":
+        issues.append("visual detail card pack is invalid")
+    if not isinstance(receipt, Mapping):
+        return {"status": "blocked", "issues": ["acceptance receipt must be a mapping"]}
+    card_id = str(receipt.get("card_id") or "")
+    card = next(
+        (
+            item
+            for item in pack.get("cards", [])
+            if isinstance(item, Mapping) and item.get("card_id") == card_id
+        ),
+        None,
+    )
+    if receipt.get("schema_version") != "narrative-visual-identity-reference-acceptance/v1":
+        issues.append("unsupported identity reference acceptance schema")
+    if receipt.get("status") != "accepted":
+        issues.append("identity reference receipt is not accepted")
+    if (
+        receipt.get("project") != pack.get("project")
+        or receipt.get("task_id") != pack.get("task_id")
+        or receipt.get("pack_sha256") != pack.get("pack_sha256")
+    ):
+        issues.append("identity reference receipt does not bind the exact pack")
+    if card is None:
+        issues.append("identity reference receipt card is undeclared")
+
+    asset = receipt.get("asset")
+    asset_sha256 = ""
+    if not isinstance(asset, Mapping) or card is None:
+        issues.append("identity reference asset is missing")
+    else:
+        if asset.get("asset_id") != card.get("identity_reference_asset_id"):
+            issues.append("identity reference asset_id mismatch")
+        relative = Path(str(asset.get("path") or ""))
+        if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+            issues.append("identity reference asset path must be repository-relative")
+        else:
+            try:
+                root = agentlab_root.resolve(strict=True)
+                project = _safe_identifier(str(pack.get("project") or ""), label="project")
+                project_path = root / "projects" / project
+                _reject_symlink_ancestry(project_path, root, label="project")
+                project_root = project_path.resolve(strict=True)
+                asset_path = _bounded_regular_file(
+                    root / relative,
+                    project_root,
+                    label="identity reference asset",
+                )
+                asset_sha256 = _sha256(asset_path.read_bytes())
+                if asset.get("sha256") != asset_sha256:
+                    issues.append("identity reference asset sha256 mismatch")
+            except (OSError, ValueError) as exc:
+                issues.append(f"identity reference asset is unavailable: {exc}")
+
+    runtime_evidence = receipt.get("runtime_evidence")
+    runtime_evidence_sha256 = ""
+    if not isinstance(runtime_evidence, Mapping):
+        issues.append("identity reference Runtime-v2 evidence is missing")
+    else:
+        runtime_evidence_sha256 = _sha256(_canonical_bytes(runtime_evidence))
+        evidence_task_id = str(runtime_evidence.get("task_id") or "")
+        version_id = str(runtime_evidence.get("artifact_version_id") or "")
+        stages = runtime_evidence.get("stages")
+        expected_reference_task_id = visual_reference_task_id(pack, card_id)
+        if evidence_task_id != expected_reference_task_id:
+            issues.append("identity reference Task is not the canonical card selector")
+        try:
+            runtime = TaskRuntime(
+                agentlab_root,
+                project=str(pack.get("project") or ""),
+            )
+            projection = runtime.load_task(evidence_task_id)
+        except (EntityNotFound, LedgerIntegrityError, ValueError):
+            projection = None
+            issues.append("identity reference Runtime-v2 Task is unavailable")
+        artifact = (
+            projection["artifacts"].get(version_id)
+            if isinstance(projection, Mapping)
+            else None
+        )
+        immutable_asset: Path | None = None
+        if (
+            not isinstance(artifact, Mapping)
+            or artifact.get("artifact_id") != "visual_identity_reference"
+            or artifact.get("disposition", "eligible") != "eligible"
+            or artifact.get("sha256") != asset_sha256
+            or not isinstance(asset, Mapping)
+            or not isinstance(projection, Mapping)
+            or projection.get("selected_artifact_version") != version_id
+        ):
+            issues.append("identity reference ArtifactVersion is missing or mismatched")
+        else:
+            reference_facts = projection["task"].get("input_profile") or {}
+            if (
+                projection["task"].get("protocol_ref")
+                != "narrative.visual.reference.v1"
+                or not isinstance(projection["task"].get("compiled_protocol"), Mapping)
+                or reference_facts.get("source_visual_task_id") != pack.get("task_id")
+                or reference_facts.get("source_visual_pack_sha256")
+                != pack.get("pack_sha256")
+                or not _nonempty(reference_facts.get("source_visual_pack_version_id"))
+                or reference_facts.get("card_id") != card_id
+                or reference_facts.get("identity_reference_prompt_sha256")
+                != (card.get("identity_reference") or {}).get("prompt_sha256")
+            ):
+                issues.append("identity reference Task facts do not bind the exact card")
+            try:
+                visual_projection = runtime.load_task(str(pack.get("task_id") or ""))
+                visual_version_id = str(
+                    reference_facts.get("source_visual_pack_version_id") or ""
+                )
+                visual_artifact = visual_projection["artifacts"].get(visual_version_id)
+                visual_pack_path = runtime._task_dir(str(pack.get("task_id") or "")) / str(
+                    (visual_artifact or {}).get("path") or ""
+                )
+                visual_pack_bytes = visual_pack_path.read_bytes()
+                visual_pack_mapping = yaml.safe_load(
+                    visual_pack_bytes.decode("utf-8")
+                ) or {}
+                visual_gate = visual_projection["protocol_gates"].get(
+                    "visual_detail_cards_hash_verified"
+                )
+                if (
+                    visual_projection["task"].get("protocol_ref")
+                    != "narrative.visual.v1"
+                    or not isinstance(visual_artifact, Mapping)
+                    or visual_artifact.get("artifact_id")
+                    != "visual_detail_card_pack"
+                    or visual_artifact.get("disposition", "eligible") != "eligible"
+                    or visual_artifact.get("sha256") != _sha256(visual_pack_bytes)
+                    or visual_pack_mapping != pack
+                    or not isinstance(visual_gate, Mapping)
+                    or visual_gate.get("status") != "pass"
+                    or visual_version_id
+                    not in (visual_gate.get("subject_version_ids") or [])
+                ):
+                    issues.append(
+                        "identity reference Task source visual pack is not current"
+                    )
+            except (
+                EntityNotFound,
+                LedgerIntegrityError,
+                OSError,
+                UnicodeError,
+                ValueError,
+                yaml.YAMLError,
+            ):
+                issues.append("identity reference Task source visual pack is unavailable")
+            immutable_asset = runtime._task_dir(evidence_task_id) / str(
+                artifact.get("path") or ""
+            )
+            if (
+                not immutable_asset.is_file()
+                or immutable_asset.resolve(strict=True)
+                != (agentlab_root.resolve(strict=True) / str(asset.get("path") or "")).resolve(
+                    strict=True
+                )
+            ):
+                issues.append("identity reference asset is not the Runtime-v2 ArtifactVersion")
+
+        stage_sessions: dict[str, str] = {}
+        stage_backends: dict[str, str] = {}
+        try:
+            expected_stages = _resolve_visual_stage_contracts(agentlab_root)
+        except ValueError as exc:
+            expected_stages = {}
+            issues.append(f"visual role authority is invalid: {exc}")
+        if not isinstance(stages, Mapping) or not isinstance(projection, Mapping):
+            issues.append("identity reference Runtime-v2 stages are missing")
+        else:
+            for stage_id, stage_contract in expected_stages.items():
+                expected_role = str(stage_contract["role"])
+                expected_worker = str(stage_contract["worker"])
+                expected_contract = str(stage_contract["invocation_contract"])
+                stage = stages.get(stage_id)
+                attempt_id = (
+                    str(stage.get("attempt_id") or "")
+                    if isinstance(stage, Mapping)
+                    else ""
+                )
+                attempt = projection["attempts"].get(attempt_id)
+                contract = (
+                    attempt.get("execution_contract")
+                    if isinstance(attempt, Mapping)
+                    else None
+                )
+                outcome = attempt.get("outcome") if isinstance(attempt, Mapping) else None
+                if (
+                    not isinstance(stage, Mapping)
+                    or not isinstance(attempt, Mapping)
+                    or attempt.get("status") != "succeeded"
+                    or attempt.get("worker") != expected_worker
+                    or not isinstance(contract, Mapping)
+                    or contract.get("role") != expected_role
+                    or contract.get("invocation_contract") != expected_contract
+                    or not isinstance(outcome, Mapping)
+                    or stage.get("attempt_receipt_sha256")
+                    != outcome.get("receipt_sha256")
+                ):
+                    issues.append(f"identity reference {stage_id} Attempt is invalid")
+                    continue
+                try:
+                    runtime.verify_attempt_execution_receipt(
+                        evidence_task_id,
+                        attempt_id,
+                    )
+                    attempt_receipt_path = runtime._task_dir(evidence_task_id) / str(
+                        outcome.get("receipt_path") or ""
+                    )
+                    attempt_receipt = yaml.safe_load(
+                        attempt_receipt_path.read_text(encoding="utf-8")
+                    ) or {}
+                except (
+                    OSError,
+                    UnicodeError,
+                    ValueError,
+                    InvalidTransition,
+                    LedgerIntegrityError,
+                    yaml.YAMLError,
+                ):
+                    issues.append(f"identity reference {stage_id} receipt is invalid")
+                    continue
+                if stage_id == "generation":
+                    if (
+                        not isinstance(artifact, Mapping)
+                        or artifact.get("producer_attempt_id") != attempt_id
+                    ):
+                        issues.append("identity reference generation Attempt did not produce the artifact")
+                else:
+                    expected_source = (
+                        {
+                            "path": immutable_asset.relative_to(agentlab_root).as_posix(),
+                            "sha256": asset_sha256,
+                        }
+                        if isinstance(immutable_asset, Path)
+                        else None
+                    )
+                    if expected_source is None or expected_source not in (
+                        attempt_receipt.get("sealed_sources") or []
+                    ):
+                        issues.append(
+                            f"identity reference {stage_id} did not seal the exact artifact"
+                        )
+                    try:
+                        output_path = runtime._task_dir(evidence_task_id) / str(
+                            attempt_receipt.get("output_path") or ""
+                        )
+                        output_bytes = output_path.read_bytes()
+                        if _sha256(output_bytes) != attempt_receipt.get("output_sha256"):
+                            raise ValueError("review output hash mismatch")
+                        review_output = yaml.safe_load(output_bytes.decode("utf-8")) or {}
+                    except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+                        issues.append(
+                            f"identity reference {stage_id} review output is invalid"
+                        )
+                    else:
+                        issues.extend(
+                            _visual_stage_output_issues(
+                                review_output,
+                                stage_id=stage_id,
+                                role=expected_role,
+                                asset_sha256=asset_sha256,
+                            )
+                        )
+                model_execution = attempt_receipt.get("model_execution")
+                if not isinstance(model_execution, Mapping):
+                    issues.append(f"identity reference {stage_id} model evidence is missing")
+                    continue
+                model_path = runtime._task_dir(evidence_task_id) / str(
+                    model_execution.get("path") or ""
+                )
+                try:
+                    model_bytes = model_path.read_bytes()
+                    model_receipt = yaml.safe_load(model_bytes.decode("utf-8")) or {}
+                except (OSError, UnicodeError, yaml.YAMLError):
+                    issues.append(f"identity reference {stage_id} model receipt is unavailable")
+                    continue
+                if (
+                    _sha256(model_bytes) != model_execution.get("sha256")
+                    or stage.get("model_receipt_sha256") != model_execution.get("sha256")
+                    or model_receipt.get("status") != "pass"
+                    or model_receipt.get("worker") != expected_worker
+                    or model_receipt.get("role") != expected_role
+                    or model_receipt.get("invocation_contract")
+                    != expected_contract
+                    or (
+                        stage_id != "generation"
+                        and model_receipt.get("selected_model_key")
+                        != stage_contract["model_key"]
+                    )
+                    or model_receipt.get("provider_model_binding_verified") is not True
+                    or model_receipt.get("provider_process_started") is not True
+                    or model_receipt.get("fallback_detected") is not False
+                ):
+                    issues.append(f"identity reference {stage_id} model receipt is invalid")
+                    continue
+                if stage_id == "generation" and (
+                    model_receipt.get("execution_surface")
+                    != "codex_managed_imagegen"
+                    or model_receipt.get("managed_tool")
+                    != _GENERATION_CONTRACT["managed_tool"]
+                    or model_receipt.get("generated_asset_sha256") != asset_sha256
+                ):
+                    issues.append(
+                        "identity reference generation did not bind the Codex imagegen output"
+                    )
+                    continue
+                if stage_id == "generation":
+                    attestation = model_receipt.get("managed_tool_attestation")
+                    signed_payload = (
+                        attestation.get("signed_payload")
+                        if isinstance(attestation, Mapping)
+                        else None
+                    )
+                    tool_result_id = (
+                        str(signed_payload.get("tool_result_id") or "")
+                        if isinstance(signed_payload, Mapping)
+                        else ""
+                    )
+                    expected_attestation_payload = {
+                        "schema_version": "narrative-visual-managed-imagegen-attestation-payload/v1",
+                        "action": "attest_codex_managed_imagegen_result",
+                        "tool": _GENERATION_CONTRACT["managed_tool"],
+                        "project": pack.get("project"),
+                        "task_id": evidence_task_id,
+                        "attempt_id": attempt_id,
+                        "artifact_version_id": version_id,
+                        "card_id": card_id,
+                        "prompt_sha256": (
+                            (card.get("identity_reference") or {}).get("prompt_sha256")
+                            if card is not None
+                            else None
+                        ),
+                        "asset_sha256": asset_sha256,
+                        "session_id": model_receipt.get("session_id"),
+                        "selected_provider": model_receipt.get("selected_provider"),
+                        "selected_model_id": model_receipt.get("selected_model_id"),
+                        "tool_result_id": tool_result_id,
+                    }
+                    attestation_valid = (
+                        isinstance(attestation, Mapping)
+                        and attestation.get("status") == "attested"
+                        and bool(tool_result_id)
+                        and signed_payload == expected_attestation_payload
+                        and bool(str(attestation.get("signature_path") or "").strip())
+                    )
+                    if attestation_valid:
+                        try:
+                            _verify_external_signature(
+                                agentlab_root
+                                / "projects"
+                                / str(pack.get("project") or ""),
+                                payload=expected_attestation_payload,
+                                signature_path=Path(
+                                    str(attestation["signature_path"])
+                                ),
+                                public_key_path=_pinned_managed_tool_public_key(
+                                    agentlab_root
+                                ),
+                            )
+                        except (OSError, ValueError):
+                            attestation_valid = False
+                    if not attestation_valid:
+                        issues.append(
+                            "identity reference generation lacks a trusted Codex imagegen attestation"
+                        )
+                        continue
+                session_id = str(model_receipt.get("session_id") or "")
+                provider_model = "/".join(
+                    (
+                        str(model_receipt.get("selected_provider") or ""),
+                        str(model_receipt.get("selected_model_id") or ""),
+                    )
+                )
+                if not session_id or provider_model in {"/", ""}:
+                    issues.append(f"identity reference {stage_id} session/model is missing")
+                    continue
+                stage_sessions[stage_id] = session_id
+                stage_backends[stage_id] = provider_model
+        if len(stage_sessions) != 5 or len(set(stage_sessions.values())) != 5:
+            issues.append("independent visual Attempt sessions are not distinct")
+        if (
+            stage_backends.get("reviewer")
+            and stage_backends.get("verifier")
+            and stage_backends["reviewer"] == stage_backends["verifier"]
+        ):
+            issues.append("Reviewer and Verifier backend/model pairs are not distinct")
+        gate_subject_digest = _sha256(
+            _canonical_bytes({"visual_identity_reference": asset_sha256})
+        )
+        required_reference_gates = {
+            "managed_imagegen_attested": ("generation", "automated"),
+            "independent_visual_acceptance": ("verifier", "independent"),
+            "human_identity_reference_acceptance": ("verifier", "human"),
+        }
+        for gate_id, (stage_id, evidence_kind) in required_reference_gates.items():
+            gate = projection["protocol_gates"].get(gate_id)
+            stage = stages.get(stage_id) if isinstance(stages, Mapping) else None
+            if (
+                not isinstance(gate, Mapping)
+                or gate.get("status") != "pass"
+                or gate.get("evidence_kind") != evidence_kind
+                or gate.get("attempt_id")
+                != (
+                    stage.get("attempt_id")
+                    if isinstance(stage, Mapping)
+                    else None
+                )
+                or gate.get("subject_version_ids") != [version_id]
+                or gate.get("evidence_sha256") != gate_subject_digest
+            ):
+                issues.append(
+                    f"identity reference protocol gate {gate_id} is missing or stale"
+                )
+        if any(
+            (projection["work_items"].get(stage_id) or {}).get("status")
+            != "accepted"
+            for stage_id in expected_stages
+        ):
+            issues.append("identity reference protocol WorkItems are not accepted")
+
+    if card is not None and receipt.get("identity_reference_prompt_sha256") != (
+        card.get("identity_reference") or {}
+    ).get("prompt_sha256"):
+        issues.append("identity reference prompt hash mismatch")
+    human = receipt.get("human_acceptance")
+    expected_human_payload = {
+        "schema_version": "narrative-visual-human-acceptance-signature-payload/v1",
+        "action": "accept_identity_reference",
+        "actor_type": "user",
+        "actor_id": str((human or {}).get("actor_id") or ""),
+        "approved_at": str((human or {}).get("accepted_at") or ""),
+        "project": pack.get("project"),
+        "task_id": pack.get("task_id"),
+        "pack_sha256": pack.get("pack_sha256"),
+        "card_id": card_id,
+        "asset_sha256": asset_sha256,
+        "identity_reference_prompt_sha256": (
+            (card.get("identity_reference") or {}).get("prompt_sha256")
+            if card is not None
+            else None
+        ),
+        "runtime_evidence_sha256": runtime_evidence_sha256,
+    }
+    human_valid = isinstance(human, Mapping) and not any(
+        (
+            human.get("status") != "accepted",
+            not expected_human_payload["actor_id"],
+            not expected_human_payload["approved_at"],
+            human.get("signed_payload") != expected_human_payload,
+            not str(human.get("signature_path") or "").strip(),
+        )
+    )
+    if human_valid:
+        try:
+            root = agentlab_root.resolve(strict=True)
+            project_root = root / "projects" / str(pack.get("project") or "")
+            _verify_external_signature(
+                project_root,
+                payload=expected_human_payload,
+                signature_path=Path(str(human["signature_path"])),
+                public_key_path=_pinned_public_key(project_root),
+            )
+        except (OSError, ValueError):
+            human_valid = False
+    if not human_valid:
+        issues.append("human acceptance is not exact and hash-bound")
 
     return {
-        "schema_version": RECEIPT_SCHEMA,
-        "status": "pass",
-        "project": project,
-        "task_id": task_id,
-        "candidate_only": True,
-        "pack_path": receipt["pack_path"],
-        "receipt_path": entry["receipt_path"],
-        "candidate_index_path": index_path.relative_to(root).as_posix(),
-        "pack_sha256": pack["pack_sha256"],
-        "pack_file_sha256": pack_file_sha256,
-        "card_count": validation["card_count"],
-        "prompt_count": validation["prompt_count"],
-        "promotion_authorized": False,
+        "schema_version": "narrative-visual-identity-reference-validation/v1",
+        "status": "pass" if not issues else "blocked",
+        "pack_sha256": pack.get("pack_sha256"),
+        "card_id": card_id,
+        "asset_sha256": asset_sha256 or None,
+        "acceptance_receipt_sha256": _sha256(_canonical_bytes(receipt)),
+        "issues": issues,
     }
+
+
+def compile_visual_generation_batch(
+    pack: Mapping[str, Any],
+    *,
+    card_id: str,
+    agentlab_root: Path,
+    pack_path: Path,
+    accepted_reference_receipt_paths: list[Path],
+) -> dict:
+    """Compile reference-first Codex jobs from concrete acceptance receipts."""
+
+    validation = validate_visual_detail_card_pack(pack)
+    if validation["status"] != "pass":
+        raise ValueError("cannot compile generation batch from an invalid pack")
+    pack_provenance = _validate_pack_runtime_provenance(
+        agentlab_root,
+        pack,
+        pack_path,
+    )
+    generation_profile = _resolve_visual_stage_contracts(agentlab_root)["generation"]
+    card = next(
+        (
+            item
+            for item in pack["cards"]
+            if item.get("card_id") == card_id
+        ),
+        None,
+    )
+    if card is None:
+        raise ValueError(f"unknown visual card: {card_id}")
+
+    if not accepted_reference_receipt_paths:
+        jobs = [
+            {
+                "job_id": f"{card_id}::identity-reference",
+                "prompt_id": f"{card_id}::identity-reference",
+                "prompt": card["identity_reference"]["prompt"],
+                "prompt_sha256": card["identity_reference"]["prompt_sha256"],
+                "input_images": [],
+                "generation_contract": deepcopy(_GENERATION_CONTRACT),
+                "resolved_generation_profile": deepcopy(generation_profile),
+                "required_post_generation_gate": "human_identity_reference_acceptance",
+            }
+        ]
+        phase = "identity_reference_generation"
+    else:
+        if len(accepted_reference_receipt_paths) != 1:
+            raise ValueError(
+                "dependent generation requires exactly one current accepted reference"
+            )
+        references: list[dict] = []
+        receipt_refs: list[dict[str, str]] = []
+        root = agentlab_root.resolve(strict=True)
+        project = _safe_identifier(str(pack.get("project") or ""), label="project")
+        project_path = root / "projects" / project
+        _reject_symlink_ancestry(project_path, root, label="project")
+        project_root = project_path.resolve(strict=True)
+        for receipt_path in accepted_reference_receipt_paths:
+            requested = receipt_path if receipt_path.is_absolute() else root / receipt_path
+            resolved_receipt = _bounded_regular_file(
+                requested,
+                project_root,
+                label="identity reference acceptance receipt",
+            )
+            try:
+                receipt = yaml.safe_load(
+                    resolved_receipt.read_text(encoding="utf-8")
+                ) or {}
+            except (OSError, UnicodeError, yaml.YAMLError) as exc:
+                raise ValueError(f"identity reference acceptance receipt is invalid: {exc}") from exc
+            if not isinstance(receipt, Mapping):
+                raise ValueError("identity reference acceptance receipt must be a mapping")
+            reference_validation = validate_identity_reference_acceptance(
+                agentlab_root,
+                pack,
+                receipt,
+            )
+            if reference_validation["status"] != "pass":
+                raise ValueError(
+                    "identity reference acceptance is invalid: "
+                    + ", ".join(reference_validation["issues"])
+                )
+            if receipt.get("card_id") != card_id:
+                raise ValueError("identity reference acceptance belongs to another card")
+            references.append(deepcopy(dict(receipt["asset"])))
+            receipt_refs.append(
+                {
+                    "path": resolved_receipt.relative_to(root).as_posix(),
+                    "sha256": _sha256(resolved_receipt.read_bytes()),
+                    "content_sha256": reference_validation[
+                        "acceptance_receipt_sha256"
+                    ],
+                }
+            )
+        jobs = [
+            {
+                "job_id": prompt["prompt_id"],
+                "prompt_id": prompt["prompt_id"],
+                "prompt": prompt["prompt"],
+                "prompt_sha256": prompt["prompt_sha256"],
+                "input_images": deepcopy(references),
+                "reference_acceptance_receipts": deepcopy(receipt_refs),
+                "generation_contract": deepcopy(_GENERATION_CONTRACT),
+                "resolved_generation_profile": deepcopy(generation_profile),
+                "required_post_generation_gate": "independent_visual_acceptance",
+            }
+            for prompt in card["prompt_set"]
+        ]
+        phase = "dependent_shot_generation"
+
+    batch = {
+        "schema_version": "narrative-visual-generation-batch/v1",
+        "project": pack["project"],
+        "task_id": pack["task_id"],
+        "pack_sha256": pack["pack_sha256"],
+        "card_id": card_id,
+        "reference_task_id": visual_reference_task_id(pack, card_id),
+        "pack_runtime_provenance": pack_provenance,
+        "candidate_only": True,
+        "promotion_authorized": False,
+        "phase": phase,
+        "jobs": jobs,
+    }
+    batch["batch_sha256"] = _sha256(_canonical_bytes(batch))
+    return batch

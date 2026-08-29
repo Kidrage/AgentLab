@@ -139,7 +139,6 @@ packs:
       - blueprint_editorial_review.yml
       - blueprint_reader_review.yml
       - narrative_bootstrap_manifest.yml
-      - visual_detail_card_pack.yml
     memory_contract:
       - creative_brief
       - story_blueprint
@@ -149,12 +148,10 @@ packs:
       - outline_tree
       - promise_registry
       - narrative_bootstrap_manifest
-      - visual_detail_card_pack
     quality_gates:
       - blueprint_candidate_hash
       - independent_blueprint_review
       - deterministic_bootstrap_projection
-      - visual_detail_cards_hash_verified
       - human_blueprint_acceptance
     protocol:
       ref: narrative.blueprint.v1
@@ -270,26 +267,137 @@ packs:
           required_markers: [source_artifacts, progress_cursor]
           minimum_bytes: 1000
           unique_content: true
-        - artifact_type: visual_detail_card_pack
-          producer_node: state_projector
-          candidate_only: true
-          output_instructions: [Materialize only the deterministic narrative-visual-detail-card-pack/v1 compiler output; preserve every identity and prompt hash and do not invent visual facts.]
-          required_markers: [schema_version, pack_sha256, identity_lock_prompt, prompt_sha256, generation_contract, review_contract]
-          minimum_bytes: 10000
-          unique_content: true
       result_artifact_type: narrative_bootstrap_manifest
       promotion_gates:
         - candidate_hash_bound
         - independent_blueprint_review
         - deterministic_bootstrap_projection
-        - visual_detail_cards_hash_verified
         - user_blueprint_acceptance
       promotion_gate_bindings:
         candidate_hash_bound: {work_item_id: writer, evidence_kind: automated, subject_artifact_types: [story_blueprint]}
         independent_blueprint_review: {work_item_id: senior_editor, evidence_kind: independent, subject_artifact_types: [story_blueprint, blueprint_editorial_review]}
         deterministic_bootstrap_projection: {work_item_id: state_projector, evidence_kind: deterministic, subject_artifact_types: [narrative_bootstrap_manifest]}
-        visual_detail_cards_hash_verified: {work_item_id: state_projector, evidence_kind: deterministic, subject_artifact_types: [visual_detail_card_pack]}
         user_blueprint_acceptance: {work_item_id: state_projector, evidence_kind: human, subject_artifact_types: [story_blueprint, narrative_bootstrap_manifest]}
+
+  - pack_id: narrative_visual_development
+    name: Longform Narrative Visual Development
+    description: Deterministically compile hash-bound character, map, location, and prop prompt cards before prose or image production.
+    routes:
+      - narrative_visual_development
+    project_types:
+      - longform_text_project
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - ARTIFACT_PRODUCTION
+      - VALIDATION
+      - VERIFY
+      - FINALIZE
+    domain_phases:
+      - bind_blueprint_visual_facts
+      - compile_identity_reference_sheets
+      - compile_variant_and_shot_prompts
+      - hash_seal_candidate_pack
+      - await_reference_generation_and_human_acceptance
+    required_outputs:
+      - visual_detail_card_pack.yml
+    memory_contract:
+      - visual_detail_card_pack
+    quality_gates:
+      - visual_detail_cards_hash_verified
+      - human_visual_bible_acceptance
+    protocol:
+      ref: narrative.visual.v1
+      required_facts: [kind, scope, target_count, canon_impact, risk_flags, project, source_blueprint_task_id, source_blueprint_artifact_version_id, source_blueprint_artifact_sha256, source_visual_detail_spec, source_visual_detail_spec_sha256]
+      fact_constraints:
+        kind: [visual_detail_build]
+        scope: [longform]
+        canon_impact: [none]
+      role_selection: static
+      role_bindings:
+        - {node_id: visual_card_projector, role: Scribe, profile: state_projector, depends_on: []}
+      source_fact_bindings:
+        visual_card_projector: [source_visual_detail_spec]
+      artifact_contracts:
+        - artifact_type: visual_detail_card_pack
+          producer_node: visual_card_projector
+          candidate_only: true
+          output_instructions: [Compile only the declared hash-bound visual detail spec; do not invent facts or generate images.]
+          required_markers: [narrative-visual-detail-card-pack/v1, pack_sha256, identity_lock_prompt, prompt_sha256, generation_contract, review_contract]
+          minimum_bytes: 1000
+          unique_content: true
+      result_artifact_type: visual_detail_card_pack
+      promotion_gates:
+        - visual_detail_cards_hash_verified
+        - human_visual_bible_acceptance
+      promotion_gate_bindings:
+        visual_detail_cards_hash_verified: {work_item_id: visual_card_projector, evidence_kind: deterministic, subject_artifact_types: [visual_detail_card_pack]}
+        human_visual_bible_acceptance: {work_item_id: visual_card_projector, evidence_kind: human, subject_artifact_types: [visual_detail_card_pack]}
+
+  - pack_id: narrative_visual_reference
+    name: Longform Narrative Visual Identity Reference
+    description: Generate, independently review, and select exactly one hash-bound identity reference for one visual detail card.
+    routes:
+      - narrative_visual_reference
+    project_types:
+      - longform_text_project
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - ARTIFACT_PRODUCTION
+      - VALIDATION
+      - VERIFY
+      - FINALIZE
+    domain_phases:
+      - generate_codex_managed_identity_reference
+      - producer_self_check
+      - independent_observation
+      - independent_review
+      - independent_verification
+      - select_single_current_reference
+      - await_human_acceptance
+    required_outputs:
+      - visual_identity_reference
+    memory_contract:
+      - visual_detail_card_pack
+      - visual_identity_reference
+    quality_gates:
+      - managed_imagegen_attested
+      - independent_visual_acceptance
+      - human_identity_reference_acceptance
+    protocol:
+      ref: narrative.visual.reference.v1
+      required_facts: [kind, scope, target_count, canon_impact, risk_flags, project, source_visual_task_id, source_visual_pack_version_id, source_visual_pack_sha256, card_id, identity_reference_prompt_sha256]
+      fact_constraints:
+        kind: [visual_identity_reference_build]
+        scope: [single_asset]
+        canon_impact: [none]
+      role_selection: static
+      role_bindings:
+        - {node_id: generation, role: ArtifactProducer, profile: visual_asset_producer, depends_on: []}
+        - {node_id: producer_self_check, role: ArtifactProducer, profile: visual_producer_self_check, depends_on: [generation]}
+        - {node_id: observer, role: Observer, profile: visual_observer, depends_on: [producer_self_check]}
+        - {node_id: reviewer, role: Reviewer, profile: visual_independent_reviewer, depends_on: [observer]}
+        - {node_id: verifier, role: Verifier, profile: visual_verifier, depends_on: [reviewer]}
+      artifact_contracts:
+        - artifact_type: visual_identity_reference
+          producer_node: generation
+          candidate_only: true
+          output_instructions: [Generate exactly one identity reference from the hash-bound card prompt through the governed managed image tool; never promote it to canon.]
+          required_markers: [visual_identity_reference]
+          minimum_bytes: 1
+          unique_content: true
+      result_artifact_type: visual_identity_reference
+      promotion_gates:
+        - managed_imagegen_attested
+        - independent_visual_acceptance
+        - human_identity_reference_acceptance
+      promotion_gate_bindings:
+        managed_imagegen_attested: {work_item_id: generation, evidence_kind: automated, subject_artifact_types: [visual_identity_reference]}
+        independent_visual_acceptance: {work_item_id: verifier, evidence_kind: independent, subject_artifact_types: [visual_identity_reference]}
+        human_identity_reference_acceptance: {work_item_id: verifier, evidence_kind: human, subject_artifact_types: [visual_identity_reference]}
 
   - pack_id: narrative_longform
     name: Longform Narrative Production
@@ -431,18 +539,18 @@ packs:
       - no_production_write_before_promotion
     protocol:
       ref: narrative.chapter.v1
-      required_facts: [kind, scope, target_count, canon_impact, risk_flags, chapter, source_story_bible]
+      required_facts: [kind, scope, target_count, canon_impact, risk_flags, chapter, source_story_bible, source_visual_task_id, source_visual_pack_version_id, source_visual_detail_pack, source_visual_detail_pack_sha256]
       fact_constraints:
         kind: [prose_build]
         scope: [single_chapter]
       role_selection: narrative_author_team
       source_fact_bindings:
-        authorial_director: [source_story_bible]
-        canon_timeline_steward: [source_story_bible]
-        arc_scene_planner: [source_story_bible]
-        writer: [source_story_bible]
-        senior_editor: [source_story_bible]
-        state_projector: [source_story_bible]
+        authorial_director: [source_story_bible, source_visual_detail_pack]
+        canon_timeline_steward: [source_story_bible, source_visual_detail_pack]
+        arc_scene_planner: [source_story_bible, source_visual_detail_pack]
+        writer: [source_story_bible, source_visual_detail_pack]
+        senior_editor: [source_story_bible, source_visual_detail_pack]
+        state_projector: [source_story_bible, source_visual_detail_pack]
       artifact_contracts:
         - {artifact_type: prose_candidate, producer_node: writer, candidate_only: true}
         - {artifact_type: editorial_review, producer_node: senior_editor, candidate_only: true}

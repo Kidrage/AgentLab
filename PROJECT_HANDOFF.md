@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-08-29T01:07:32.963861+00:00`
+- Generated at: `2026-08-29T04:55:07.027743+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-production`
-- HEAD: `05b749d`
-- Indexed paths: 2087
+- HEAD: `69830da`
+- Indexed paths: 2091
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,14 +43,14 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 651 |
-| `tests` | 499 |
-| `docs` | 348 |
+| `agent_runtime` | 653 |
+| `tests` | 500 |
+| `docs` | 349 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
 | `config` | 130 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 78 |
+| `agent_runtime/narrative` | 80 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 44 |
@@ -88,16 +88,16 @@
 
 ### Categories
 
-- code: 1094 files, 11569039 bytes
-- literature: 424 files, 2434082 bytes
+- code: 1097 files, 11808143 bytes
+- literature: 425 files, 2443592 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3272950 bytes
+- structured_data: 554 files, 3280671 bytes
 
 ### Common Extensions
 
-- `.py`: 1079
+- `.py`: 1082
 - `.yml`: 522
-- `.md`: 385
+- `.md`: 386
 - `.txt`: 39
 - `.json`: 27
 - `.sh`: 10
@@ -232,6 +232,8 @@
 
 ## Change History
 
+- `69830da 2026-08-29 feat(narrative): add visual continuity detail cards`
+- `48864d4 2026-08-29 chore(narrative): checkpoint ShanHe production start`
 - `05b749d 2026-08-29 Merge pull request #14 from Kidrage/codex/shanhe-youjia-p3`
 - `aaf936b 2026-08-28 feat(runtime): stabilize governed model routing`
 - `792d806 2026-08-28 fix: validate paired blueprint shard envelopes`
@@ -250,12 +252,25 @@
 - `91cb273 2026-08-01 feat(narrative): materialize strict professional chapter DAGs`
 - `9e41606 2026-08-01 fix(background): bind Crown jobs to governed model settings`
 - `307a6cc 2026-08-01 fix(background): bind Crown jobs to governed model settings`
-- `0520e7d 2026-08-01 Merge remote-tracking branch 'refs/remotes/github/unified-stable' into codex/relay-memory-github-reconcile-250`
-- `810b42a 2026-08-01 Automate detached narrative acceptance`
 
 ## Current Changes
 
-- `## codex/shanhe-production...origin/main`
+- `## codex/shanhe-production...origin/main [ahead 2]`
+- ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M agent_runtime/cli/narrative.py`
+- ` M agent_runtime/narrative/visual_detail_cards.py`
+- ` M agent_runtime/production_protocols.py`
+- ` M agent_runtime/protocol_canary.py`
+- ` M agent_runtime/task_runtime_v2/runtime.py`
+- ` M config/agent_model_profiles.yml`
+- ` M config/production_packs.yml`
+- ` M config/routing_rules.yml`
+- ` M config/task_input_tiers.yml`
+- ` M docs/NARRATIVE_VISUAL_DETAIL_CARDS.md`
+- ` M requirements.txt`
+- ` M tests/test_narrative_visual_detail_cards.py`
+- ` M tests/test_production_protocols.py`
+- `?? agent_runtime/narrative/visual_reference_runtime.py`
 
 ## Related Repositories
 
@@ -843,6 +858,28 @@ system preference remain required before Gate 2 scaling or Phase 5.
   remain fail-closed pending fresh task-scoped candidate-only authorization.
   Start evidence and the proposed authorization statement are mirrored under
   `agents/codex/shanhe-production-start/` on TrueNAS.
+- 2026-08-29 CST: The reusable novel visual-development gate is complete on
+  `codex/shanhe-production`, pending commit/CI/merge. Formal Runtime-v2
+  protocols now enforce `narrative.blueprint.v1 -> narrative.visual.v1 ->
+  narrative.visual.reference.v1 -> narrative.chapter.v1`. Character cards
+  preserve high-granularity face/body/hands/nails/wardrobe/state invariants;
+  maps, terrain, locations and props use equivalent hash-sealed detail cards.
+  Identity-reference generation is a public, candidate-only managed-image
+  ingest with real PNG/JPEG/WebP decoding, external tool attestation, exact
+  Codex route binding, independent Agy/Hermes review evidence, one selected
+  eligible reference per card, and mandatory human acceptance before dependent
+  shots. Ledger, projection, receipt, staging and immutable-artifact I/O is
+  pinned to exact Task/runtime directory descriptors with the standard lock
+  domain; symlink, ancestor replacement, hash drift, interrupted retry and
+  competing-reference cases fail closed. Independent Spec and Standards
+  reviews both PASS. Focused suites pass 98/98; protocol doctor passes 117/117;
+  model doctor passes with seven optional unselected API-key warnings;
+  acceptance hygiene and the 29-current/10-historical evidence chain pass;
+  the authoritative full suite passes 3,756 with 21 skipped and 11 expected
+  missing-fixture warnings in 743.20 seconds. No image, prose, canon promotion
+  or human acceptance has been performed; after reviewed merge, begin
+  《山河有约》 by materializing its visual pack and first identity-reference
+  batch, then stop at the human visual gate.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule
