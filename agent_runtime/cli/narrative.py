@@ -82,6 +82,10 @@ from agent_runtime.narrative.task_packet import (
     append_narrative_instruction,
     compile_narrative_task_packet,
 )
+from agent_runtime.narrative.visual_detail_cards import (
+    materialize_visual_detail_card_pack,
+    validate_visual_detail_card_pack,
+)
 from agent_runtime.narrative_delivery import (
     run_narrative_doctor,
     validate_narrative_delivery,
@@ -323,6 +327,48 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 chapter_end=selected_end,
             )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        if result["status"] != "pass":
+            raise typer.Exit(code=1)
+
+    @narrative_app.command("compile-visual-cards")
+    def compile_visual_cards_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        source: Path = typer.Option(
+            ...,
+            "--source",
+            help="Task-input narrative-visual-detail-spec/v1 YAML.",
+        ),
+    ) -> None:
+        """Hash-seal visual continuity cards and Codex image prompt sets."""
+
+        try:
+            result = materialize_visual_detail_card_pack(
+                active_project_root(),
+                project=project,
+                task_id=task_id,
+                source_path=source,
+            )
+        except (OSError, ValueError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @narrative_app.command("validate-visual-cards")
+    def validate_visual_cards_command(
+        pack_path: Path = typer.Option(..., "--pack-path"),
+    ) -> None:
+        """Recheck a visual card pack without generating or promoting images."""
+
+        try:
+            value = yaml.safe_load(pack_path.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(f"cannot read visual card pack: {exc}") from exc
+        result = validate_visual_detail_card_pack(value)
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
         if result["status"] != "pass":
             raise typer.Exit(code=1)
 

@@ -139,6 +139,7 @@ packs:
       - blueprint_editorial_review.yml
       - blueprint_reader_review.yml
       - narrative_bootstrap_manifest.yml
+      - visual_detail_card_pack.yml
     memory_contract:
       - creative_brief
       - story_blueprint
@@ -148,10 +149,12 @@ packs:
       - outline_tree
       - promise_registry
       - narrative_bootstrap_manifest
+      - visual_detail_card_pack
     quality_gates:
       - blueprint_candidate_hash
       - independent_blueprint_review
       - deterministic_bootstrap_projection
+      - visual_detail_cards_hash_verified
       - human_blueprint_acceptance
     protocol:
       ref: narrative.blueprint.v1
@@ -200,8 +203,8 @@ packs:
         - artifact_type: character_bible
           producer_node: character_ensemble_director
           candidate_only: true
-          output_instructions: [Give every principal an independent goal agency contradiction evolution and credible exit resources.]
-          required_markers: [independent_goal, exit_resource]
+          output_instructions: [Give every principal an independent goal agency contradiction evolution and credible exit resources; include structured visual_identity_facts for stable face body hands nails signature details multiple wardrobe variants and state changes.]
+          required_markers: [independent_goal, exit_resource, visual_identity_facts]
           minimum_bytes: 10000
           unique_content: true
         - artifact_type: relationship_bible
@@ -214,8 +217,8 @@ packs:
         - artifact_type: world_bible
           producer_node: world_archaeologist
           candidate_only: true
-          output_instructions: [Define geography institutions commerce politics martial costs and the one-immortal-per-universe rule with enforceable constraints.]
-          required_markers: [institution, immortal_rule]
+          output_instructions: [Define geography institutions commerce politics martial costs and the one-immortal-per-universe rule with enforceable constraints; include structured visual_world_facts for map topology signature locations and plot-critical props.]
+          required_markers: [institution, immortal_rule, visual_world_facts]
           minimum_bytes: 10000
           unique_content: true
         - artifact_type: promise_registry
@@ -267,16 +270,25 @@ packs:
           required_markers: [source_artifacts, progress_cursor]
           minimum_bytes: 1000
           unique_content: true
+        - artifact_type: visual_detail_card_pack
+          producer_node: state_projector
+          candidate_only: true
+          output_instructions: [Materialize only the deterministic narrative-visual-detail-card-pack/v1 compiler output; preserve every identity and prompt hash and do not invent visual facts.]
+          required_markers: [schema_version, pack_sha256, identity_lock_prompt, prompt_sha256, generation_contract, review_contract]
+          minimum_bytes: 10000
+          unique_content: true
       result_artifact_type: narrative_bootstrap_manifest
       promotion_gates:
         - candidate_hash_bound
         - independent_blueprint_review
         - deterministic_bootstrap_projection
+        - visual_detail_cards_hash_verified
         - user_blueprint_acceptance
       promotion_gate_bindings:
         candidate_hash_bound: {work_item_id: writer, evidence_kind: automated, subject_artifact_types: [story_blueprint]}
         independent_blueprint_review: {work_item_id: senior_editor, evidence_kind: independent, subject_artifact_types: [story_blueprint, blueprint_editorial_review]}
         deterministic_bootstrap_projection: {work_item_id: state_projector, evidence_kind: deterministic, subject_artifact_types: [narrative_bootstrap_manifest]}
+        visual_detail_cards_hash_verified: {work_item_id: state_projector, evidence_kind: deterministic, subject_artifact_types: [visual_detail_card_pack]}
         user_blueprint_acceptance: {work_item_id: state_projector, evidence_kind: human, subject_artifact_types: [story_blueprint, narrative_bootstrap_manifest]}
 
   - pack_id: narrative_longform

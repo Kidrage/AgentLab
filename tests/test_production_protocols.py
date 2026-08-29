@@ -317,6 +317,7 @@ def test_compiles_blueprint_protocol_with_full_professional_team() -> None:
         "candidate_hash_bound",
         "independent_blueprint_review",
         "deterministic_bootstrap_projection",
+        "visual_detail_cards_hash_verified",
         "user_blueprint_acceptance",
     )
     foreshadow = next(

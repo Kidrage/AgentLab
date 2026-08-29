@@ -339,6 +339,33 @@
 ## Agent Notes
 
 <!-- AGENT_NOTES_START -->
+# 2026-08-29 narrative visual detail-card production gate
+
+- Active branch is `codex/shanhe-production`, isolated from the merged kernel
+  worktree. Main contains PR #14 at `05b749d`; this branch began production at
+  `48864d4`.
+- The current change adds a deep `narrative.visual_detail_cards` compiler and
+  validator. It hash-seals character, map, location, and prop identity facts;
+  emits mandatory reference sheets plus shot prompts; and materializes immutable
+  task-local candidate versions and receipts.
+- Image ownership is fixed to Codex `ArtifactProducer` through a non-automatic
+  `codex_imagegen_handoff`. Agy owns independent observation/review and a
+  separate Codex session owns verification. No historical media backend was
+  reactivated and no visual candidate can promote itself.
+- The `narrative_blueprint` production pack now requires the visual detail-card
+  artifact and deterministic hash gate. Future character/world bibles must emit
+  structured visual identity/world facts.
+- `task-shanhe-blueprint-006` now has an ignored, candidate-only R001 visual
+  source spec with 19 cards and a compiled pack with 258 prompts. Current pack
+  SHA-256: `721e41a77e5fcf2c412f12b6241918722806611cfda81e79d1bb6e0e6a18d4cc`.
+  It is not canon and does not authorize image generation or human acceptance.
+- Validation: focused visual/protocol tests `25 passed`; protocol doctor
+  `117/117`; full suite initially `3725 passed, 21 skipped, 2 evidence-hygiene
+  failures`, then the current evidence chain was regenerated and the hygiene
+  suite passed `5/5`. Re-run the full suite after any review fix.
+- The novel provider run remains paused at R26. Do not resume prose/blueprint
+  provider calls until the visual-card implementation is reviewed and merged.
+
 # 2026-07-31 cloud-250 Relay memory delivery
 
 - Scope remained bounded to the registered AgentLab workspace on cloud endpoint 250, plus
