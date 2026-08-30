@@ -1422,12 +1422,17 @@ def run_blueprint_shard_workflow(
         target: BlueprintShard,
         contract: Mapping[str, object],
         *,
+        attempts: Mapping[str, object] | None = None,
         expected_context_sha256: str | None = None,
         expected_generation_sha256: str | None = None,
     ) -> str | None:
         return validated_blueprint_attempt_output(
             task_root=task_root,
-            attempts=runtime.load_task(task_id).get("attempts") or {},
+            attempts=(
+                attempts
+                if attempts is not None
+                else runtime.load_task(task_id).get("attempts") or {}
+            ),
             attempt_id=attempt_id,
             target=target,
             required_fields=required_fields,
@@ -1723,6 +1728,9 @@ def run_blueprint_shard_workflow(
 
                     accepted_attempt: str | None = None
                     candidate_text: str | None = None
+                    attempts_snapshot = (
+                        runtime.load_task(task_id).get("attempts") or {}
+                    )
                     for retry in range(1, retries_per_volume + 1):
                         child_id = (
                             f"attempt-writer-{prefix}{segment_token}-r{retry:02d}"
@@ -1731,6 +1739,7 @@ def run_blueprint_shard_workflow(
                             child_id,
                             segment,
                             segment_contract,
+                            attempts=attempts_snapshot,
                             expected_context_sha256=context_manifest_sha256,
                             expected_generation_sha256=(generation_contract_sha256),
                         )
@@ -1739,8 +1748,7 @@ def run_blueprint_shard_workflow(
                         ):
                             accepted_attempt = child_id
                             break
-                        current = runtime.load_task(task_id)
-                        existing = (current.get("attempts") or {}).get(child_id)
+                        existing = attempts_snapshot.get(child_id)
                         if existing is not None:
                             continue
                         messages = [
