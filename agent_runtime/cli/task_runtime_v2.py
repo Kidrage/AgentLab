@@ -206,7 +206,7 @@ def register_task_runtime_commands(
             2,
             "--retries-per-volume",
             min=1,
-            max=10,
+            max=20,
             help="Bound resumable attempts per shard; defaults remain conservative.",
         ),
         chapters_per_generation: int | None = typer.Option(

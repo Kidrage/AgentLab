@@ -64,12 +64,12 @@ def test_blueprint_shard_cli_allows_bounded_recovery_attempts(
             "--semantic-contract",
             "contract.yml",
             "--retries-per-volume",
-            "10",
+            "20",
         ],
     )
 
     assert result.exit_code == 0, result.output
-    assert observed["retries_per_volume"] == 10
+    assert observed["retries_per_volume"] == 20
 
 
 def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
