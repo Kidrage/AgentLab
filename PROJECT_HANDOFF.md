@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-08-29T05:21:22.892733+00:00`
+- Generated at: `2026-08-30T02:12:34.254944+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-production`
-- HEAD: `5762928`
+- HEAD: `e2e7b04`
 - Indexed paths: 2091
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,8 +88,8 @@
 
 ### Categories
 
-- code: 1097 files, 11808143 bytes
-- literature: 425 files, 2445265 bytes
+- code: 1097 files, 11937527 bytes
+- literature: 425 files, 2448234 bytes
 - other: 15 files, 75183 bytes
 - structured_data: 554 files, 3280672 bytes
 
@@ -232,26 +232,26 @@
 
 ## Change History
 
-- `5762928 2026-08-29 Merge pull request #15 from Kidrage/codex/shanhe-production`
-- `6c153dd 2026-08-29 docs: refresh visual production handoff`
-- `ade0b96 2026-08-29 feat(narrative): govern visual continuity references`
-- `69830da 2026-08-29 feat(narrative): add visual continuity detail cards`
-- `48864d4 2026-08-29 chore(narrative): checkpoint ShanHe production start`
-- `05b749d 2026-08-29 Merge pull request #14 from Kidrage/codex/shanhe-youjia-p3`
-- `aaf936b 2026-08-28 feat(runtime): stabilize governed model routing`
-- `792d806 2026-08-28 fix: validate paired blueprint shard envelopes`
-- `3b69677 2026-08-27 docs: refresh kernel stabilization handoff`
-- `b720735 2026-08-27 test(narrative): reject edit delimiter near misses`
-- `e7f1027 2026-08-27 fix(narrative): strip bare cli edit trailers`
-- `2de791c 2026-08-27 fix(runtime): harden blueprint revision evidence`
-- `04ce770 2026-08-26 [docs] refresh R10 verification evidence`
-- `8976976 2026-08-26 [runtime] harden long-packet reviewer coverage`
-- `88db69d 2026-08-26 [docs] refresh shanhe checkpoint evidence`
-- `ae5f813 2026-08-26 [runtime] harden sharded blueprint production`
-- `bd44793 2026-08-25 [protocol] stabilize narrative production and Grok 4.6 evidence`
-- `ce391a7 2026-08-24 stabilize production protocol kernel`
-- `803ac0f 2026-08-24 feat(runtime): stabilize versioned production protocols`
-- `1a1fc6d 2026-08-01 merge: sync Crown runtime controller`
+- `e2e7b04 2026-08-29 chore(evidence): seal bounded nail paraphrases`
+- `fb8ecdf 2026-08-29 fix(narrative): recognize bounded male nail paraphrases`
+- `6ace25e 2026-08-29 chore(evidence): seal anatomy-bound nail semantics`
+- `89257f6 2026-08-29 fix(narrative): bind male nail semantics to anatomy`
+- `f8bdb0c 2026-08-29 chore(evidence): seal bounded male pose semantics`
+- `070acc1 2026-08-29 fix(narrative): bound male visual pose semantics`
+- `0615dff 2026-08-29 chore(evidence): seal male pose semantics`
+- `ea6b4eb 2026-08-29 fix(narrative): validate male pose semantics`
+- `f6c1501 2026-08-29 chore(evidence): seal male hand ownership`
+- `2a8b0b6 2026-08-29 fix(narrative): isolate male hand facts and poses`
+- `a1c0d95 2026-08-29 chore(evidence): seal frozen visual validators`
+- `5213875 2026-08-29 fix(narrative): freeze v2 visual validation`
+- `d1f2996 2026-08-29 chore(evidence): seal visual card v3`
+- `6ffeefc 2026-08-29 fix(narrative): version structured visual cards as v3`
+- `714d3b6 2026-08-29 chore(evidence): seal structured male hand contract`
+- `10f2352 2026-08-29 fix(narrative): structure male hand continuity`
+- `f0c7a02 2026-08-29 chore(evidence): reseal visual prose gate`
+- `0894003 2026-08-29 fix(narrative): bind prose gate to visual source`
+- `abb69c4 2026-08-29 chore(evidence): seal visual card provenance release`
+- `3b8d800 2026-08-29 fix(narrative): avoid false-positive armor terms`
 
 ## Current Changes
 
@@ -339,32 +339,42 @@
 ## Agent Notes
 
 <!-- AGENT_NOTES_START -->
-# 2026-08-29 narrative visual detail-card production gate
+# 2026-08-30 narrative visual detail-card production gate
 
-- Active branch is `codex/shanhe-production`, isolated from the merged kernel
-  worktree. Main contains PR #14 at `05b749d`; this branch began production at
-  `48864d4`.
-- The current change adds a deep `narrative.visual_detail_cards` compiler and
-  validator. It hash-seals character, map, location, and prop identity facts;
-  emits mandatory reference sheets plus shot prompts; and materializes immutable
-  task-local candidate versions and receipts.
-- Image ownership is fixed to Codex `ArtifactProducer` through a non-automatic
-  `codex_imagegen_handoff`. Agy owns independent observation/review and a
-  separate Codex session owns verification. No historical media backend was
-  reactivated and no visual candidate can promote itself.
-- The `narrative_blueprint` production pack now requires the visual detail-card
-  artifact and deterministic hash gate. Future character/world bibles must emit
-  structured visual identity/world facts.
-- `task-shanhe-blueprint-006` now has an ignored, candidate-only R001 visual
-  source spec with 19 cards and a compiled pack with 258 prompts. Current pack
-  SHA-256: `721e41a77e5fcf2c412f12b6241918722806611cfda81e79d1bb6e0e6a18d4cc`.
-  It is not canon and does not authorize image generation or human acceptance.
-- Validation: focused visual/protocol tests `25 passed`; protocol doctor
-  `117/117`; full suite initially `3725 passed, 21 skipped, 2 evidence-hygiene
-  failures`, then the current evidence chain was regenerated and the hygiene
-  suite passed `5/5`. Re-run the full suite after any review fix.
-- The novel provider run remains paused at R26. Do not resume prose/blueprint
-  provider calls until the visual-card implementation is reviewed and merged.
+- GitHub `main` now points to `e2e7b04`. The visual-card implementation was
+  developed in the isolated `codex/shanhe-production` worktree, reviewed on two
+  independent axes, and fast-forwarded only after the full suite and branch CI
+  passed.
+- The current production schema is `narrative-visual-detail-spec/v3` /
+  `narrative-visual-detail-card-pack/v3`. V1 and v2 remain reconstructable for
+  audit only and cannot unlock generation, identity acceptance, or prose.
+- Character, map, location, and prop cards are hash-sealed to exact Runtime-v2
+  source facts. Character rosters are complete and exact. Female cards require
+  structured face, makeup, hair, legs, feet, manicure, and pedicure details;
+  modern nail art is explicitly enabled for `ShanHeYouJia`. Male cards require
+  structured face/hair and a governed hand profile with no nail-detail field.
+- Male `hand_pose` controls only the visual reference pose. Ordinary narrative
+  action prose is not treated as a deterministic classifier. Explicit male
+  nail/manicure/pedicure prose and bounded, high-confidence anatomy/material/
+  finishing circumlocutions are rejected without misclassifying ordinary
+  martial, merchant, political, or transparent-glass object descriptions.
+- Generation and independent review roles are resolved from the canonical
+  profile/contract matrix. Managed image generation, immutable image evidence,
+  Agy observation/review, Hermes verification, human signature, single-current
+  identity selection, and prose prerequisites are fail-closed. No candidate can
+  promote itself, and no canon or human gate has been authorized.
+- `visual-detail-spec-r001.yml` is historical v1 input and is not production
+  eligible. The next production step is to write `visual-detail-spec-r002.yml`
+  in v3 for the eleven named characters plus governed map/location/prop cards,
+  then materialize it only through the Runtime-v2 visual protocol.
+- Final validation on the exact source/evidence pair `fb8ecdf` / `e2e7b04`:
+  focused visual/protocol tests `101 passed`; full suite `3814 passed, 21
+  skipped`; both independent reviews PASS; capability evidence verification
+  PASS; branch CI PASS. Main CI for `e2e7b04` was started after the fast-forward.
+- `task-shanhe-blueprint-006` remains candidate-only at R26. V11 is reusable;
+  V12-V15 remain pending. Resume under the user's bounded external-provider
+  authorization through `2026-08-31T01:00:00Z`; do not record canon promotion or
+  a human-acceptance gate.
 
 # 2026-07-31 cloud-250 Relay memory delivery
 
