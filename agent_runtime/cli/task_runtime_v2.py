@@ -203,7 +203,11 @@ def register_task_runtime_commands(
         ),
         timeout: int = typer.Option(600, "--timeout", min=1),
         retries_per_volume: int = typer.Option(
-            2, "--retries-per-volume", min=1, max=5
+            2,
+            "--retries-per-volume",
+            min=1,
+            max=10,
+            help="Bound resumable attempts per shard; defaults remain conservative.",
         ),
         chapters_per_generation: int | None = typer.Option(
             None,

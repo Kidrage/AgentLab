@@ -11,12 +11,65 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from agent_runtime.cli.task_runtime_v2 import register_task_runtime_commands
+from agent_runtime.narrative import blueprint_shards
 from agent_runtime.project_agents import ProjectAgentFactory, ProjectAgentRegistry
 from agent_runtime.project_ops.project_router import init_project
 from agent_runtime.project_truth import ProjectTruthStore
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_blueprint_shard_cli_allows_bounded_recovery_attempts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_run(*args, **kwargs):
+        observed.update(kwargs)
+        return {"status": "candidate"}
+
+    monkeypatch.setattr(blueprint_shards, "run_blueprint_shard_workflow", fake_run)
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    result = CliRunner().invoke(
+        app,
+        [
+            "task",
+            "execute-blueprint-shards",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-demo",
+            "--total-chapters",
+            "40",
+            "--volume-count",
+            "1",
+            "--title",
+            "Demo",
+            "--writer-work-item-id",
+            "writer",
+            "--story-artifact-type",
+            "story_blueprint",
+            "--candidate-gate-id",
+            "candidate_hash_bound",
+            "--context-artifact-type",
+            "outline_tree",
+            "--required-field",
+            "chapter_id",
+            "--writer-instruction",
+            "writer.md",
+            "--external-context-request",
+            "request.yml",
+            "--semantic-contract",
+            "contract.yml",
+            "--retries-per-volume",
+            "10",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert observed["retries_per_volume"] == 10
 
 
 def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
