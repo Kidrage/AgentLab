@@ -88,6 +88,10 @@ def _run_cli_process(
     timeout = kwargs.pop("timeout", None)
     input_data = kwargs.pop("input", None)
     capture_output = bool(kwargs.pop("capture_output", False))
+    if input_data is not None:
+        if kwargs.get("stdin") is not None:
+            raise ValueError("stdin and input arguments may not both be used")
+        kwargs["stdin"] = subprocess.PIPE
     if capture_output:
         if kwargs.get("stdout") is not None or kwargs.get("stderr") is not None:
             raise ValueError("stdout and stderr may not be used with capture_output")

@@ -66,6 +66,26 @@ def test_cli_process_timeout_kills_descendants_holding_output_pipes(
     assert not marker.exists()
 
 
+def test_cli_process_delivers_sealed_stdin_payload(tmp_path: Path):
+    """The process-tree runner must preserve subprocess.run(input=...) semantics."""
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _run_cli_process
+
+    result = _run_cli_process(
+        [sys.executable, "-c", "import sys; print(sys.stdin.read())"],
+        capture_output=True,
+        text=True,
+        input="sealed-writer-packet",
+        timeout=1,
+        cwd=tmp_path,
+        env=os.environ.copy(),
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == "sealed-writer-packet\n"
+
+
 def test_hermes_classic_chat_exports_redacted_session_metadata(tmp_path: Path):
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
