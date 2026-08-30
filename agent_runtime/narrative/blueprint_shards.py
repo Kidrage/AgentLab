@@ -1412,6 +1412,7 @@ def run_blueprint_shard_workflow(
         )
     )
     executor = RoleAttemptExecutor(root, project=project)
+    attempts_snapshot: Mapping[str, object] = projection.get("attempts") or {}
     accepted_children: list[str] = []
     legacy_transform_receipts: list[dict[str, str]] = []
     outputs: dict[str, str] = {}
@@ -1728,9 +1729,6 @@ def run_blueprint_shard_workflow(
 
                     accepted_attempt: str | None = None
                     candidate_text: str | None = None
-                    attempts_snapshot = (
-                        runtime.load_task(task_id).get("attempts") or {}
-                    )
                     for retry in range(1, retries_per_volume + 1):
                         child_id = (
                             f"attempt-writer-{prefix}{segment_token}-r{retry:02d}"
@@ -1801,6 +1799,7 @@ def run_blueprint_shard_workflow(
                             timeout=timeout,
                         )
                         current = result["projection"]
+                        attempts_snapshot = current.get("attempts") or {}
                         attempt = current["attempts"][child_id]
                         if (
                             attempt.get("status") != "succeeded"
