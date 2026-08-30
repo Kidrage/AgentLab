@@ -36,6 +36,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import stat
 import subprocess
 import tempfile
@@ -60,6 +61,58 @@ except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
 _CLI_CONTRACT_ALIASES = {
     "claude_code": "claude",
 }
+
+_ORIGINAL_SUBPROCESS_RUN = subprocess.run
+
+
+def _run_cli_process(
+    argv: list[str],
+    **run_kwargs: Any,
+) -> subprocess.CompletedProcess[str]:
+    """Run one provider CLI and terminate its whole process tree on timeout.
+
+    ``subprocess.run`` kills only its direct child. Provider CLIs may spawn a
+    descendant that inherits stdout/stderr; that descendant can keep
+    ``communicate()`` blocked after the declared timeout. On POSIX, isolate the
+    provider in a new session and kill that process group before collecting the
+    final pipes. Tests may inject ``subprocess.run`` and retain the established
+    offline runner seam.
+    """
+
+    if subprocess.run is not _ORIGINAL_SUBPROCESS_RUN:
+        return subprocess.run(argv, **run_kwargs)
+    if os.name != "posix":  # pragma: no cover - Windows fallback
+        return subprocess.run(argv, **run_kwargs)
+
+    kwargs = dict(run_kwargs)
+    timeout = kwargs.pop("timeout", None)
+    input_data = kwargs.pop("input", None)
+    capture_output = bool(kwargs.pop("capture_output", False))
+    if capture_output:
+        if kwargs.get("stdout") is not None or kwargs.get("stderr") is not None:
+            raise ValueError("stdout and stderr may not be used with capture_output")
+        kwargs["stdout"] = subprocess.PIPE
+        kwargs["stderr"] = subprocess.PIPE
+    kwargs["start_new_session"] = True
+
+    with subprocess.Popen(argv, **kwargs) as process:
+        try:
+            stdout, stderr = process.communicate(input=input_data, timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stdout, stderr = process.communicate()
+            exc.stdout = stdout
+            exc.stderr = stderr
+            raise
+        return subprocess.CompletedProcess(
+            argv,
+            process.returncode,
+            stdout,
+            stderr,
+        )
 
 
 def _safe_proxy_endpoint(value: str) -> str:
@@ -5796,7 +5849,7 @@ def run_cli_agent(
                 run_kwargs["input"] = packet_text
             else:
                 run_kwargs["stdin"] = subprocess.DEVNULL
-            proc = subprocess.run(argv, **run_kwargs)
+            proc = _run_cli_process(argv, **run_kwargs)
             if observer_manifest and workspace_context is not None:
                 (
                     staged_input_manifest_path,

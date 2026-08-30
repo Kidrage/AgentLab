@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
+import time
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -20,6 +23,47 @@ _REAL_SUBPROCESS_RUN = subprocess.run
 
 if TYPE_CHECKING:
     from agent_runtime.schemas import WorkflowPlan
+
+
+def test_cli_process_timeout_kills_descendants_holding_output_pipes(
+    tmp_path: Path,
+):
+    """A provider timeout must terminate its whole process tree promptly."""
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _run_cli_process
+
+    marker = tmp_path / "descendant-survived.txt"
+    child = tmp_path / "child.py"
+    child.write_text(
+        "import pathlib, sys, time\n"
+        "time.sleep(0.6)\n"
+        "pathlib.Path(sys.argv[1]).write_text('survived', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    parent = tmp_path / "parent.py"
+    parent.write_text(
+        "import subprocess, sys, time\n"
+        "subprocess.Popen([sys.executable, sys.argv[1], sys.argv[2]])\n"
+        "time.sleep(10)\n",
+        encoding="utf-8",
+    )
+
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        _run_cli_process(
+            [sys.executable, str(parent), str(child), str(marker)],
+            capture_output=True,
+            text=True,
+            timeout=0.1,
+            cwd=tmp_path,
+            env=os.environ.copy(),
+        )
+    elapsed = time.monotonic() - started
+    time.sleep(0.7)
+
+    assert elapsed < 0.5
+    assert not marker.exists()
 
 
 def test_hermes_classic_chat_exports_redacted_session_metadata(tmp_path: Path):
