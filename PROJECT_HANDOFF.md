@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-09-01T01:22:22.765655+00:00`
+- Generated at: `2026-09-01T02:13:01.037893+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-production`
-- HEAD: `4208591`
+- HEAD: `8d486e2`
 - Indexed paths: 2093
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,8 +88,8 @@
 
 ### Categories
 
-- code: 1099 files, 11968872 bytes
-- literature: 425 files, 2451608 bytes
+- code: 1099 files, 11995390 bytes
+- literature: 425 files, 2452377 bytes
 - other: 15 files, 75183 bytes
 - structured_data: 554 files, 3280701 bytes
 
@@ -232,6 +232,8 @@
 
 ## Change History
 
+- `8d486e2 2026-09-01 Harden project result materialization`
+- `c5b008f 2026-09-01 Refresh result export handoff evidence`
 - `4208591 2026-09-01 Add project-scoped result export root`
 - `91a8830 2026-08-31 Extend bounded shard recovery window`
 - `7a7c277 2026-08-31 Reuse task projection across shard recovery`
@@ -250,12 +252,11 @@
 - `070acc1 2026-08-29 fix(narrative): bound male visual pose semantics`
 - `0615dff 2026-08-29 chore(evidence): seal male pose semantics`
 - `ea6b4eb 2026-08-29 fix(narrative): validate male pose semantics`
-- `f6c1501 2026-08-29 chore(evidence): seal male hand ownership`
-- `2a8b0b6 2026-08-29 fix(narrative): isolate male hand facts and poses`
 
 ## Current Changes
 
-- `## codex/shanhe-production...origin/main [ahead 5]`
+- `## codex/shanhe-production...origin/main [ahead 7]`
+- ` M PROJECT_HANDOFF.md`
 
 ## Related Repositories
 
@@ -881,17 +882,23 @@ system preference remain required before Gate 2 scaling or Phase 5.
   for the pending R26 candidate-only outbound authorization and automated
   blueprint gates rather than reusing a superseded candidate.
 - 2026-09-01 CST: AgentLab now has one managed, Git-ignored human result root:
-  `outputs/<Project>/`. `project-results-export` copies only hash-verified,
-  eligible Task ArtifactVersions into a candidate section and only
-  project-artifact-index-selected current production files into a formal
-  section. The generated manifest preserves source path, lifecycle, size and
-  SHA-256 and explicitly remains an inspection projection; it never promotes a
-  candidate or replaces Runtime-v2 authority. Traversal, symlink ancestry,
-  source drift and stale managed outputs are covered by regression tests.
+  `outputs/<Project>/`. Eligible Runtime-v2 ArtifactVersion recording,
+  disposition changes, managed visual-reference ingest and completed formal
+  promotions refresh the view automatically; `project-results-export` remains
+  the deterministic recovery/handoff command and always rebuilds every Task in
+  the project. Candidate eligibility is rebuilt from the hash-chained ledger,
+  never trusted from mutable projections. Production requires a matching real
+  run source, complete Steward receipt, exact current-version binding and
+  byte-identical SHA-256. Project-scoped locking, write-ahead materialization
+  and cleanup journals, descriptor-anchored no-follow I/O and full-SHA bounded
+  filenames close concurrency, interruption, symlink and collision cases.
+  The view is inspection-only and never promotes a candidate or changes canon.
   《山河有约》 is materialized locally at `outputs/ShanHeYouJia/` with nine
-  eligible candidate foundation artifacts and no falsely labelled production
-  work. Full regression passes 3,827 tests with 21 skipped and 11 expected
-  warnings; repository hygiene passes.
+  eligible candidate foundation artifacts, a `complete` manifest and no
+  falsely labelled production work. Independent Spec and Standards reviews
+  PASS; focused regression passes 68 tests; authoritative full regression
+  passes 3,837 tests with 21 skipped and 11 expected warnings; repository
+  hygiene and diff checks pass. Implementation commit: `8d486e2`.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule
