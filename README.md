@@ -91,14 +91,18 @@ the canonical snapshot is the sole live authority.
 候选完成不等于正式晋升。长篇事实继续由 fact snapshot、artifact index、packet、
 ledger 和 state proposal 维护；检索只能提供证据，不能替代事实源。
 
-After a task produces a reviewable result, rebuild its project output folder:
+Recording an eligible Runtime-v2 ArtifactVersion automatically refreshes the
+whole project's result folder. Rebuild it explicitly after recovery or before
+handoff with:
 
 ```bash
 ./agentlab.sh project-results-export --project <Project> --task <task_id>
 ```
 
-The command writes only to `outputs/<Project>/`, verifies source hashes, and
-keeps candidate and production results visibly separate.
+The command scans every Task ledger in the project, writes only to
+`outputs/<Project>/`, verifies source hashes and Steward production governance,
+and keeps candidate and production results visibly separate. `--task` verifies
+the triggering Task exists; it never narrows the project-wide result view.
 
 ## State And Recovery / 状态与恢复
 

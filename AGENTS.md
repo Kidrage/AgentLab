@@ -87,11 +87,14 @@ repository root or Desktop. Do not treat `runs/`, `candidates/`, `*_rebuild`, or
 legacy folders as production facts unless the project artifact index explicitly
 selects them.
 
-Before reporting a project result to the user, run
+Eligible ArtifactVersion recording refreshes this view automatically. Before
+reporting a project result to the user, or when recovering a stale view, run
 `./agentlab.sh project-results-export --project <Project> [--task <task_id>]`.
 Only this managed command may populate `outputs/<Project>/`; never hand-copy
-files into it. The projection must preserve candidate/production labels and must
-not be treated as promotion, canon, or Task authority.
+files into it. The command always rebuilds all project Tasks; `--task` only
+asserts that the triggering Task exists. The projection must preserve
+candidate/production labels and must not be treated as promotion, canon, or
+Task authority.
 
 ## Execution Boundary
 

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import fcntl
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -32,6 +33,7 @@ _CLASSIFICATION_INPUT_FIELDS = {
     "risk_flags",
     "requested_tier",
 }
+_LOGGER = logging.getLogger(__name__)
 
 
 class TaskRuntimeError(RuntimeError):
@@ -166,6 +168,22 @@ class TaskRuntime:
         self.tasks_root = (
             self.agentlab_root / "projects" / self.project / "runtime" / "tasks"
         )
+
+    def _refresh_project_results(self, *, task_id: str) -> None:
+        """Best-effort refresh of the non-authoritative human result projection."""
+
+        try:
+            from agent_runtime.project_ops.result_export import export_project_results
+
+            export_project_results(
+                self.agentlab_root,
+                project=self.project,
+                task_id=task_id,
+            )
+        except (OSError, RuntimeError, ValueError, yaml.YAMLError) as exc:
+            _LOGGER.warning(
+                f"project result projection refresh failed for {self.project}/{task_id}: {exc}",
+            )
 
     def create_task(
         self,
@@ -2646,7 +2664,9 @@ class TaskRuntime:
             payload=payload,
             validate_projection=validate,
         )
-        return self.rebuild_task(task_id)
+        projection = self.rebuild_task(task_id)
+        self._refresh_project_results(task_id=task_id)
+        return projection
 
     def bind_evidence(
         self,
@@ -2855,7 +2875,9 @@ class TaskRuntime:
             },
             validate_projection=validate,
         )
-        return self.rebuild_task(task_id)
+        projection = self.rebuild_task(task_id)
+        self._refresh_project_results(task_id=task_id)
+        return projection
 
     def verify_evidence(self, task_id: str) -> dict[str, Any]:
         """Verify ledger integrity, artifact bytes, and evidence references."""

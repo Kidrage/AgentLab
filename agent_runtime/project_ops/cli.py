@@ -154,7 +154,11 @@ def project_status_cmd(
 @app.command("project-results-export")
 def project_results_export_cmd(
     project: str = typer.Option(..., "--project"),
-    task: Optional[str] = typer.Option(None, "--task"),
+    task: Optional[str] = typer.Option(
+        None,
+        "--task",
+        help="Assert that this triggering Task exists; all project Tasks are rebuilt.",
+    ),
     json_output: bool = typer.Option(False, "--json"),
     root: Optional[Path] = typer.Option(None, "--root"),
 ) -> None:

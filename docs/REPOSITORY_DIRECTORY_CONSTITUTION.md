@@ -59,8 +59,11 @@ User-project material belongs under `projects/<project_id>/`, but project runtim
 
 ## Human-facing project results
 
-Every delivered result must also be materialized under `outputs/<Project>/` with
-`./agentlab.sh project-results-export --project <Project> [--task <task_id>]`.
+Every eligible Runtime-v2 ArtifactVersion automatically refreshes
+`outputs/<Project>/`; delivery and recovery may deterministically rebuild it
+with `./agentlab.sh project-results-export --project <Project> [--task <task_id>]`.
+The exporter always scans every Task ledger in the project; `--task` is an
+existence assertion, not a filter.
 This root is local-only and Git-ignored. Its manifest labels candidate and
 production lifecycles separately and points back to hash-verified governed
 sources. It is an inspection projection, never a replacement for the Task

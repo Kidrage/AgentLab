@@ -790,7 +790,9 @@ class _AnchoredTaskRuntime(TaskRuntime):
             payload=payload,
             validate_projection=validate,
         )
-        return self.rebuild_task(task_id)
+        projection = self.rebuild_task(task_id)
+        self._refresh_project_results(task_id=task_id)
+        return projection
 
     def close(self) -> None:
         if self._task_descriptor >= 0:

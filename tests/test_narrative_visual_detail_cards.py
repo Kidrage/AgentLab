@@ -2569,6 +2569,15 @@ def test_public_managed_imagegen_ingest_records_real_image_artifact(
     assert result["artifact"]["sha256"] == payload["asset_sha256"]
     assert result["managed_imagegen_gate"]["status"] == "pass"
     assert result["projection"]["work_items"]["generation"]["status"] == "accepted"
+    result_manifest = yaml.safe_load(
+        (root / "outputs" / "ShanHeYouJia" / "manifest.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert any(
+        item["version_id"] == "shen-du-reference-v1"
+        for item in result_manifest["candidates"]
+    )
     assert (
         result["projection"]["attempts"]["attempt-generation-001"]["outcome"][
             "execution_origin"

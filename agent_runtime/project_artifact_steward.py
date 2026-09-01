@@ -13,14 +13,19 @@ from pathlib import Path
 import base64
 import fnmatch
 import hashlib
+import logging
 import re
 import shutil
 from typing import Any
 
 import yaml
 
-from artifact_digest import artifact_sha256
-from atomic_io import atomic_write_yaml
+try:
+    from .artifact_digest import artifact_sha256
+    from .atomic_io import atomic_write_yaml
+except ImportError:  # pragma: no cover - legacy direct-module compatibility
+    from artifact_digest import artifact_sha256
+    from atomic_io import atomic_write_yaml
 
 
 EVIDENCE_FILENAMES = {
@@ -52,6 +57,7 @@ EVIDENCE_FILENAMES = {
     "visual_acceptance_candidate.yml",
     "visual_acceptance_decision.yml",
 }
+_LOGGER = logging.getLogger(__name__)
 
 EVIDENCE_NAME_PATTERNS = (
     "report",
@@ -698,6 +704,19 @@ def _record_index_promotion(
     records.append(record)
 
 
+def _refresh_result_projection(agentlab_root: Path, project: str) -> None:
+    """Best-effort refresh after a completed formal promotion."""
+
+    try:
+        from agent_runtime.project_ops.result_export import export_project_results
+
+        export_project_results(agentlab_root, project=project)
+    except (OSError, RuntimeError, ValueError, yaml.YAMLError) as exc:
+        _LOGGER.warning(
+            f"project result projection refresh failed for {project}: {exc}",
+        )
+
+
 def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> dict:
     """Apply artifact promotion, archive old production files, and write receipt."""
     project_root = _project_root(agentlab_root, project)
@@ -718,6 +737,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             ):
                 raise RuntimeError("completed archive receipt binding mismatch")
             if truth_mode != "enforced":
+                _refresh_result_projection(agentlab_root, project)
                 return existing_receipt
             transaction_path = (
                 run_dir / "canonical_projection_transaction.yml"
@@ -744,6 +764,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             ProjectTruthStore(project_root).verify_receipt(
                 existing_receipt.get("canonical_commit_receipt") or {}
             )
+            _refresh_result_projection(agentlab_root, project)
             return existing_receipt
     transaction_path = run_dir / "canonical_projection_transaction.yml"
     if transaction_path.is_file() and not transaction_path.is_symlink():
@@ -778,6 +799,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
                 agentlab_root, project, recovered
             )
             atomic_write_yaml(existing_receipt_path, recovered)
+            _refresh_result_projection(agentlab_root, project)
             return recovered
     plan = ensure_artifact_promotion_plan(agentlab_root, project, task_id)
     readiness_errors = validate_content_promotion_readiness(
@@ -978,6 +1000,8 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
     if receipt["status"] == "completed":
         _sync_projection_knowledge(agentlab_root, project, receipt)
     atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
+    if receipt["status"] == "completed":
+        _refresh_result_projection(agentlab_root, project)
     return receipt
 
 
