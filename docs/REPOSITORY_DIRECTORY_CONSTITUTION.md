@@ -15,6 +15,7 @@ The root should contain source, tests, docs, examples, config, scripts, and acce
 - `scripts/`
 - `examples/`
 - `acceptance_runs/`
+- `outputs/` for ignored, rebuildable, human-facing project result projections
 - `skills/`
 - `projects/` for templates or ignored local project state
 - `memory/` for templates or ignored local memory state
@@ -55,6 +56,15 @@ reporting.
 ## Project State
 
 User-project material belongs under `projects/<project_id>/`, but project runtime state is also local-only by default. Public commits should keep only examples, templates, tests, docs, and acceptance fixtures.
+
+## Human-facing project results
+
+Every delivered result must also be materialized under `outputs/<Project>/` with
+`./agentlab.sh project-results-export --project <Project> [--task <task_id>]`.
+This root is local-only and Git-ignored. Its manifest labels candidate and
+production lifecycles separately and points back to hash-verified governed
+sources. It is an inspection projection, never a replacement for the Task
+ledger, ArtifactVersion, project artifact index, promotion gate, or canon.
 
 ## Guard
 

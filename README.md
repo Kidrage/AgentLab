@@ -77,6 +77,7 @@ projects/<Project>/runtime/tasks/<task_id>/    v2 event ledger, projections, evi
 projects/<Project>/runs/<task_id>/             legacy staged-migration compatibility
 projects/<Project>/production/                 promoted current deliverables
 projects/<Project>/archive/                    superseded formal deliverables
+outputs/<Project>/                             rebuildable human-facing result view
 projects/<Project>/project_truth.yml           enforced canonical truth pointer
 projects/<Project>/.agentlab/truth/            immutable truth history
 ```
@@ -89,6 +90,15 @@ the canonical snapshot is the sole live authority.
 
 候选完成不等于正式晋升。长篇事实继续由 fact snapshot、artifact index、packet、
 ledger 和 state proposal 维护；检索只能提供证据，不能替代事实源。
+
+After a task produces a reviewable result, rebuild its project output folder:
+
+```bash
+./agentlab.sh project-results-export --project <Project> --task <task_id>
+```
+
+The command writes only to `outputs/<Project>/`, verifies source hashes, and
+keeps candidate and production results visibly separate.
 
 ## State And Recovery / 状态与恢复
 

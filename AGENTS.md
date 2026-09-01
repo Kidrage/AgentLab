@@ -77,6 +77,7 @@ provider model as if the selected worker could execute it natively.
 - `projects/<Project>/runs/<task_id>/artifacts/`: candidate deliverables only.
 - `projects/<Project>/production/`: formally promoted current deliverables only.
 - `projects/<Project>/archive/`: superseded project deliverables.
+- `outputs/<Project>/`: Git-ignored, rebuildable human-facing result projection.
 - `skills/active/`: active tracked skills; runtime usage belongs in the run.
 - `acceptance_runs/`: generated acceptance evidence, not runtime policy.
 - `.agentlab_runtime/`: local daemon/runtime state, never source authority.
@@ -85,6 +86,12 @@ Do not write task outputs, logs, prompts, snapshots, or ad hoc handoffs to the
 repository root or Desktop. Do not treat `runs/`, `candidates/`, `*_rebuild`, or
 legacy folders as production facts unless the project artifact index explicitly
 selects them.
+
+Before reporting a project result to the user, run
+`./agentlab.sh project-results-export --project <Project> [--task <task_id>]`.
+Only this managed command may populate `outputs/<Project>/`; never hand-copy
+files into it. The projection must preserve candidate/production labels and must
+not be treated as promotion, canon, or Task authority.
 
 ## Execution Boundary
 

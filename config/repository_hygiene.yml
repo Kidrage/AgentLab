@@ -53,6 +53,7 @@ root_policy:
     - examples
     - memory
     - observability
+    - outputs
     - projects
     - scripts
     - shared_protocols
@@ -87,6 +88,7 @@ root_policy:
   require_gitignore_for:
     - .agentlab/
     - memory/repositories/
+    - outputs/
     - projects/*/runs/
     - projects/*/tmp/
     - projects/*/scratch/

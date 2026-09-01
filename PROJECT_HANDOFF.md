@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-08-30T02:12:34.254944+00:00`
+- Generated at: `2026-09-01T01:21:29.386393+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-production`
-- HEAD: `e2e7b04`
-- Indexed paths: 2091
+- HEAD: `91a8830`
+- Indexed paths: 2093
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,8 +43,8 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 653 |
-| `tests` | 500 |
+| `agent_runtime` | 654 |
+| `tests` | 501 |
 | `docs` | 349 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
@@ -88,14 +88,14 @@
 
 ### Categories
 
-- code: 1097 files, 11937527 bytes
-- literature: 425 files, 2448234 bytes
+- code: 1099 files, 11968872 bytes
+- literature: 425 files, 2450387 bytes
 - other: 15 files, 75183 bytes
-- structured_data: 554 files, 3280672 bytes
+- structured_data: 554 files, 3280701 bytes
 
 ### Common Extensions
 
-- `.py`: 1082
+- `.py`: 1084
 - `.yml`: 522
 - `.md`: 386
 - `.txt`: 39
@@ -232,6 +232,15 @@
 
 ## Change History
 
+- `91a8830 2026-08-31 Extend bounded shard recovery window`
+- `7a7c277 2026-08-31 Reuse task projection across shard recovery`
+- `be83f50 2026-08-31 Cache shard recovery projection per segment`
+- `f431433 2026-08-31 Allow bounded shard recovery retries`
+- `5573f1f 2026-08-30 chore(evidence): seal stdin-preserving timeout runner`
+- `63eba6a 2026-08-30 fix(runtime): preserve sealed stdin in process supervisor`
+- `5e770ff 2026-08-30 chore(evidence): seal provider timeout fix`
+- `12f9b7a 2026-08-30 fix(runtime): kill provider process trees on timeout`
+- `157d5ec 2026-08-30 docs: refresh visual production handoff`
 - `e2e7b04 2026-08-29 chore(evidence): seal bounded nail paraphrases`
 - `fb8ecdf 2026-08-29 fix(narrative): recognize bounded male nail paraphrases`
 - `6ace25e 2026-08-29 chore(evidence): seal anatomy-bound nail semantics`
@@ -243,19 +252,20 @@
 - `f6c1501 2026-08-29 chore(evidence): seal male hand ownership`
 - `2a8b0b6 2026-08-29 fix(narrative): isolate male hand facts and poses`
 - `a1c0d95 2026-08-29 chore(evidence): seal frozen visual validators`
-- `5213875 2026-08-29 fix(narrative): freeze v2 visual validation`
-- `d1f2996 2026-08-29 chore(evidence): seal visual card v3`
-- `6ffeefc 2026-08-29 fix(narrative): version structured visual cards as v3`
-- `714d3b6 2026-08-29 chore(evidence): seal structured male hand contract`
-- `10f2352 2026-08-29 fix(narrative): structure male hand continuity`
-- `f0c7a02 2026-08-29 chore(evidence): reseal visual prose gate`
-- `0894003 2026-08-29 fix(narrative): bind prose gate to visual source`
-- `abb69c4 2026-08-29 chore(evidence): seal visual card provenance release`
-- `3b8d800 2026-08-29 fix(narrative): avoid false-positive armor terms`
 
 ## Current Changes
 
-- `## codex/shanhe-production...origin/main`
+- `## codex/shanhe-production...origin/main [ahead 4]`
+- ` M AGENTS.md`
+- ` M README.md`
+- ` M agent_runtime/project_ops/cli.py`
+- ` M agent_runtime/project_ops/repo_hygiene.py`
+- ` M agentlab.sh`
+- ` M config/repository_hygiene.yml`
+- ` M docs/REPOSITORY_DIRECTORY_CONSTITUTION.md`
+- ` M tests/test_repo_hygiene.py`
+- `?? agent_runtime/project_ops/result_export.py`
+- `?? tests/test_project_result_export.py`
 
 ## Related Repositories
 
@@ -880,6 +890,18 @@ system preference remain required before Gate 2 scaling or Phase 5.
   with no eligible `story_blueprint`, so visual materialization correctly waits
   for the pending R26 candidate-only outbound authorization and automated
   blueprint gates rather than reusing a superseded candidate.
+- 2026-09-01 CST: AgentLab now has one managed, Git-ignored human result root:
+  `outputs/<Project>/`. `project-results-export` copies only hash-verified,
+  eligible Task ArtifactVersions into a candidate section and only
+  project-artifact-index-selected current production files into a formal
+  section. The generated manifest preserves source path, lifecycle, size and
+  SHA-256 and explicitly remains an inspection projection; it never promotes a
+  candidate or replaces Runtime-v2 authority. Traversal, symlink ancestry,
+  source drift and stale managed outputs are covered by regression tests.
+  《山河有约》 is materialized locally at `outputs/ShanHeYouJia/` with nine
+  eligible candidate foundation artifacts and no falsely labelled production
+  work. Full regression passes 3,827 tests with 21 skipped and 11 expected
+  warnings; repository hygiene passes.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

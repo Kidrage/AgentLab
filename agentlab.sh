@@ -47,6 +47,7 @@ PROJECT_OPS_COMMANDS=(
   project-route
   project-init
   project-status
+  project-results-export
   task-compact
   agent-contributions
 )

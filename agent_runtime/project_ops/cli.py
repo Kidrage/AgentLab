@@ -27,6 +27,7 @@ from .project_router import (
     route_invocation_to_project,
 )
 from .repo_hygiene import print_hygiene_report, scan_repository_root
+from .result_export import export_project_results
 from .task_compaction import compact_task, task_compaction_result_to_dict
 
 app = typer.Typer(help="AgentLab ProjectOps commands.", no_args_is_help=True)
@@ -148,6 +149,26 @@ def project_status_cmd(
         out = repo_root / "projects" / project / "acceptance" / "project_status.md"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8")
+
+
+@app.command("project-results-export")
+def project_results_export_cmd(
+    project: str = typer.Option(..., "--project"),
+    task: Optional[str] = typer.Option(None, "--task"),
+    json_output: bool = typer.Option(False, "--json"),
+    root: Optional[Path] = typer.Option(None, "--root"),
+) -> None:
+    """Rebuild the human-facing ``outputs/<Project>`` result projection."""
+
+    repo_root = (root or repo_root_from_cwd()).resolve()
+    result = export_project_results(repo_root, project=project, task_id=task)
+    if json_output:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(f"Project results exported: {project}")
+        print(f"Output root: {result['output_root']}")
+        print(f"Exported files: {result['exported_count']}")
+        print("Authority: inspection projection only; no candidate was promoted")
 
 
 @app.command("task-compact")

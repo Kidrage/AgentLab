@@ -44,6 +44,7 @@ DEFAULT_ALLOWED_ROOT_DIRS = {
     "docs",
     "examples",
     "memory",
+    "outputs",
     "projects",
     "scripts",
     "skills",

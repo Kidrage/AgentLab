@@ -53,6 +53,22 @@ def test_repo_hygiene_policy_accepts_registered_local_cli_runtime_dirs(tmp_path:
     assert not report.findings
 
 
+def test_repo_hygiene_policy_accepts_project_output_root(tmp_path: Path) -> None:
+    from agent_runtime.project_ops.repo_hygiene import scan_repository_root
+
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "repository_hygiene.yml").write_text(
+        (ROOT / "config" / "repository_hygiene.yml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (tmp_path / "outputs" / "DemoProject").mkdir(parents=True)
+
+    report = scan_repository_root(tmp_path)
+
+    assert report.hard_violation_count == 0
+    assert not report.findings
+
+
 def test_repo_hygiene_accepts_worktree_gitfile_and_tracked_delivery_entries(
     tmp_path: Path,
 ) -> None:
