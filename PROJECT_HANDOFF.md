@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-shanhe-production`
 - Git repository: `true`
-- Generated at: `2026-09-01T01:21:29.386393+00:00`
+- Generated at: `2026-09-01T01:22:22.765655+00:00`
 
 ## Current State
 
 - Branch: `codex/shanhe-production`
-- HEAD: `91a8830`
+- HEAD: `4208591`
 - Indexed paths: 2093
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,7 +89,7 @@
 ### Categories
 
 - code: 1099 files, 11968872 bytes
-- literature: 425 files, 2450387 bytes
+- literature: 425 files, 2451608 bytes
 - other: 15 files, 75183 bytes
 - structured_data: 554 files, 3280701 bytes
 
@@ -232,6 +232,7 @@
 
 ## Change History
 
+- `4208591 2026-09-01 Add project-scoped result export root`
 - `91a8830 2026-08-31 Extend bounded shard recovery window`
 - `7a7c277 2026-08-31 Reuse task projection across shard recovery`
 - `be83f50 2026-08-31 Cache shard recovery projection per segment`
@@ -251,21 +252,10 @@
 - `ea6b4eb 2026-08-29 fix(narrative): validate male pose semantics`
 - `f6c1501 2026-08-29 chore(evidence): seal male hand ownership`
 - `2a8b0b6 2026-08-29 fix(narrative): isolate male hand facts and poses`
-- `a1c0d95 2026-08-29 chore(evidence): seal frozen visual validators`
 
 ## Current Changes
 
-- `## codex/shanhe-production...origin/main [ahead 4]`
-- ` M AGENTS.md`
-- ` M README.md`
-- ` M agent_runtime/project_ops/cli.py`
-- ` M agent_runtime/project_ops/repo_hygiene.py`
-- ` M agentlab.sh`
-- ` M config/repository_hygiene.yml`
-- ` M docs/REPOSITORY_DIRECTORY_CONSTITUTION.md`
-- ` M tests/test_repo_hygiene.py`
-- `?? agent_runtime/project_ops/result_export.py`
-- `?? tests/test_project_result_export.py`
+- `## codex/shanhe-production...origin/main [ahead 5]`
 
 ## Related Repositories
 
