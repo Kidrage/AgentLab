@@ -1,11 +1,11 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-08-30T10:02:09Z'
+generated_at: '2026-09-03T07:43:37Z'
 repository:
   root: .
-  head: 63eba6a
-  worktree_dirty: false
+  head: 19fed8a
+  worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
   report_type: agentlab_capability_acceptance
@@ -112,14 +112,14 @@ current_evidence:
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
-  sha256: 9c5f99d7858628a154773076a7aec8bf24d3314e6ee51de35a51c563113a6d12
+  sha256: 3216ef44aa725b0989381af9b1f360f763eec560e1f1f4cbd40825af589625d5
 - path: config/agent_role_bindings.yml
   class: active
   capability_ids:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 00c15bdd836e90e5cbaee3a64f8207ba58f01edf2cad9d900606456442dea141
+  sha256: 8d90840a427b25852020e7917b50b6b2aef522c112c7f696d53f599cb4472aed
 - path: config/cli_workflow_shells.yml
   class: active
   capability_ids:
@@ -136,12 +136,12 @@ current_evidence:
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: cfb05a0fd5fe68412c6b7444a715dfa987533dbf5284b2e41f0e38078f7a4f41
+  sha256: d995fc738eb2ae52d463f60a690249a520fc63e7eedc040e8ff452a2030ed5f7
 - path: config/model_catalog.yml
   class: active
   capability_ids:
   - crown_formal_live_narrative_eval
-  sha256: 1246b62b7b9cd53a08ae6ca1a8b7b4b5c5df124ff952c1ca9ad9a288515003c6
+  sha256: b7b04984f254c942c449af0cbf659a4ca29f96eecbd29d2fb3278eb530456516
 - path: config/production_packs.yml
   class: active
   capability_ids:
@@ -153,7 +153,7 @@ current_evidence:
   - cli_workflow_shell_absorption
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
-  sha256: 75d9100b2464b53917914236e52b813f96620af3fddd835d92fccc9c5fcf0cbe
+  sha256: 26ea8d3426133bcbd35e491b30c97f090c8faed6978523f17745a69d3172f4ac
 - path: tests/test_core_package_imports.py
   class: active
   capability_ids:
@@ -218,7 +218,7 @@ historical_references:
   - crown_formal_live_narrative_eval
   - trusted_live_runner_status
 historical_reference_count: 10
-aggregate_digest: 4ecd6d486cac3aba187419977b725d17091b51eb141d33123b2cc1040743dcd6
+aggregate_digest: 57f5aeb52d76022df660238038c159c1ab10cbc2777be727551eea38f37ed398
 status: pass
 issues: []
 notes:
