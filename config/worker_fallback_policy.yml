@@ -9,7 +9,7 @@ roles:
   Coder: [codex, aider, hermes]
   ArtifactProducer: [codex, qwen]
   NarrativePlanner: [agy]
-  Writer: [claude_code, agy]
+  Writer: [codex]
   Reviewer: [qwen, agy]
   Scribe: [qwen, codex]
   TesterAuditor: [pytest, codex, hermes]

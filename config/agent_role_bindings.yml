@@ -47,7 +47,7 @@ roles:
     allowed_workers: [agy]
     required_session: true
   Writer:
-    allowed_workers: [agy, claude_code]
+    allowed_workers: [agy, claude_code, codex]
     required_session: true
   Reviewer:
     allowed_workers: [agy, qwen, claude_code]

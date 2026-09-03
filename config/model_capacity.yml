@@ -283,7 +283,7 @@ routes:
     role: researcher
     worker: agy
     invocation_contract: agy_research
-    model_key: gemini_3_6_flash_high_agy_oauth
+    model_key: gemini_3_7_flash_high_agy_oauth
     pool: agy_gemini_observer
     approved_fallbacks: []
     fallback_on: []
@@ -291,7 +291,7 @@ routes:
     role: narrative_planner
     worker: agy
     invocation_contract: agy_narrative_planner
-    model_key: gemini_3_6_flash_high_agy_oauth
+    model_key: gemini_3_7_flash_high_agy_oauth
     pool: agy_gemini_observer
     approved_fallbacks: []
     fallback_on: []
@@ -299,7 +299,7 @@ routes:
     role: reviewer
     worker: agy
     invocation_contract: agy_reviewer
-    model_key: gemini_3_6_flash_high_agy_oauth
+    model_key: gemini_3_7_flash_high_agy_oauth
     pool: agy_gemini_observer
     approved_fallbacks: []
     fallback_on: []
@@ -471,13 +471,12 @@ routes:
     availability: verified_current_host
     selectable: true
     role: writer
-    worker: claude_code
-    invocation_contract: claude_writer
-    model_key: deepseek_v4_pro
-    pool: deepseek_metered_api
-    approved_fallbacks: [WriterFlash]
-    fallback_on: [model_unavailable]
-    fallback_cost_policy: explicit_preapproved_lower_cost_model
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_high_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
   WriterUltracode:
     availability: unavailable_current_host
     selectable: false
@@ -490,8 +489,8 @@ routes:
     fallback_on: []
     activation_policy: explicit_sealed_packet_only
   WriterFlash:
-    availability: verified_current_host
-    selectable: true
+    availability: historical_only
+    selectable: false
     role: writer
     worker: claude_code
     invocation_contract: claude_writer
@@ -500,8 +499,8 @@ routes:
     approved_fallbacks: []
     fallback_on: []
   WriterLow:
-    availability: verified_current_host
-    selectable: true
+    availability: historical_only
+    selectable: false
     role: writer
     worker: claude_code
     invocation_contract: claude_writer
@@ -707,19 +706,18 @@ routes:
     fallback_on: []
   AlterWriter:
     role: writer
-    worker: claude_code
-    invocation_contract: claude_writer
-    model_key: deepseek_v4_pro
-    pool: deepseek_metered_api
-    approved_fallbacks: [WriterFlash]
-    fallback_on: [model_unavailable]
-    fallback_cost_policy: explicit_preapproved_lower_cost_model
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_high_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
   AlterWriterStrict:
     role: writer
-    worker: claude_code
-    invocation_contract: claude_writer
-    model_key: deepseek_v4_pro
-    pool: deepseek_metered_api
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_high_cli_oauth
+    pool: codex_cli_agentic
     approved_fallbacks: []
     fallback_on: []
   AlterReviewer:

@@ -335,7 +335,7 @@ providers:
     type: oauth_cli
     display_name: Agy Gemini OAuth
     command: agy
-    default_model: gemini-3.6-flash-high
+    default_model: gemini-3.7-flash-high
     auth: local_oauth_session
     billing:
       source: agy_oauth
@@ -357,7 +357,7 @@ providers:
     notes:
       - AgentLab 默认 Observer 路径。Agy 接 Gemini 模型，走本地 OAuth 认证。
       - 不读取 GEMINI_API_KEY，不按本地 Gemini API key 计费。
-      - 默认模型为 gemini-3.6-flash-high。
+      - 默认模型为 gemini-3.7-flash-high。
       - Agy 不提供 quota/status 命令；remaining/reset 不得推测。
 
   # ── Agy / Antigravity Claude OAuth Observer 备用容量池 ─────────

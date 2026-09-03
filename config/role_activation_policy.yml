@@ -30,7 +30,7 @@ roles:
     candidate_worker: agy
     expected_benefit: {quality_gain: high, risk_reduction: high, speed_gain: medium, recovery_value: medium}
   Writer:
-    candidate_worker: claude_code
+    candidate_worker: codex
     expected_benefit: {quality_gain: high, risk_reduction: medium, speed_gain: medium, recovery_value: medium}
   Reviewer:
     candidate_worker: agy

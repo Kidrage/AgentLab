@@ -151,9 +151,9 @@ modes:
           capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_writer
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_high_cli_oauth
           capacity_route: Writer
         reviewer:
           executor_type: cli_agent
@@ -247,10 +247,10 @@ modes:
           capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_writer
-          default: deepseek_v4_flash
-          capacity_route: WriterFlash
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_high_cli_oauth
+          capacity_route: Writer
         reviewer:
           executor_type: cli_agent
           cli_agent: agy
@@ -345,9 +345,9 @@ modes:
           capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_writer
-          default: deepseek_v4_pro
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_high_cli_oauth
           capacity_route: AlterWriter
         reviewer:
           executor_type: cli_agent
@@ -442,10 +442,10 @@ modes:
           capacity_route: AlterArchivist
         writer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_writer
-          default: deepseek_v4_flash
-          capacity_route: WriterLow
+          cli_agent: codex
+          invocation_contract: codex
+          default: codex_gpt_5_6_sol_high_cli_oauth
+          capacity_route: Writer
         reviewer:
           executor_type: cli_agent
           cli_agent: agy

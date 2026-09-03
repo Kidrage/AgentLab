@@ -174,6 +174,28 @@ models:
     notes: >
       Agy Gemini 3.6 Flash High model for Agy worker roles.
 
+  gemini_3_7_flash_high_agy_oauth:
+    provider: agy_gemini_oauth
+    runtime_provider: agy-gemini-oauth
+    model_id: gemini-3.7-flash-high
+    cli_model_id: gemini-3.7-flash-high
+    context_window: 1000000
+    capacity_pool: agy_gemini_observer
+    strengths: [oauth_cli, fast, high_throughput, long_context, multimodal_understanding, scientific_analysis, subscription_quota]
+    weaknesses: [requires_regional_network_access, cli_session_required, text_output_only, no_image_generation]
+    suitable_agents: [observer, visual_reviewer, researcher, narrative_planner, writer, frontdesk_gateway, scribe]
+    capabilities:
+      input_modalities: [text, image, video, audio, pdf]
+      output_modalities: [text]
+      image_generation: false
+      evidence_observation: true
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: agy_oauth
+    notes: >
+      Agy Gemini 3.7 Flash High model, verified by the local `agy models`
+      catalog on 2026-09-03. Used for governed narrative planning and review.
+
   grok_4_6_hermes_oauth:
     availability: historical_only
     selectable: false
