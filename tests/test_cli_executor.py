@@ -2230,6 +2230,90 @@ class TestRunCliAgentSubprocess:
         assert receipt["command_binding_verified"] is True
         assert (Path(plan.run_dir) / "model_execution_chain_supervisor.yml").is_file()
 
+    def test_codex_narrative_writer_writes_governed_execution_receipt(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "codex_narrative_writer": {
+                            "worker_id": "codex",
+                            "required_runtime_provider": "codex-cli",
+                            "required_model_key": "codex_gpt_5_6_sol_high_cli_oauth",
+                            "template": (
+                                "codex exec --json --model {model_id} "
+                                "-c 'model_reasoning_effort=\"high\"' "
+                                "--sandbox read-only --ephemeral --ignore-rules "
+                                "--skip-git-repo-check -C {workspace_path} "
+                                "'Read {task_packet_path}'"
+                            ),
+                            "requested_reasoning_label": "high",
+                            "resolved_reasoning_effort": "high",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "codex_gpt_5_6_sol_high_cli_oauth": {
+                            "provider": "codex_cli_oauth",
+                            "runtime_provider": "codex-cli",
+                            "cli_provider": "codex",
+                            "model_id": "gpt-5.6-sol",
+                            "reasoning_effort": "high",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "codex",
+            "invocation_contract": "codex_narrative_writer",
+            "default": "codex_gpt_5_6_sol_high_cli_oauth",
+            "capacity_route": "AlterWriterStrict",
+        }
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "## C401\n- title: test"},
+            }
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/codex"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout=stdout),
+        ):
+            result = run_cli_agent(plan, "Writer", role_profile)
+
+        assert result.status == "completed"
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(encoding="utf-8")
+        )
+        assert receipt["status"] == "pass"
+        assert receipt["worker"] == "codex"
+        assert receipt["role"] == "Writer"
+        assert receipt["invocation_contract"] == "codex_narrative_writer"
+        assert receipt["model"] == "gpt-5.6-sol"
+        assert receipt["reasoning_effort"] == "high"
+        assert receipt["provider_model_binding_verified"] is None
+        assert receipt["command_binding_verified"] is True
+
     def test_codex_supervisor_model_mismatch_blocks_before_provider_process(
         self,
         tmp_path,

@@ -3837,7 +3837,7 @@ def _hermes_supervisor_preflight(
             "invocation_contract": invocation_contract,
             "evidence_source": "runtime_verified_safe_mode_argv_and_catalog_binding",
         }
-    if invocation_contract == "codex_supervisor":
+    if invocation_contract in {"codex_supervisor", "codex_narrative_writer"}:
         expected_model_key = str(contract.get("required_model_key") or "")
         expected_provider = str(contract.get("required_runtime_provider") or "")
         expected_reasoning = str(contract.get("resolved_reasoning_effort") or "")
@@ -3885,7 +3885,7 @@ def _hermes_supervisor_preflight(
             and bool(str(argv[14]).strip())
         )
         if not command_bound:
-            issues.append("supervisor_command_binding_mismatch")
+            issues.append("codex_command_binding_mismatch")
         return {
             "applicable": True,
             "status": "pass" if not issues else "fail",
@@ -4049,10 +4049,19 @@ def _write_hermes_supervisor_model_receipt(
     reported_model = str(usage.get("model") or "").strip()
     reported_provider = str(usage.get("provider") or "").strip()
     response_metadata_observed = bool(reported_model and reported_provider)
-    provider_model_binding_verified = bool(
-        response_metadata_observed
-        and reported_model == str(requested_model or "")
-        and reported_provider == str(requested_provider or "")
+    # Codex CLI's governed JSON stream reports turn completion and usage but not
+    # a provider/model echo. Its exact model binding is therefore the sealed
+    # argv/catalog preflight, not absent provider metadata. Keep this distinct
+    # from a negative provider binding, which RoleAttemptExecutor rejects.
+    is_codex_governed = preflight.get("worker") == "codex"
+    provider_model_binding_verified: bool | None = (
+        None
+        if is_codex_governed and not response_metadata_observed
+        else bool(
+            response_metadata_observed
+            and reported_model == str(requested_model or "")
+            and reported_provider == str(requested_provider or "")
+        )
     )
     receipt = {
         "schema_version": 1,
@@ -5583,6 +5592,8 @@ def run_cli_agent(
             "hermes_alter_artifact",
             "hermes_deepseek",
             "hermes_deepseek_narrative_audit",
+            "codex_supervisor",
+            "codex_narrative_writer",
         }:
             hermes_preflight = _hermes_supervisor_preflight(
                 role_profile,

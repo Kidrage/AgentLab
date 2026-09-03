@@ -758,6 +758,46 @@ contracts:
     fallback:
       on_binary_missing: stop_and_report
 
+  codex_narrative_writer:
+    worker_id: codex
+    required_runtime_provider: codex-cli
+    required_model_key: codex_gpt_5_6_sol_high_cli_oauth
+    display_name: Codex Native Narrative Writer
+    command: codex
+    invocation_style: governed_narrative_writer_task_packet
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    required_receipts:
+      - role_session_receipt.yml
+      - model_execution_chain_writer.yml
+      - writer_output.md
+    template: >-
+      codex exec --json --model "{model_id}" -c 'model_reasoning_effort="high"'
+      --sandbox read-only --ephemeral --ignore-rules --skip-git-repo-check -C "{workspace_path}"
+      "Read only the AgentLab Writer task packet at {task_packet_path}. Produce only
+      the assigned candidate text in the required format. Do not read unrelated files,
+      call external tools, edit files, promote canon, or perform human acceptance."
+    required_placeholders:
+      - workspace_path
+      - task_packet_path
+      - model_id
+    requested_reasoning_label: high
+    resolved_reasoning_effort: high
+    safe_probe:
+      - codex
+      - --version
+    expected_parse:
+      argv_prefix:
+        - codex
+        - exec
+        - --json
+        - --model
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+
   openclaw:
     worker_id: openclaw
     display_name: OpenClaw Operator

@@ -54,14 +54,14 @@ def _write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
-def test_models_show_lists_writer_codex_sol_high_default():
+def test_models_show_lists_writer_claude_deepseek_default():
     result = runner.invoke(app, ["models", "show", "--role", "Writer"])
 
     assert result.exit_code == 0
     assert "writer" in result.output
-    assert "codex" in result.output
-    assert "codex_gpt_5_6_sol_high_cli_oauth" in result.output
-    assert "fallback=" in result.output
+    assert "claude_code" in result.output
+    assert "deepseek_v4_pro" in result.output
+    assert "WriterFlash" in result.output
 
 
 def test_models_show_lists_observer_supervisor_and_agy_research_routes():

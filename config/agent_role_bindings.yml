@@ -109,8 +109,8 @@ workers:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
-    allowed_roles: [Supervisor, RepoScout, InterfaceMapper, Coder, ArtifactProducer, Scribe, TesterAuditor, Verifier]
-    forbidden_roles: [Observer, Researcher, PromptEngineer, NarrativePlanner, Writer, Reviewer, Archivist]
+    allowed_roles: [Supervisor, RepoScout, InterfaceMapper, Coder, ArtifactProducer, Writer, Scribe, TesterAuditor, Verifier]
+    forbidden_roles: [Observer, Researcher, PromptEngineer, NarrativePlanner, Reviewer, Archivist]
   claude_code:
     availability: verified_current_host
     selectable: true
