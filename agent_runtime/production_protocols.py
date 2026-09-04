@@ -303,6 +303,7 @@ class ProductionProtocolRunner:
             graph_document = dict(existing_graph)
 
         bindings = list(graph_document.get("role_bindings") or ())
+        facts_sha256 = str(graph_document.get("task_facts_sha256") or "")
         expected_ids = [str(binding["node_id"]) for binding in bindings]
         existing_items = projection["work_items"]
         unexpected = sorted(set(existing_items) - set(expected_ids))
@@ -338,6 +339,26 @@ class ProductionProtocolRunner:
                     raise InvalidTransition(
                         f"materialized protocol node is stale: {node_id}"
                     )
+                # A candidate revision can leave downstream nodes blocked from
+                # the preceding revision.  Once every immutable dependency has
+                # accepted its newly selected candidate, make the node eligible
+                # for governed execution again; do not bypass the dependency
+                # check or reopen any non-blocked lifecycle state.
+                if item.get("status") == "blocked" and all(
+                    (existing_items.get(str(dependency)) or {}).get("status")
+                    == "accepted"
+                    for dependency in (binding.get("depends_on") or ())
+                ):
+                    projection = self.runtime.transition_work_item(
+                        task_id,
+                        work_item_id=node_id,
+                        status="ready",
+                        idempotency_key=(
+                            f"protocol-{facts_sha256[:24]}-{node_id}-"
+                            "dependencies-accepted"
+                        ),
+                    )
+                    existing_items = projection["work_items"]
             return projection
 
         items = [
@@ -355,7 +376,6 @@ class ProductionProtocolRunner:
             }
             for binding in bindings
         ]
-        facts_sha256 = str(graph_document.get("task_facts_sha256") or "")
         return self.runtime.create_work_items(
             task_id,
             batch_id=f"protocol-{facts_sha256[:24]}",
