@@ -559,12 +559,11 @@ class RoleAttemptExecutor:
                 first_contract = contract
                 first_worker = str(child.get("worker") or "")
                 first_provider = str(child.get("provider") or "")
-            elif (
-                contract != first_contract
-                or child.get("worker") != first_worker
-                or child.get("provider") != first_provider
-            ):
-                raise InvalidTransition("composite child execution routes differ")
+            # A deterministic assembly may intentionally combine validated
+            # historical baseline segments with segments produced in the current
+            # revision.  The composite itself performs no model call, so route
+            # uniformity is neither necessary nor truthful.  Each child remains
+            # independently receipt-verified and its exact route is sealed below.
             outcome = child.get("outcome") or {}
             child_output = (
                 self.runtime.tasks_root
@@ -588,6 +587,9 @@ class RoleAttemptExecutor:
                     "validation_receipt_sha256": (
                         child.get("output_validation") or {}
                     ).get("receipt_sha256"),
+                    "execution_contract": contract,
+                    "worker": child.get("worker"),
+                    "provider": child.get("provider"),
                 }
             )
         assert first_contract is not None
