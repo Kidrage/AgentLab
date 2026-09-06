@@ -15,6 +15,11 @@ except ImportError:  # pragma: no cover
     from agent_runtime.atomic_io import atomic_write_yaml
 
 try:
+    from agent_runtime.legacy_runtime_guard import assert_legacy_run_write_allowed
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from legacy_runtime_guard import assert_legacy_run_write_allowed
+
+try:
     from agent_runtime.schemas import TaskState
 except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
     from schemas import TaskState
@@ -45,6 +50,7 @@ def _state_to_dict(state: TaskState | dict[str, Any]) -> dict[str, Any]:
 
 
 def save_state(run_dir: Path, state: TaskState | dict[str, Any]) -> Path:
+    assert_legacy_run_write_allowed(run_dir, operation="state_store.save_state")
     run_dir.mkdir(parents=True, exist_ok=True)
     if isinstance(state, TaskState):
         state.updated_at = utc_now()
@@ -130,6 +136,7 @@ class TaskEvents:
         self.run_dir = run_dir or Path(f"projects/AgentLab/runs/{task_id}")
 
     def record_event(self, event_data: dict) -> None:
+        assert_legacy_run_write_allowed(self.run_dir, operation="state_store.TaskEvents.record_event")
         self.run_dir.mkdir(parents=True, exist_ok=True)
         events_path = self.run_dir / "task_events.jsonl"
         event = {"timestamp": utc_now(), **event_data}

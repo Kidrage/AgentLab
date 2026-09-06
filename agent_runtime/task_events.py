@@ -1,4 +1,4 @@
-"""Task event log primitives for AgentLab feedback loops."""
+"""Task event log primitives for AgentLab legacy feedback loops."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any
 import json
 
 from agent_runtime.atomic_io import atomic_write_text
+from agent_runtime.legacy_runtime_guard import assert_legacy_run_write_allowed
 
 
 TASK_STATUSES = {
@@ -84,6 +85,7 @@ def append_task_event(
     message: str = "",
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    assert_legacy_run_write_allowed(run_dir, operation="task_events.append_task_event")
     if severity not in NOTIFICATION_LEVELS:
         raise ValueError(f"Unknown notification level: {severity}")
     if status and status not in TASK_STATUSES:
