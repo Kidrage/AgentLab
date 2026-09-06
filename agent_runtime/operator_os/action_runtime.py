@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,7 @@ import yaml
 from agent_runtime.atomic_io import atomic_write_yaml
 from agent_runtime.operator_os.action_contract import validate_operator_action
 from agent_runtime.task_events import append_task_event
+from agent_runtime.task_runtime_v2.runtime import TaskRuntime, TaskRuntimeError
 
 
 def execute_operator_action(root: Path | None, request: dict[str, Any]) -> dict[str, Any]:
@@ -125,13 +128,130 @@ def _apply_runtime_effect(root: Path | None, request: dict[str, Any], validation
 
 
 def _apply_task_effect(root: Path, project: str, task_id: str, action: str, request: dict[str, Any]) -> dict[str, Any]:
+    """Route task mutations to the v2 authority before considering legacy compatibility."""
+    v2_task_dir = root / "projects" / project / "runtime" / "tasks" / task_id
+    if v2_task_dir.exists():
+        return _apply_v2_task_effect(root, project, task_id, action, request)
+
     run_dir = root / "projects" / project / "runs" / task_id
     if not run_dir.exists():
         return {"success": False, "status": "task_not_found", "errors": [f"task_not_found:{task_id}"]}
+    return _apply_legacy_task_effect(root, project, task_id, action, request)
+
+
+def _apply_v2_task_effect(
+    root: Path,
+    project: str,
+    task_id: str,
+    action: str,
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply an Operator task action through the Task Runtime v2 event ledger only."""
+    desired_status = {
+        "pause": "paused",
+        "resume": "ready",
+        "retry": "ready",
+        "cancel": "cancelled",
+    }.get(action)
+    if desired_status is None:
+        return _apply_project_brain_effect(root, project, "task", task_id, action, request)
+
+    runtime = TaskRuntime(root, project=project)
+    try:
+        projection = runtime.rebuild_task(task_id)
+    except (TaskRuntimeError, OSError, ValueError) as exc:
+        # A present v2 task is authoritative even when damaged. Never fall through
+        # to a legacy run and create split-brain state.
+        return {
+            "success": False,
+            "status": "task_runtime_v2_unavailable",
+            "authority": "task_runtime_v2",
+            "errors": [str(exc)],
+        }
+
+    task = dict(projection.get("task") or {})
+    current_status = str(task.get("status") or "")
+    if current_status == desired_status:
+        return {
+            "success": True,
+            "status": f"task_{action}_already_{desired_status}",
+            "mutated_state": False,
+            "authority": "task_runtime_v2",
+            "task": task,
+        }
+
+    idempotency_key = str(request.get("idempotency_key") or "").strip()
+    if not idempotency_key:
+        idempotency_key = _operator_v2_idempotency_key(
+            project=project,
+            task_id=task_id,
+            action=action,
+            request=request,
+            task_projection=task,
+        )
+
+    try:
+        updated = runtime.transition_task(
+            task_id,
+            status=desired_status,
+            idempotency_key=idempotency_key,
+        )
+    except (TaskRuntimeError, OSError, ValueError) as exc:
+        return {
+            "success": False,
+            "status": "task_runtime_v2_transition_blocked",
+            "authority": "task_runtime_v2",
+            "errors": [str(exc)],
+        }
+
+    return {
+        "success": True,
+        "status": f"task_{action}_recorded",
+        "mutated_state": True,
+        "authority": "task_runtime_v2",
+        "task": dict(updated.get("task") or {}),
+        "idempotency_key": idempotency_key,
+    }
+
+
+def _operator_v2_idempotency_key(
+    *,
+    project: str,
+    task_id: str,
+    action: str,
+    request: dict[str, Any],
+    task_projection: dict[str, Any],
+) -> str:
+    """Derive a stable key for retrying the same action against the same v2 state."""
+    payload = {
+        "project": project,
+        "task_id": task_id,
+        "action": action,
+        "actor": request.get("actor"),
+        "reason": request.get("reason"),
+        "source_surface": request.get("source_surface") or "unknown",
+        "task_projection": task_projection,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"operator-{action}-{digest[:32]}"
+
+
+def _apply_legacy_task_effect(
+    root: Path,
+    project: str,
+    task_id: str,
+    action: str,
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    """Compatibility-only mutation path for tasks that have no Runtime v2 identity."""
+    run_dir = root / "projects" / project / "runs" / task_id
     mapping = {
         "pause": ("paused", "paused", "TASK_PAUSED", "WAITING_FOR_APPROVAL", "ACTION_REQUIRED"),
         "resume": ("running", "running", "TASK_RESUMED", "RUNNING", "MILESTONE"),
         "retry": ("retryable", "retry_requested", "TASK_RETRY_REQUESTED", "FAILED_RECOVERABLE", "FAILED_RECOVERABLE"),
+        "cancel": ("failed", "stopped", "TASK_STOPPED", "FAILED_FINAL", "FAILED_RECOVERABLE"),
     }
     if action not in mapping:
         return _apply_project_brain_effect(root, project, "task", task_id, action, request)
@@ -171,6 +291,7 @@ def _apply_task_effect(root: Path, project: str, task_id: str, action: str, requ
         "success": True,
         "status": f"task_{action}_recorded",
         "mutated_state": True,
+        "authority": "legacy_runs_compat",
         "state_path": _rel(run_dir / "state.yml", root),
         "progress_path": _rel(run_dir / "progress.yml", root),
         "event": event,
@@ -243,6 +364,8 @@ def _project_status_for_action(action: str) -> str:
         return "ready"
     if action == "retry":
         return "retry_requested"
+    if action == "cancel":
+        return "cancelled"
     if action == "reject":
         return "needs_revision"
     if action == "approve":

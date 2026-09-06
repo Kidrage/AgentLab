@@ -76,6 +76,15 @@ OPERATOR_ACTIONS: dict[str, OperatorActionSpec] = {
         runtime_contract="existing_retry_policy_then_retry",
         audit_event_type="operator.retry_requested",
     ),
+    "cancel": OperatorActionSpec(
+        action="cancel",
+        target_types=["task"],
+        mutates_state=True,
+        requires_actor=True,
+        requires_reason=True,
+        runtime_contract="existing_task_cancel",
+        audit_event_type="operator.cancelled",
+    ),
     "request_missing_evidence": OperatorActionSpec(
         action="request_missing_evidence",
         target_types=["phase", "executor_result"],
