@@ -1,6 +1,7 @@
-"""Progress tracking for task state — read/write progress.yml.
+"""Legacy task progress projection — read/write ``progress.yml``.
 
-Single-source-of-truth progress file consumed by both CLI and Web UI.
+``progress.yml`` remains a compatibility surface for legacy-only runs. It is
+not authoritative once a same-named Task Runtime v2 identity exists.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from typing import Optional
 import yaml
 
 from agent_runtime.atomic_io import atomic_write_yaml, safe_read_yaml
+from agent_runtime.legacy_runtime_guard import assert_legacy_run_write_allowed
 
 
 DEFAULT_AGENT_WEIGHTS = {
@@ -43,7 +45,8 @@ def create_progress(
     risk_level: str = "R1",
     budget_mode: str = "balanced",
 ) -> dict:
-    """Initialise progress.yml for a task."""
+    """Initialise ``progress.yml`` for a legacy-only task run."""
+    assert_legacy_run_write_allowed(run_dir, operation="progress_tracker.create_progress")
     agents = {}
     for idx, name in enumerate(route):
         agents[name] = {
@@ -95,11 +98,12 @@ def create_progress(
 
 
 def load_progress(run_dir: Path) -> dict | None:
-    """Read progress.yml, return None if missing."""
+    """Read legacy ``progress.yml``; return ``None`` if missing."""
     return safe_read_yaml(progress_path(run_dir))
 
 
 def save_progress(run_dir: Path, data: dict) -> None:
+    assert_legacy_run_write_allowed(run_dir, operation="progress_tracker.save_progress")
     data["last_event_at"] = utc_now()
     atomic_write_yaml(progress_path(run_dir), data)
     try:
@@ -110,7 +114,7 @@ def save_progress(run_dir: Path, data: dict) -> None:
 
 
 def mark_agent_started(run_dir: Path, agent_name: str, provider_key: str, model: str) -> dict | None:
-    """Mark agent as active in progress.yml."""
+    """Mark agent as active in legacy ``progress.yml``."""
     data = load_progress(run_dir)
     if data is None:
         return None
@@ -186,7 +190,7 @@ def _calc_percent(data: dict) -> int:
 
 
 def progress_summary(data: dict) -> dict:
-    """Extract a compact progress summary for CLI/Web UI."""
+    """Extract a compact progress summary for CLI/Web UI compatibility."""
     agents_list = []
     for name in data.get("route", []):
         ag = data.get("agents", {}).get(name, {})
