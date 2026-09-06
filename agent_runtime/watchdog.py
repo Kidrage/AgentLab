@@ -1,4 +1,4 @@
-"""Watchdog checks for stale AgentLab task runs."""
+"""Watchdog checks for stale AgentLab legacy task runs."""
 
 from __future__ import annotations
 
@@ -9,6 +9,14 @@ from typing import Any
 from atomic_io import atomic_write_json, safe_read_yaml
 from feedback_manager import create_decision_card, load_pending_decision_cards, write_feedback_status
 from task_events import append_task_event, load_task_events
+
+try:
+    from agent_runtime.legacy_runtime_guard import (
+        assert_legacy_run_write_allowed,
+        legacy_run_shadowed_by_v2,
+    )
+except ImportError:  # pragma: no cover - direct runtime import path
+    from legacy_runtime_guard import assert_legacy_run_write_allowed, legacy_run_shadowed_by_v2
 
 
 RUNNING_STATUSES = {"running", "in_progress", "active"}
@@ -98,9 +106,30 @@ def _stale_decision_exists(run_dir: Path) -> bool:
     return False
 
 
+def _shadowed_status(project: str, task_id: str, run_dir: Path) -> dict[str, Any]:
+    return {
+        "project": project,
+        "task_id": task_id,
+        "run_dir": str(run_dir),
+        "raw_status": "legacy_shadowed",
+        "is_stale": False,
+        "reasons": [],
+        "event_age_seconds": None,
+        "heartbeat_age_seconds": None,
+        "approval_age_seconds": None,
+        "lock_age_seconds": None,
+        "pending_decision_count": 0,
+        "shadowed_by_v2": True,
+        "authority": "task_runtime_v2",
+    }
+
+
 def inspect_task(agentlab_root: Path, project: str, task_id: str, *, policy: dict[str, Any] | None = None) -> dict[str, Any]:
     policy = policy or load_policy(agentlab_root)
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
+    if legacy_run_shadowed_by_v2(run_dir):
+        return _shadowed_status(project, task_id, run_dir)
+
     progress = safe_read_yaml(run_dir / "progress.yml", default={}) or {}
     state = safe_read_yaml(run_dir / "state.yml", default={}) or {}
     thresholds = policy["thresholds"]
@@ -137,11 +166,14 @@ def inspect_task(agentlab_root: Path, project: str, task_id: str, *, policy: dic
         "approval_age_seconds": approval_age,
         "lock_age_seconds": lock_age,
         "pending_decision_count": len(pending),
+        "shadowed_by_v2": False,
+        "authority": "legacy_runs_compat",
     }
 
 
 def mark_stale(agentlab_root: Path, project: str, task_id: str, status: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
+    assert_legacy_run_write_allowed(run_dir, operation="watchdog.mark_stale")
     actions = policy["stale_actions"]
     created_card = None
     reason = ", ".join(status.get("reasons", [])) or "stale task run"
@@ -230,6 +262,7 @@ def scan_project(agentlab_root: Path, project: str, *, task_id: str | None = Non
         "project": project,
         "task_count": len(results),
         "stale_count": len([item for item in results if item.get("is_stale")]),
+        "shadowed_legacy_count": len([item for item in results if item.get("shadowed_by_v2")]),
         "tasks": results,
     }
     atomic_write_json(
