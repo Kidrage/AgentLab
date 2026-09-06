@@ -151,6 +151,7 @@ def _apply_v2_task_effect(
         "pause": "paused",
         "resume": "ready",
         "retry": "ready",
+        "cancel": "cancelled",
     }.get(action)
     if desired_status is None:
         return _apply_project_brain_effect(root, project, "task", task_id, action, request)
@@ -252,6 +253,7 @@ def _apply_legacy_task_effect(
         "pause": ("paused", "paused", "TASK_PAUSED", "WAITING_FOR_APPROVAL", "ACTION_REQUIRED"),
         "resume": ("running", "running", "TASK_RESUMED", "RUNNING", "MILESTONE"),
         "retry": ("retryable", "retry_requested", "TASK_RETRY_REQUESTED", "FAILED_RECOVERABLE", "FAILED_RECOVERABLE"),
+        "cancel": ("failed", "stopped", "TASK_STOPPED", "FAILED_FINAL", "FAILED_RECOVERABLE"),
     }
     if action not in mapping:
         return _apply_project_brain_effect(root, project, "task", task_id, action, request)
@@ -364,6 +366,8 @@ def _project_status_for_action(action: str) -> str:
         return "ready"
     if action == "retry":
         return "retry_requested"
+    if action == "cancel":
+        return "cancelled"
     if action == "reject":
         return "needs_revision"
     if action == "approve":
