@@ -40,18 +40,24 @@ def runtime_v2_identity_path(run_dir: Path) -> Path | None:
     return project_root / "runtime" / "tasks" / task_id
 
 
+def _identity_present(path: Path) -> bool:
+    """Treat a dangling symlink as an existing, but corrupt, v2 identity."""
+
+    return path.exists() or path.is_symlink()
+
+
 def legacy_run_shadowed_by_v2(run_dir: Path) -> bool:
     """Return true when the legacy run is shadowed by an existing v2 identity."""
 
     v2_path = runtime_v2_identity_path(run_dir)
-    return bool(v2_path is not None and v2_path.exists())
+    return bool(v2_path is not None and _identity_present(v2_path))
 
 
 def assert_legacy_run_write_allowed(run_dir: Path, *, operation: str) -> None:
-    """Fail closed if a same-named Runtime v2 Task already exists."""
+    """Fail closed if a same-named Runtime v2 Task identity is present."""
 
     v2_path = runtime_v2_identity_path(run_dir)
-    if v2_path is None or not v2_path.exists():
+    if v2_path is None or not _identity_present(v2_path):
         return
     raise LegacyRuntimeAuthorityError(
         "legacy runtime write blocked because Task Runtime v2 is authoritative: "
