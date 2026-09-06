@@ -73,6 +73,24 @@ def test_guard_recognizes_only_canonical_legacy_run_layout(tmp_path: Path) -> No
     assert legacy_run_shadowed_by_v2(run_dir) is True
 
 
+def test_dangling_v2_identity_still_blocks_legacy_fallback(tmp_path: Path) -> None:
+    run_dir = _legacy_run(tmp_path)
+    v2_path = runtime_v2_identity_path(run_dir)
+    assert v2_path is not None
+    v2_path.parent.mkdir(parents=True)
+    v2_path.symlink_to(tmp_path / "missing-v2-target", target_is_directory=True)
+    state_before = (run_dir / "state.yml").read_bytes()
+
+    assert legacy_run_shadowed_by_v2(run_dir) is True
+    with pytest.raises(LegacyRuntimeAuthorityError, match="Task Runtime v2 is authoritative"):
+        save_state(
+            run_dir,
+            {"project": "Demo", "task_id": "task_0001", "status": "paused"},
+        )
+
+    assert (run_dir / "state.yml").read_bytes() == state_before
+
+
 def test_state_and_progress_writers_fail_closed_without_mutating_legacy_bytes(
     tmp_path: Path,
 ) -> None:
