@@ -1,4 +1,4 @@
-"""Feedback and intervention scaffolding for AgentLab."""
+"""Feedback and intervention scaffolding for AgentLab legacy runs."""
 
 from __future__ import annotations
 
@@ -8,9 +8,11 @@ from typing import Any
 
 try:
     from agent_runtime.atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml, safe_read_yaml
+    from agent_runtime.legacy_runtime_guard import assert_legacy_run_write_allowed
     from agent_runtime.task_events import append_task_event, build_decision_card, load_task_events
 except ImportError:
     from atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml, safe_read_yaml
+    from legacy_runtime_guard import assert_legacy_run_write_allowed
     from task_events import append_task_event, build_decision_card, load_task_events
 
 
@@ -34,6 +36,7 @@ def _project_from_run_dir(run_dir: Path) -> tuple[Path, str, str]:
 
 
 def write_decision_card(run_dir: Path, card: dict[str, Any]) -> Path:
+    assert_legacy_run_write_allowed(run_dir, operation="feedback_manager.write_decision_card")
     card_id = card.get("id")
     if not card_id:
         raise ValueError("Decision card is missing id.")
@@ -145,6 +148,7 @@ def resolve_decision_card(
     resolution: str = "approved",
     actor: str = "user",
 ) -> dict[str, Any]:
+    assert_legacy_run_write_allowed(run_dir, operation="feedback_manager.resolve_decision_card")
     card, path = load_decision_card(run_dir, decision_id)
     if not card or path is None:
         raise FileNotFoundError(f"Decision card not found: {decision_id}")
@@ -260,6 +264,7 @@ def assess_task_feedback_state(
 
 
 def write_feedback_status(run_dir: Path, *, stale_after_seconds: int = 600) -> Path:
+    assert_legacy_run_write_allowed(run_dir, operation="feedback_manager.write_feedback_status")
     status = assess_task_feedback_state(run_dir, stale_after_seconds=stale_after_seconds)
     path = feedback_status_path(run_dir)
     atomic_write_json(path, status)
