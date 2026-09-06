@@ -180,7 +180,6 @@ def _apply_v2_task_effect(
             "task": task,
         }
 
-    reason = str(request.get("reason") or action)
     idempotency_key = str(request.get("idempotency_key") or "").strip()
     if not idempotency_key:
         idempotency_key = _operator_v2_idempotency_key(
@@ -196,7 +195,6 @@ def _apply_v2_task_effect(
             task_id,
             status=desired_status,
             idempotency_key=idempotency_key,
-            reason=reason,
         )
     except (TaskRuntimeError, OSError, ValueError) as exc:
         return {
